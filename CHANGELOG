@@ -1,0 +1,11 @@
+Version 0.2.0 (2015-03-23)
+--------------------------
+Added support for Singular creative stats (#5)
+Widened campaign_url for singular_campaigns to 8192 (#6)
+Fixed the README quickstart's references to scala-forex (#4)
+Added subcampaign_name to singular_campaigns table (#10)
+Now extracting subcampaign_name from Singular's campaigns resource (#9)
+
+Version 0.1.0 (2015-02-01)
+--------------------------
+Initial release
