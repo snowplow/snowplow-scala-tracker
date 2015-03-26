@@ -13,7 +13,7 @@
 import sbt._
 import Keys._
 
-object ScalaForexBuild extends Build {
+object SnowplowTrackerBuild extends Build {
 
   import Dependencies._
   import BuildSettings._
@@ -24,7 +24,7 @@ object ScalaForexBuild extends Build {
   }
 
   // Define our project, with basic project information and library dependencies
-  lazy val project = Project("scala-forex", file("."))
+  lazy val project = Project("snowplow-tracker", file("."))
     .settings(buildSettings: _*)
     .settings(
       libraryDependencies <++= Dependencies.onVersion(
