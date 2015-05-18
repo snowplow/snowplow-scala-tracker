@@ -15,7 +15,9 @@ class Payload {
   val nvPairs = MMap[String, String]()
 
   def add(name: String, value: String) {
-    nvPairs += (name -> value)
+    if (!name.isEmpty && name != null && !value.isEmpty && value != null) {
+      nvPairs += (name -> value)
+    }
   }
 
   def addJson(
