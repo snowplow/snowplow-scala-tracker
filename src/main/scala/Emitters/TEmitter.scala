@@ -34,7 +34,7 @@ object TEmitter {
   val longTimeout = 5.minutes
   implicit val timeout = Timeout(longTimeout)
 
-  def attemptGet(host: String): Boolean = {
+  def attemptGet(host: String, payload: Map[String, String]): Boolean = {
     val connectedSendReceive = for {
       Http.HostConnectorInfo(connector, _) <-
         IO(Http) ? Http.HostConnectorSetup(host, sslEncryption = false)
@@ -42,7 +42,13 @@ object TEmitter {
 
     val pipeline = for (sendRecv <- connectedSendReceive) yield sendRecv
 
-    val req = Get(host + "/i")
+    val uri = Uri()
+      .withScheme("http")
+      .withPath(Uri.Path("/i"))
+      .withAuthority(Uri.Authority(Uri.Host(host)))
+      .withQuery(payload)
+
+    val req = Get(uri)
     val future = pipeline.flatMap(_(req))
     val result = Await.ready(future, longTimeout).value.get
 

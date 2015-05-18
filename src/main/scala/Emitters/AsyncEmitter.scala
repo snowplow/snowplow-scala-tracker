@@ -5,15 +5,15 @@ import java.util.concurrent.LinkedBlockingQueue
 object AsyncEmitter {
 
   // Avoid starting thread in constructor
-  def apply(): AsyncEmitter = {
-    val emitter = new AsyncEmitter()
+  def apply(host: String): AsyncEmitter = {
+    val emitter = new AsyncEmitter(host)
     emitter.startWorker()
     emitter
   }
 
 }
 
-class AsyncEmitter private extends TEmitter {
+class AsyncEmitter private(host: String) extends TEmitter {
 
   val queue = new LinkedBlockingQueue[Map[String, String]]()
 
@@ -22,7 +22,7 @@ class AsyncEmitter private extends TEmitter {
       while (true) {
         val event = queue.take()
 
-        println(event)
+        TEmitter.attemptGet(host, event)
       }
     }
   }
