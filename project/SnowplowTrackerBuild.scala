@@ -29,11 +29,14 @@ object SnowplowTrackerBuild extends Build {
     .settings(
       libraryDependencies <++= Dependencies.onVersion(
         all = Seq(
+        Libraries.commonsLang,
+        Libraries.commonsCodec,
         Libraries.jodaTime,
         Libraries.jodaConvert,
         Libraries.jodaMoney,
         Libraries.jackson,
         Libraries.scalaUtil,
+        Libraries.json4sJackson,
         Libraries.mockito),
         on29 = Seq(Libraries.collUtil._29, Libraries.specs2._29),
         on210 = Seq(Libraries.collUtil._210, Libraries.specs2._210),

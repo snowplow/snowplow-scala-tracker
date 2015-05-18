@@ -25,6 +25,8 @@ object Dependencies {
 
   object V {
     // Java
+    val commonsLang = "3.1"
+    val commonsCodec = "1.5"
     val jodaTime    = "2.3"
     val jodaMoney   = "0.9"
     val jodaConvert = "1.2"
@@ -32,6 +34,7 @@ object Dependencies {
     
     // Scala
     val scalaUtil   = "0.1.0"
+    val json4s      = "3.2.11"
     object collUtil {
       val _29       = "5.3.10"
       val _210      = "6.3.4"
@@ -51,6 +54,8 @@ object Dependencies {
 
   object Libraries {
     // Java
+    val commonsCodec = "commons-codec"             % "commons-codec"      % V.commonsCodec
+    val commonsLang = "org.apache.commons"         % "commons-lang3"      % V.commonsLang
     val jodaTime    = "joda-time"                  % "joda-time"          % V.jodaTime
     val jodaMoney   = "org.joda"                   % "joda-money"         % V.jodaMoney
     val jodaConvert = "org.joda"                   % "joda-convert"       % V.jodaConvert
@@ -58,6 +63,7 @@ object Dependencies {
 
     // Scala
     val scalaUtil   = "com.snowplowanalytics"      %  "scala-util"        % V.scalaUtil
+    val json4sJackson = "org.json4s"               %% "json4s-jackson"    % V.json4s
     object collUtil {
       val _29       = "com.twitter"                % "util-collection"    % V.collUtil._29
       val _210      = "com.twitter"                %% "util-collection"   % V.collUtil._210

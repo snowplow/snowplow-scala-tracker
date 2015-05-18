@@ -18,13 +18,27 @@ object BuildSettings {
   // Basic settings for our app
   lazy val basicSettings = Seq[Setting[_]](
     organization          :=  "com.snowplowanalytics",
-    version               :=  "0.2.0",
-    description           :=  "High-performance Scala library for performing currency conversions using Open Exchange Rates",
+    version               :=  "0.1.0",
+    description           :=  "Scala tracker for Snowplow",
     scalaVersion          :=  "2.10.1",
     crossScalaVersions    :=  Seq("2.9.3", "2.10.1", "2.11.5"), 
     scalacOptions         :=  Seq("-deprecation", "-encoding", "utf8"),
     resolvers             ++= Dependencies.resolutionRepos
   )
+
+  // Makes our SBT app settings available from within the ETL
+  lazy val scalifySettings = Seq(sourceGenerators in Compile <+= (sourceManaged in Compile, version, name, organization, scalaVersion) map { (d, v, n, o, sv) =>
+    val file = d / "settings.scala"
+    IO.write(file, """package com.snowplowanalytics.snowplow.scalatracker.generated
+      |object ProjectSettings {
+      |  val version = "%s"
+      |  val name = "%s"
+      |  val organization = "%s"
+      |  val scalaVersion = "%s"
+      |}
+      |""".stripMargin.format(v, n, o, sv))
+    Seq(file)
+  })
 
   // Publish settings
   // TODO: update with ivy credentials etc when we start using Nexus
@@ -40,5 +54,5 @@ object BuildSettings {
     }
   )
 
-  lazy val buildSettings = basicSettings ++ publishSettings
+  lazy val buildSettings = basicSettings ++ scalifySettings ++ publishSettings
 }
