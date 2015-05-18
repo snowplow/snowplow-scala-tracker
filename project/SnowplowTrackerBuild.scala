@@ -37,6 +37,7 @@ object SnowplowTrackerBuild extends Build {
         Libraries.jackson,
         Libraries.scalaUtil,
         Libraries.json4sJackson,
+        Libraries.sprayClient,
         Libraries.mockito),
         on29 = Seq(Libraries.collUtil._29, Libraries.specs2._29),
         on210 = Seq(Libraries.collUtil._210, Libraries.specs2._210),

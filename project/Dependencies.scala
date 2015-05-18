@@ -35,6 +35,7 @@ object Dependencies {
     // Scala
     val scalaUtil   = "0.1.0"
     val json4s      = "3.2.11"
+    val sprayClient = "1.3.2"
     object collUtil {
       val _29       = "5.3.10"
       val _210      = "6.3.4"
@@ -63,6 +64,7 @@ object Dependencies {
 
     // Scala
     val scalaUtil   = "com.snowplowanalytics"      %  "scala-util"        % V.scalaUtil
+    val sprayClient = "io.spray"                   %% "spray-client"      % V.sprayClient
     val json4sJackson = "org.json4s"               %% "json4s-jackson"    % V.json4s
     object collUtil {
       val _29       = "com.twitter"                % "util-collection"    % V.collUtil._29
