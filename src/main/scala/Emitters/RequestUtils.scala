@@ -36,10 +36,16 @@ import spray.can.Http
 import spray.can.Http.HostConnectorSetup
 import spray.io.ClientSSLEngineProvider
 
+// Config
+import com.typesafe.config.ConfigFactory
+
 object RequestUtils {
   private val Encoding = "UTF-8"
 
-  implicit val system = ActorSystem(generated.ProjectSettings.name)
+  implicit val system = ActorSystem(
+    generated.ProjectSettings.name,
+    ConfigFactory.parseString("akka.daemonic=on"))
+
   import system.dispatcher
   import system.log
 
