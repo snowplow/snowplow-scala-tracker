@@ -39,6 +39,8 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
     }
   }
 
+  worker.setDaemon(true)
+
   def input(event: Map[String, String]) {
     queue.put(event)
   }
