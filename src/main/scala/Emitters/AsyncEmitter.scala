@@ -17,7 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue
 object AsyncEmitter {
 
   // Avoid starting thread in constructor
-  def apply(host: String, port: Int = 80): AsyncEmitter = {
+  def createAndStart(host: String, port: Int = 80): AsyncEmitter = {
     val emitter = new AsyncEmitter(host, port)
     emitter.startWorker()
     emitter
