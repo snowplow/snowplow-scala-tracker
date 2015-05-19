@@ -46,6 +46,13 @@ object RequestUtils {
   val longTimeout = 5.minutes
   implicit val timeout = Timeout(longTimeout)
 
+  // Close all connections when the application exits
+  Runtime.getRuntime().addShutdownHook(new Thread() {
+    override def run() {
+      shutdown()
+    }
+  })
+
   def attemptGet(host: String, payload: Map[String, String], port: Int = 80): Boolean = {
     val connectedSendReceive = for {
       Http.HostConnectorInfo(connector, _) <-
