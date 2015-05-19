@@ -34,7 +34,7 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
       while (true) {
         val event = queue.take()
 
-        TEmitter.attemptGet(host, event, port)
+        RequestUtils.attemptGet(host, event, port)
       }
     }
   }

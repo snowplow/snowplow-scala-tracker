@@ -15,6 +15,6 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters
 class SyncEmitter(host: String, port: Int = 80) extends TEmitter {
 
   def input(event: Map[String, String]) {
-    TEmitter.attemptGet(host, event, port)
+    RequestUtils.attemptGet(host, event, port)
   }
 }
