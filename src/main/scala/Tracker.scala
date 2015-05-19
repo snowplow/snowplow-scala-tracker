@@ -71,6 +71,8 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
     val payload = new Payload()
 
+    payload.add("e", "ue")
+
     val envelope = SelfDescribingJson(
       "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
       unstructEvent)
