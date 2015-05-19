@@ -29,12 +29,17 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
 
   val queue = new LinkedBlockingQueue[Map[String, String]]()
 
+  // 10 second timeout between failed requests
+  val BackoffPeriod = 10000
+
   val worker = new Thread {
     override def run {
       while (true) {
         val event = queue.take()
 
-        RequestUtils.attemptGet(host, event, port)
+        while (!RequestUtils.attemptGet(host, event, port)) {
+          Thread.sleep(BackoffPeriod)
+        }
       }
     }
   }
