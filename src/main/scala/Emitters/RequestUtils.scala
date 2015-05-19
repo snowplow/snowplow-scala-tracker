@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.scalatracker
 package emitters
 
 // Scala
+import scala.util.control.NonFatal
 import scala.concurrent.{
   Future,
   Await
@@ -80,6 +81,24 @@ object RequestUtils {
     result match {
       case scala.util.Success(s) => s.status.isSuccess
       case scala.util.Failure(f) => false
+    }
+  }
+
+  def retryGetUntilSuccessful(
+    host: String,
+    payload: Map[String, String],
+    port: Int = 80,
+    backoffPeriod: Long) {
+
+    val getSuccessful = try {
+      attemptGet(host, payload, port)
+    } catch {
+      case NonFatal(f) => false
+    }
+
+    if (!getSuccessful) {
+      Thread.sleep(backoffPeriod)
+      retryGetUntilSuccessful(host, payload, port, backoffPeriod)
     }
   }
 
