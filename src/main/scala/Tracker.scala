@@ -66,7 +66,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
   def trackUnstructEvent(
     unstructEvent: SelfDescribingJson,
-    contexts: Seq[SelfDescribingJson],
+    contexts: Seq[SelfDescribingJson] = Nil,
     timestamp: Option[Long] = None): Tracker = {
 
     val payload = new Payload()
