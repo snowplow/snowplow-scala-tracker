@@ -24,6 +24,8 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
   private val Version = generated.ProjectSettings.version
 
+  private var subject: Subject = new Subject()
+
   private def getTimestamp(timestamp: Option[Long]): Long = timestamp match {
     case None => System.currentTimeMillis()
     case Some(t) => t * 1000
@@ -61,6 +63,8 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     payload.add("tna", namespace)
     payload.add("aid", appId)
 
+    payload.addDict(subject.getSubjectInformation())
+
     payload
   }
 
@@ -81,6 +85,11 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
     track(completePayload(payload, contexts, timestamp))
 
+    this
+  }
+
+  def setSubject(subject: Subject): Tracker = {
+    this.subject = subject
     this
   }
 }

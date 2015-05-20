@@ -32,6 +32,12 @@ class Payload {
     }
   }
 
+  def addDict(dict: Map[String, String]) {
+    dict foreach {
+      case (k, v) => add(k, v)
+    }
+  }
+
   def addJson(
     json: JObject,
     encodeBase64: Boolean,
