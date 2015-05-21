@@ -17,15 +17,31 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
 object SelfDescribingJson {
-	def apply(schema: String, data: SelfDescribingJson): SelfDescribingJson = {
-		SelfDescribingJson(schema, data.toJObject)
-	}
 
-	def apply(schema: String, data: Seq[SelfDescribingJson]): SelfDescribingJson = {
-		SelfDescribingJson(schema, JArray(data.toList.map(_.toJObject)))
-	}
+  def apply(
+    protocol: String,
+    vendor: String,
+    name: String,
+    format: String,
+    model: Int,
+    revision: Int,
+    addition: Int,
+    data: JValue): SelfDescribingJson = {
+
+    val schema = s"$protocol:$vendor/$name/$format/$model-$revision-$addition"
+
+    SelfDescribingJson(schema, data)
+  }
+
+  def apply(schema: String, data: SelfDescribingJson): SelfDescribingJson = {
+    SelfDescribingJson(schema, data.toJObject)
+  }
+
+  def apply(schema: String, data: Seq[SelfDescribingJson]): SelfDescribingJson = {
+    SelfDescribingJson(schema, JArray(data.toList.map(_.toJObject)))
+  }
 }
 
 case class SelfDescribingJson(schema: String, data: JValue) {
-	def toJObject(): JObject = ("schema" -> schema) ~ ("data" -> data)
+  def toJObject(): JObject = ("schema" -> schema) ~ ("data" -> data)
 }
