@@ -25,6 +25,12 @@ object AsyncEmitter {
 
 }
 
+/**
+ * Asynchronous emitter using LinkedBlockingQueue
+ *
+ * @param host
+ * @param port
+ */
 class AsyncEmitter private(host: String, port: Int) extends TEmitter {
 
   val queue = new LinkedBlockingQueue[Map[String, String]]()
@@ -44,6 +50,12 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
 
   worker.setDaemon(true)
 
+  /**
+   * Method called to send an event from the tracker to the emitter
+   * Adds the event to the queue
+   *
+   * @param event Fully assembled event
+   */
   def input(event: Map[String, String]) {
     queue.put(event)
   }

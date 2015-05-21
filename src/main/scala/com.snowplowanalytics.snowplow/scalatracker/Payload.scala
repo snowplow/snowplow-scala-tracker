@@ -20,24 +20,46 @@ import org.json4s.jackson.JsonMethods._
 
 import scala.collection.mutable.{Map => MMap}
 
+/**
+ * Contains the map of key-value pairs making up an event
+ */
 class Payload {
 
   val Encoding = "UTF-8"
 
   val nvPairs = MMap[String, String]()
 
+  /**
+   * Add a key-value pair
+   *
+   * @param name
+   * @param value
+   */
   def add(name: String, value: String) {
     if (!name.isEmpty && name != null && !value.isEmpty && value != null) {
       nvPairs += (name -> value)
     }
   }
 
+  /**
+   * Add a map of key-value pairs one by one
+   *
+   * @param dict
+   */
   def addDict(dict: Map[String, String]) {
     dict foreach {
       case (k, v) => add(k, v)
     }
   }
 
+  /**
+   * Stringify a JSON and add it
+   *
+   * @param json
+   * @param encodeBase64 Whether to base 64 encode the JSON
+   * @param typeWhenEncoded Key to use if encodeBase64 is true
+   * @param typeWhenNotEncoded Key to use if encodeBase64 is false
+   */
   def addJson(
     json: JObject,
     encodeBase64: Boolean,
@@ -53,6 +75,11 @@ class Payload {
     }
   }
 
+  /**
+   * Return the key-value pairs making up the event as an immutable map
+   *
+   * @return Event map
+   */
   def get(): Map[String, String] = Map(nvPairs.toList: _*)
 
 }

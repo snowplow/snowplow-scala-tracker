@@ -14,6 +14,10 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import scala.collection.mutable.{Map => MMap}
 
+/**
+ * Class for an event subject, where we view events as of the form
+ * Subject -> Verb -> Object
+ */
 class Subject {
   private val standardNvPairs = MMap[String, String]("p" -> "srv")
 
@@ -62,5 +66,10 @@ class Subject {
     this
   }
 
+  /**
+   * Retrieve the configured information as an immutable map
+   *
+   * @return Data map
+   */
   def getSubjectInformation(): Map[String, String] = Map(standardNvPairs.toList: _*)
 }

@@ -20,6 +20,14 @@ import org.json4s.jackson.JsonMethods._
 
 import emitters.TEmitter
 
+/**
+ * Tracker class
+ *
+ * @param emitters Sequence of emitters to which events are passed
+ * @param namespace Tracker namespace
+ * @param appId ID of the application
+ * @param encodeBase64 Whether to encode JSONs
+ */
 class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeBase64: Boolean = true) {
 
   private val Version = generated.ProjectSettings.version
@@ -31,6 +39,11 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     case Some(t) => t * 1000
   }
 
+  /**
+   * Pass the assembled payload to every emitter
+   *
+   * @param payload
+   */
   private def track(payload: Payload) {
     val event = payload.get
     emitters foreach {
@@ -38,6 +51,14 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     }
   }
 
+  /**
+   * Add contexts and timestamp to the payload
+   *
+   * @param payload
+   * @param contexts
+   * @param timestamp
+   * @return payload with additional data
+   */
   private def completePayload(
     payload: Payload,
     contexts: Seq[SelfDescribingJson],
@@ -68,6 +89,14 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     payload
   }
 
+  /**
+   * Track a Snowplow unstructured event
+   *
+   * @param unstructEvent self-describing JSON for the event
+   * @param contexts
+   * @param timestamp
+   * @return The tracker instance
+   */
   def trackUnstructEvent(
     unstructEvent: SelfDescribingJson,
     contexts: Seq[SelfDescribingJson] = Nil,
@@ -88,6 +117,13 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     this
   }
 
+  /**
+   * Set the Subject for the tracker
+   * The subject's configuration will be attached to every event
+   *
+   * @param subject
+   * @return The tracker instance
+   */
   def setSubject(subject: Subject): Tracker = {
     this.subject = subject
     this

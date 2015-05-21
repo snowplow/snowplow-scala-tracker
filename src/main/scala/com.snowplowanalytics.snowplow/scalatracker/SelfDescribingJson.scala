@@ -18,6 +18,18 @@ import org.json4s.jackson.JsonMethods._
 
 object SelfDescribingJson {
 
+  /**
+   * Create a SelfDescribingJson from the individual components of a schema
+   *
+   * @param protocol
+   * @param vendor
+   * @param name
+   * @param format
+   * @param model
+   * @param revision
+   * @param addition
+   * @param data
+   */
   def apply(
     protocol: String,
     vendor: String,
@@ -33,15 +45,33 @@ object SelfDescribingJson {
     SelfDescribingJson(schema, data)
   }
 
+  /**
+   * Convenience method to create an outer unstruct_event self-describing JSON
+   *
+   * @param schema
+   * @param data Unstructured event self-describing JSOn
+   */
   def apply(schema: String, data: SelfDescribingJson): SelfDescribingJson = {
     SelfDescribingJson(schema, data.toJObject)
   }
 
+  /**
+   * Convenience method to turn a sequence of contexts into a self-describing JSON
+   *
+   * @param schema
+   * @param data Sequence of self-describing JSONs representing custom contexts
+   */
   def apply(schema: String, data: Seq[SelfDescribingJson]): SelfDescribingJson = {
     SelfDescribingJson(schema, JArray(data.toList.map(_.toJObject)))
   }
 }
 
+/**
+ * JSON representing an unstructured event or a custom context
+ *
+ * @param schema
+ * @param data
+ */
 case class SelfDescribingJson(schema: String, data: JValue) {
   def toJObject(): JObject = ("schema" -> schema) ~ ("data" -> data)
 }

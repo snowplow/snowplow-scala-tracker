@@ -12,6 +12,12 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters
 
+/**
+ * Blocking emitter
+ *
+ * @param host
+ * @param port
+ */
 class SyncEmitter(host: String, port: Int = 80) extends TEmitter {
 
   def input(event: Map[String, String]) {

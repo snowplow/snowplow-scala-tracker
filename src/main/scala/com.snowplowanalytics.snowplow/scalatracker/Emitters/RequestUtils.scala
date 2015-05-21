@@ -40,6 +40,9 @@ import spray.io.ClientSSLEngineProvider
 // Config
 import com.typesafe.config.ConfigFactory
 
+/**
+ * Object to hold methods for sending HTTP requests
+ */
 object RequestUtils {
   private val Encoding = "UTF-8"
 
@@ -60,6 +63,14 @@ object RequestUtils {
     }
   })
 
+  /**
+   * Attempt a GET request once
+   *
+   * @param host
+   * @param payload
+   * @param port
+   * @return Whether the request succeeded
+   */
   def attemptGet(host: String, payload: Map[String, String], port: Int = 80): Boolean = {
     val connectedSendReceive = for {
       Http.HostConnectorInfo(connector, _) <-
@@ -84,6 +95,14 @@ object RequestUtils {
     }
   }
 
+  /**
+   * Attempt a GET request until successful
+   *
+   * @param host
+   * @param payload
+   * @param port
+   * @param backoffPeriod How long to wait between failed requests
+   */
   def retryGetUntilSuccessful(
     host: String,
     payload: Map[String, String],
@@ -102,6 +121,9 @@ object RequestUtils {
     }
   }
 
+  /**
+   * Close the actor system and all connections
+   */
   def shutdown() {
     IO(Http).ask(Http.CloseAll)(1.second).await
     system.shutdown
