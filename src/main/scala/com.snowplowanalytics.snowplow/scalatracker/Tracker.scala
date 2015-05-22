@@ -30,7 +30,7 @@ import emitters.TEmitter
  */
 class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeBase64: Boolean = true) {
 
-  private val Version = generated.ProjectSettings.version
+  private val Version = s"scala-${generated.ProjectSettings.version}"
 
   private var subject: Subject = new Subject()
 
