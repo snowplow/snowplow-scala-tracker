@@ -19,10 +19,10 @@ import scala.collection.mutable.{Map => MMap}
  * Subject -> Verb -> Object
  */
 class Subject {
-  private val standardNvPairs = MMap[String, String]("p" -> "srv")
+  private val standardNvPairs = MMap[String, String]("p" -> Server.abbreviation)
 
-  def setPlatform(platform: String): Subject = {
-    standardNvPairs += ("p" -> platform)
+  def setPlatform(platform: Platform): Subject = {
+    standardNvPairs += ("p" -> platform.abbreviation)
     this
   }
 

@@ -81,7 +81,7 @@ class TrackerSpec extends Specification {
       val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
 
       val subject = new Subject()
-        .setPlatform("mob")
+        .setPlatform(Mobile)
         .setUserId("sabnis")
         .setScreenResolution(200, 300)
         .setViewport(50,100)
