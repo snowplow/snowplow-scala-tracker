@@ -16,7 +16,7 @@ package com.snowplowanalytics.snowplow.scalatracker
  * Trait for all acceptable Snowplow platforms
  */
 sealed trait Platform {
-	val abbreviation: String
+  val abbreviation: String
 }
 
 case object Web extends Platform {
