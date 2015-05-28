@@ -4,7 +4,7 @@
 
 ## Overview
 
-Snowplow event tracker for Scala. Add analytics to your Scala apps and servers using the **[Snowplow] [snowplow]** event tracker for **[Scala][scala]**.
+Add analytics to your Scala apps and servers using the **[Snowplow] [snowplow]** event tracker for **[Scala][scala]**.
 
 ## Quickstart
 
