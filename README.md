@@ -21,7 +21,7 @@ guest$ sbt test
 ## Publishing
 
 ```bash
- host$ vagrant push
+ host$ sbt publish-local
 ```
 
 ## Find out more
