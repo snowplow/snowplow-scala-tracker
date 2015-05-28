@@ -2,8 +2,8 @@
 set -e
 
 # Constants
-bintray_package=huskimo
-bintray_artifact_prefix=huskimo_
+bintray_package="snowplow-scala-tracker"
+bintray_artifact_prefix="snowplow-scala-tracker_"
 bintray_user=snowplowbot
 bintray_repository=snowplow/snowplow-generic
 scala_version=2.10
@@ -131,7 +131,7 @@ function build_artifact() {
 	artifact_folder=./${dist_path}
 	mkdir -p ${artifact_folder}
 
-	fatjar_file="huskimo-${__artifact_version}"
+	fatjar_file="snowplow-scala-tracker-${__artifact_version}"
 	fatjar_path="./target/scala-${scala_version}/${fatjar_file}"
 	[ -f "${fatjar_path}" ] || die "Cannot find required fatjar: ${fatjar_path}. Did you forget to update fatjar versions?"
 	cp ${fatjar_path} ${artifact_folder}
