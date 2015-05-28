@@ -1,4 +1,5 @@
 # snowplow-scala-tracker
+[![Build Status][travis-image]][travis]
 [![License][license-image]][license]
 
 ## Overview
@@ -42,6 +43,9 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+[travis-image]: https://travis-ci.org/snowplow/snowplow-scala-tracker.png?branch=master
+[travis]: http://travis-ci.org/snowplow/snowplow-scala-tracker
 
 [license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
