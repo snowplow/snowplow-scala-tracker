@@ -4,18 +4,28 @@ import akka.actor.{ Actor, ActorLogging, Props }
 import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.language.postfixOps
+import scala.collection.mutable.{ Map => MMap }
 
 object Emitter {
+  import org.apache.commons.codec.binary.Base64
+
   val BACKOFF_PERIOD = 10 seconds
+  val Encoding = "UTF-8"
 
-  implicit def enrichMap[T, U](m: Map[T, U]) = new JsonMap[T, U](m)
+  implicit def enrichMap[T, U](m: MMap[T, U]) = new JsonMap[T, U](m)
 
-  class JsonMap[T, U](value: Map[T, U]) {
-    def addJson(jsonString: String, encodeBase64: Boolean = true, encode: (Boolean, String) => Map[T, U]) =
-      value ++ encode(encodeBase64, jsonString)
+  implicit val encode: (Boolean, String, Pair[String, String]) => MMap[String, String] = (encodeBase64, jsonString, which) =>
+    if (encodeBase64)
+      MMap(which._1 -> new String(Base64.encodeBase64(jsonString.getBytes(Encoding)), Encoding))
+    else
+      MMap(which._2 -> jsonString)
+
+  class JsonMap[T, U](value: MMap[T, U]) {
+    def addJson(jsonString: String, encodeBase64: Boolean = true, which: Pair[T, U])(implicit encode: (Boolean, String, Pair[T, U]) => MMap[T, U]) =
+      value ++= encode(encodeBase64, jsonString, which)
   }
 
-  type Payload = Map[String, String]
+  type Payload = MMap[String, String]
 
   def props(host: String, port: Int) = Props(new Emitter(host, port))
 }
@@ -58,6 +68,6 @@ class Emitter(host: String, port: Int) extends Actor with ActorLogging {
     Uri(scheme = "http",
       path = Uri.Path(path),
       authority = Uri.Authority(Uri.Host(host), port),
-      query = Uri.Query(withPayload))
+      query = Uri.Query(withPayload.toMap))
 
 }

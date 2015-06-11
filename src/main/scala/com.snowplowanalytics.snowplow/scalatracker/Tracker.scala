@@ -18,114 +18,120 @@ import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
-import emitters.TEmitter
+import akka.actor.{ ActorRef }
+import scala.collection.mutable.Map
 
-/**
- * Tracker class
- *
- * @param emitters Sequence of emitters to which events are passed
- * @param namespace Tracker namespace
- * @param appId ID of the application
- * @param encodeBase64 Whether to encode JSONs
- */
-class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeBase64: Boolean = true) {
+object Tracker {
 
-  private val Version = s"scala-${generated.ProjectSettings.version}"
+  sealed trait Props
+  case class StructEvent(category: String,
+    action: String,
+    label: Option[String],
+    property: Option[String],
+    value: Option[Long]) extends Props
+  case class UnstructEvent(json: SelfDescribingJson) extends Props
+  case class PageView(pageUri: String,
+    pageTitle: Option[String],
+    referrer: Option[String]) extends Props
+  case class ECommerceTrans(orderId: String,
+    totalValue: Long,
+    affiliation: Option[String],
+    taxValue: Option[Long],
+    shipping: Option[Long],
+    city: Option[String],
+    state: Option[String],
+    country: Option[String],
+    currency: Option[String],
+    transactionItems: Option[Seq[TransactionItem]]) extends Props
+  case class TransactionItem(sku: String,
+    price: Long,
+    quantity: Long,
+    name: Option[String],
+    category: Option[String])
 
-  private var subject: Subject = new Subject()
+  // SCHEMA URIs
 
-  private def getTimestamp(timestamp: Option[Long]): Long = timestamp match {
-    case None => System.currentTimeMillis()
+  val UE_SCHEMA_URI = "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0"
+  val CONTEXT_SCHEMA_URI = "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1"
+
+}
+
+trait Tracker {
+  import Tracker._
+
+  def trackUnstructEvent(events: UnstructEvent)
+
+  def trackStructEvent(events: StructEvent)
+
+  def trackPageView(pageView: PageView)
+
+  def trackECommerceTransaction(trans: ECommerceTrans)
+}
+
+object UETracker {
+
+  val Version = s"scala-${generated.ProjectSettings.version}"
+  case class Attributes(namespace: String, appId: String, encodeBase64: Boolean = true)
+
+  def getTimestamp(timestamp: Option[Long]): Long = timestamp match {
+    case None => System.currentTimeMillis
     case Some(t) => t * 1000
   }
+}
 
-  /**
-   * Pass the assembled payload to every emitter
-   *
-   * @param payload
-   */
-  private def track(payload: Payload) {
-    val event = payload.get
-    emitters foreach {
-      e => e.input(event)
-    }
-  }
+import UETracker._
 
-  /**
-   * Add contexts and timestamp to the payload
-   *
-   * @param payload
-   * @param contexts
-   * @param timestamp
-   * @return payload with additional data
-   */
-  private def completePayload(
-    payload: Payload,
-    contexts: Seq[SelfDescribingJson],
-    timestamp: Option[Long]): Payload = {
+class UETracker(emitters: Seq[ActorRef], subject: Subject)(implicit attr: Attributes, contexts: Seq[SelfDescribingJson], timestamp: Option[Long])
+  extends Tracker {
 
-    payload.add("eid", UUID.randomUUID().toString)
+  import Tracker._
+  import UETracker._
+  import com.snowplowanalytics.snowplow.scalatracker.emitters.Emitter._
+  import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
 
-    if (! contexts.isEmpty) {
+  def trackStructEvent(se: StructEvent) = notSupported("Structured event tracking is not supported")
+  def trackECommerceTransaction(trans: ECommerceTrans) = notSupported("E-commerce transaction tracking is not supported")
+  def trackPageView(pageView: PageView) = notSupported("Page view tracking is not supported")
 
-      val contextsEnvelope = SelfDescribingJson(
-        "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
-        contexts
-        )
+  override def trackUnstructEvent(unstructEvent: UnstructEvent) {
 
-      payload.addJson(contextsEnvelope.toJObject, encodeBase64, "cx", "co")
-    }
-
-    if (!payload.nvPairs.contains("dtm")) {
-      payload.add("dtm", getTimestamp(timestamp).toString)
-    }
-
-    payload.add("tv", Version)
-    payload.add("tna", namespace)
-    payload.add("aid", appId)
-
-    payload.addDict(subject.getSubjectInformation())
-
-    payload
-  }
-
-  /**
-   * Track a Snowplow unstructured event
-   *
-   * @param unstructEvent self-describing JSON for the event
-   * @param contexts
-   * @param timestamp
-   * @return The tracker instance
-   */
-  def trackUnstructEvent(
-    unstructEvent: SelfDescribingJson,
-    contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Long] = None): Tracker = {
-
-    val payload = new Payload()
-
-    payload.add("e", "ue")
+    val payload: Payload = Map("e" -> "ue")
 
     val envelope = SelfDescribingJson(
-      "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-      unstructEvent)
+      UE_SCHEMA_URI,
+      unstructEvent.json)
 
-    payload.addJson(envelope.toJObject, encodeBase64, "ue_px", "ue_pr")
+    val jsonString = compact(render(envelope.toJObject))
 
-    track(completePayload(payload, contexts, timestamp))
+    payload.addJson(jsonString, attr.encodeBase64, which = (UE_PX, UE_PR))
 
-    this
+    // send message to our emitter actors
+    emitters foreach (_ ! fillPayload(payload))
   }
 
-  /**
-   * Set the Subject for the tracker
-   * The subject's configuration will be attached to every event
-   *
-   * @param subject
-   * @return The tracker instance
-   */
-  def setSubject(subject: Subject): Tracker = {
-    this.subject = subject
-    this
+  private def fillPayload(payload: Payload): Payload = {
+    payload += ("eid" -> UUID.randomUUID().toString)
+
+    if (!contexts.isEmpty) {
+      val contextsEnvelope = SelfDescribingJson(
+        CONTEXT_SCHEMA_URI,
+        contexts)
+
+      val jsonString = compact(render(contextsEnvelope.toJObject))
+
+      payload.addJson(jsonString, attr.encodeBase64, which = ("cx", "co"))
+    }
+
+    if (!payload.contains("dtm")) {
+      payload += ("dtm" -> getTimestamp(timestamp).toString)
+    }
+
+    payload += ("tv" -> Version)
+    payload += ("tna" -> attr.namespace)
+    payload += ("aid" -> attr.appId)
+
+    payload ++= subject.getSubjectInformation()
+
+    payload
   }
 }
