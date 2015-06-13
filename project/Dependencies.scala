@@ -20,8 +20,9 @@ object Dependencies {
     "Snowplow Analytics" at "http://maven.snplow.com/releases/",
     // For Twitter's LRU cache
     "Twitter Maven Repo" at "http://maven.twttr.com/",
-    "Sonatype" at "https://oss.sonatype.org/content/repositories/releases"
-  )
+    "Sonatype" at "https://oss.sonatype.org/content/repositories/releases")
+
+  //format: OFF
 
   object V {
     // Java
@@ -38,6 +39,7 @@ object Dependencies {
     val sprayClient = "1.3.2"
     val akka        = "2.3.11"
     val akkaHttp    = "1.0-RC3"
+    val scalaTest   = "2.2.4"
     object collUtil {
       val _29       = "5.3.10"
       val _210      = "6.3.4"
@@ -70,8 +72,9 @@ object Dependencies {
     val akkaHttp    = "com.typesafe.akka"          %% "akka-http-experimental"      % V.akkaHttp
     val akkaStream  = "com.typesafe.akka"          %% "akka-stream-experimental"    % V.akkaHttp
     val akkaHCore   = "com.typesafe.akka"          %% "akka-http-core-experimental" % V.akkaHttp
-    val akka        = "com.typesafe.akka"          %% "akka-actor"        % V.akka
-    val json4sJackson = "org.json4s"               %% "json4s-jackson"    % V.json4s
+    val akka        = "com.typesafe.akka"          %% "akka-actor"                  % V.akka
+    val akkaTest    = "com.typesafe.akka"          %% "akka-testkit"                % V.akka     % "test"
+    val json4sJackson = "org.json4s"               %% "json4s-jackson"              % V.json4s
     object collUtil {
       val _29       = "com.twitter"                % "util-collection"    % V.collUtil._29
       val _210      = "com.twitter"                %% "util-collection"   % V.collUtil._210
@@ -80,6 +83,7 @@ object Dependencies {
 
     // Java (test only)
     val mockito     = "org.mockito"                %  "mockito-all"       % V.mockito            % "test"
+    val scalatest   = "org.scalatest"              %% "scalatest"         % V.scalaTest          % "test"
 
     // Scala (test only)
     object specs2 {
@@ -88,6 +92,7 @@ object Dependencies {
       val _211      = "org.specs2"                 %% "specs2"            % V.specs2._211        % "test"
     }
   }
+  //format: ON
 
   def onVersion[A](all: Seq[A] = Seq(), on29: => Seq[A] = Seq(), on210: => Seq[A] = Seq(), on211: => Seq[A] = Seq()) =
     scalaVersion(v => all ++ (if (v.contains("2.9.")) {

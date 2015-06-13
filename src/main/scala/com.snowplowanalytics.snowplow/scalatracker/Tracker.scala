@@ -81,7 +81,7 @@ object UETracker {
 
 import UETracker._
 
-class UETracker(emitters: Seq[ActorRef], subject: Subject)(implicit attr: Attributes, contexts: Seq[SelfDescribingJson], timestamp: Option[Long])
+class UETracker(emitters: Seq[ActorRef], subject: Option[Subject] = None)(implicit attr: Attributes, contexts: Seq[SelfDescribingJson], timestamp: Option[Long])
   extends Tracker {
 
   import Tracker._
@@ -130,7 +130,9 @@ class UETracker(emitters: Seq[ActorRef], subject: Subject)(implicit attr: Attrib
     payload += ("tna" -> attr.namespace)
     payload += ("aid" -> attr.appId)
 
-    payload ++= subject.getSubjectInformation()
+    // for (info <- subject) payload ++= info
+
+    payload ++= subject.get.getSubjectInformation()
 
     payload
   }

@@ -1,5 +1,6 @@
 package com.snowplowanalytics.snowplow.scalatracker.emitters
 
+import java.io.IOException
 import akka.actor.{ Actor, ActorLogging, Props }
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -52,16 +53,22 @@ class Emitter(host: String, port: Int) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case payload: Payload =>
+      val tracker = sender
       sendRequest(Get(prepareUri("/i", payload))) flatMap { response =>
         response.status match {
           case OK => Future.successful { log.info("Successfully sent event.") }
-          case _ => throw new Error("Recover this failure")
+          case RequestTimeout => throw new RequestTimeoutException(null, "Recover from timeout")
+          case _ =>
+            val error = s"Failed with status code ${response.status}"
+            log.error(error)
+            Future.failed(new IOException(error))
         }
       } recover {
-        case _ =>
+        case _: RequestTimeoutException =>
           // try again until successful
           context.system.scheduler.scheduleOnce(BACKOFF_PERIOD, self, payload)
       }
+      tracker ! payload
   }
 
   private def prepareUri(path: String, withPayload: Payload): Uri =
