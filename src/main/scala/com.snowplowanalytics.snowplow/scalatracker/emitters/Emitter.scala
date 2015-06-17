@@ -56,7 +56,9 @@ class Emitter(host: String, port: Int) extends Actor with ActorLogging {
       val tracker = sender
       sendRequest(Get(prepareUri("/i", payload))) flatMap { response =>
         response.status match {
-          case OK => Future.successful { log.info("Successfully sent event.") }
+          case OK =>
+            tracker ! (payload, response)
+            Future.successful { log.info("Successfully sent event.") }
           case RequestTimeout => throw new RequestTimeoutException(null, "Recover from timeout")
           case _ =>
             val error = s"Failed with status code ${response.status}"
@@ -68,10 +70,9 @@ class Emitter(host: String, port: Int) extends Actor with ActorLogging {
           // try again until successful
           context.system.scheduler.scheduleOnce(BACKOFF_PERIOD, self, payload)
       }
-      tracker ! payload
   }
 
-  private def prepareUri(path: String, withPayload: Payload): Uri =
+  def prepareUri(path: String, withPayload: Payload): Uri =
     Uri(scheme = "http",
       path = Uri.Path(path),
       authority = Uri.Authority(Uri.Host(host), port),
