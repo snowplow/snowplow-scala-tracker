@@ -24,28 +24,37 @@ import scala.collection.mutable.Map
 object Tracker {
 
   sealed trait Props
-  case class StructEvent(category: String,
+
+  case class StructEvent(
+    category: String,
     action: String,
     label: Option[String],
     property: Option[String],
-    value: Option[Long]) extends Props
+    value: Option[Double]) extends Props
+
   case class UnstructEvent(json: SelfDescribingJson) extends Props
-  case class PageView(pageUri: String,
+
+  case class PageView(
+    pageUri: String,
     pageTitle: Option[String],
     referrer: Option[String]) extends Props
-  case class ECommerceTrans(orderId: String,
-    totalValue: Long,
+
+  case class ECommerceTrans(
+    orderId: String,
+    totalValue: Double,
     affiliation: Option[String],
-    taxValue: Option[Long],
-    shipping: Option[Long],
+    taxValue: Option[Double],
+    shipping: Option[Double],
     city: Option[String],
     state: Option[String],
     country: Option[String],
     currency: Option[String],
     transactionItems: Option[Seq[TransactionItem]]) extends Props
-  case class TransactionItem(sku: String,
-    price: Long,
-    quantity: Long,
+
+  case class TransactionItem(
+    sku: String,
+    price: Double,
+    quantity: Double,
     name: Option[String],
     category: Option[String])
 }
@@ -85,16 +94,42 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
 
   override def trackStructuredEvent(se: StructEvent) = {
     val payload: Payload = Map(EVENT -> Constants.EVENT_STRUCTURED)
+
     payload += (SE_CATEGORY -> se.category)
     payload += (SE_ACTION -> se.action)
     payload += (SE_LABEL -> se.label.getOrElse(""))
     payload += (SE_PROPERTY -> se.property.getOrElse(""))
-    payload += (SE_VALUE -> se.value.get.toString)
+    payload += (SE_VALUE -> se.value.getOrElse(0.0).toString)
 
     emitters foreach (_ ! completePayload(payload))
   }
-  def trackECommerceTransaction(trans: ECommerceTrans) = notSupported("E-commerce transaction tracking is not supported")
-  def trackPageView(pageView: PageView) = notSupported("Page view tracking is not supported")
+  override def trackECommerceTransaction(trans: ECommerceTrans) = {
+    val payload: Payload = Map(EVENT -> Constants.EVENT_ECOMM)
+
+    payload += (TR_ID -> trans.orderId)
+    payload += (TR_TOTAL -> trans.totalValue.toString)
+    payload += (TR_AFFILIATION -> trans.affiliation.getOrElse(""))
+    payload += (TR_TAX -> trans.taxValue.getOrElse(0.0).toString)
+    payload += (TR_SHIPPING -> trans.shipping.getOrElse(0.0).toString)
+    payload += (TR_CITY -> trans.city.getOrElse(""))
+    payload += (TR_STATE -> trans.state.getOrElse(""))
+    payload += (TR_COUNTRY -> trans.country.getOrElse(""))
+    payload += (TR_CURRENCY -> trans.currency.getOrElse(""))
+
+    // transaction item here
+
+    emitters foreach (_ ! completePayload(payload))
+  }
+
+  override def trackPageView(pageView: PageView) = {
+    val payload: Payload = Map(EVENT -> Constants.EVENT_PAGE_VIEW)
+
+    payload += (PAGE_URL -> pageView.pageUri)
+    payload += (PAGE_TITLE -> pageView.pageTitle.getOrElse(""))
+    payload += (PAGE_REFR -> pageView.referrer.getOrElse(""))
+
+    emitters foreach { _ ! completePayload(payload) }
+  }
 
   override def trackUnstructuredEvent(unstructEvent: UnstructEvent) {
 
