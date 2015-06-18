@@ -48,27 +48,21 @@ object Tracker {
     quantity: Long,
     name: Option[String],
     category: Option[String])
-
-  // SCHEMA URIs
-
-  val UE_SCHEMA_URI = "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0"
-  val CONTEXT_SCHEMA_URI = "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1"
-
 }
 
 trait Tracker {
   import Tracker._
 
-  def trackUnstructEvent(events: UnstructEvent)
+  def trackUnstructuredEvent(events: UnstructEvent)
 
-  def trackStructEvent(events: StructEvent)
+  def trackStructuredEvent(events: StructEvent)
 
   def trackPageView(pageView: PageView)
 
   def trackECommerceTransaction(trans: ECommerceTrans)
 }
 
-object UETracker {
+object TrackerImpl {
 
   val Version = s"scala-${generated.ProjectSettings.version}"
   case class Attributes(namespace: String, appId: String, encodeBase64: Boolean = true)
@@ -79,58 +73,65 @@ object UETracker {
   }
 }
 
-import UETracker._
+import TrackerImpl._
 
-class UETracker(emitters: Seq[ActorRef], subject: Option[Subject] = None)(implicit attr: Attributes, contexts: Seq[SelfDescribingJson], timestamp: Option[Long])
+class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(implicit attr: Attributes, contexts: Seq[SelfDescribingJson], timestamp: Option[Long])
   extends Tracker {
 
   import Tracker._
-  import UETracker._
+  import TrackerImpl._
   import com.snowplowanalytics.snowplow.scalatracker.emitters.Emitter._
   import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
 
-  def trackStructEvent(se: StructEvent) = notSupported("Structured event tracking is not supported")
+  override def trackStructuredEvent(se: StructEvent) = {
+    val payload: Payload = Map(EVENT -> Constants.EVENT_STRUCTURED)
+    payload += (SE_CATEGORY -> se.category)
+    payload += (SE_ACTION -> se.action)
+    payload += (SE_LABEL -> se.label.getOrElse(""))
+    payload += (SE_PROPERTY -> se.property.getOrElse(""))
+    payload += (SE_VALUE -> se.value.get.toString)
+
+    emitters foreach (_ ! completePayload(payload))
+  }
   def trackECommerceTransaction(trans: ECommerceTrans) = notSupported("E-commerce transaction tracking is not supported")
   def trackPageView(pageView: PageView) = notSupported("Page view tracking is not supported")
 
-  override def trackUnstructEvent(unstructEvent: UnstructEvent) {
+  override def trackUnstructuredEvent(unstructEvent: UnstructEvent) {
 
-    val payload: Payload = Map("e" -> "ue")
+    val payload: Payload = Map(EVENT -> Constants.EVENT_UNSTRUCTURED)
 
     val envelope = SelfDescribingJson(
-      UE_SCHEMA_URI,
+      Constants.SCHEMA_UNSTRUCT_EVENT,
       unstructEvent.json)
 
     val jsonString = compact(render(envelope.toJObject))
 
-    payload.addJson(jsonString, attr.encodeBase64, which = (UE_PX, UE_PR))
+    payload.addJson(jsonString, attr.encodeBase64, which = (UNSTRUCTURED_ENCODED, UNSTRUCTURED))
 
     // send message to our emitter actors
-    emitters foreach (_ ! fillPayload(payload))
+    emitters foreach (_ ! completePayload(payload))
   }
 
-  private def fillPayload(payload: Payload): Payload = {
-    payload += ("eid" -> UUID.randomUUID().toString)
+  private def completePayload(payload: Payload): Payload = {
+    payload += (EID -> UUID.randomUUID().toString)
 
     if (!contexts.isEmpty) {
       val contextsEnvelope = SelfDescribingJson(
-        CONTEXT_SCHEMA_URI,
+        Constants.SCHEMA_CONTEXTS,
         contexts)
 
       val jsonString = compact(render(contextsEnvelope.toJObject))
 
-      payload.addJson(jsonString, attr.encodeBase64, which = ("cx", "co"))
+      payload.addJson(jsonString, attr.encodeBase64, which = (CONTEXT_ENCODED, CONTEXT))
     }
 
-    if (!payload.contains("dtm")) {
-      payload += ("dtm" -> getTimestamp(timestamp).toString)
+    if (!payload.contains(TIMESTAMP)) {
+      payload += (TIMESTAMP -> getTimestamp(timestamp).toString)
     }
 
-    payload += ("tv" -> Version)
-    payload += ("tna" -> attr.namespace)
-    payload += ("aid" -> attr.appId)
-
-    // for (info <- subject) payload ++= info
+    payload += (TRACKER_VERSION -> Version)
+    payload += (NAMESPACE -> attr.namespace)
+    payload += (APPID -> attr.appId)
 
     payload ++= subject.get.getSubjectInformation()
 

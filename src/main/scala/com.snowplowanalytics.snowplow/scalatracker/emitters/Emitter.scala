@@ -41,6 +41,7 @@ class Emitter(host: String, port: Int) extends Actor with ActorLogging {
   import akka.http.scaladsl.model.StatusCodes._
   import context.dispatcher
   import Emitter._
+  import java.util.concurrent.TimeoutException
 
   implicit val system = context.system
   implicit val materializer = ActorFlowMaterializer()
@@ -59,16 +60,16 @@ class Emitter(host: String, port: Int) extends Actor with ActorLogging {
           case OK =>
             tracker ! (payload, response)
             Future.successful { log.info("Successfully sent event.") }
-          case RequestTimeout => throw new RequestTimeoutException(null, "Recover from timeout")
           case _ =>
             val error = s"Failed with status code ${response.status}"
             log.error(error)
+            tracker ! (payload, response)
             Future.failed(new IOException(error))
         }
       } recover {
-        case _: RequestTimeoutException =>
-          // try again until successful
-          context.system.scheduler.scheduleOnce(BACKOFF_PERIOD, self, payload)
+        case t: TimeoutException =>
+          log.info(s"Timed out sending request. Attempt to resend the request again")
+          context.system.scheduler.scheduleOnce(BACKOFF_PERIOD, self, payload)(system.dispatcher, sender = tracker)
       }
   }
 
