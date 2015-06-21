@@ -124,8 +124,23 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
     payload += (TR_CURRENCY -> trans.currency.getOrElse(""))
 
     // transaction item here
+    trans.transactionItems.get foreach { trackTransactionItem(_) }
 
     emitters foreach { _ ! completePayload(payload)(subject, contexts, timestamp) }
+  }
+
+  protected def trackTransactionItem(item: TransactionItem, contexts: Seq[SelfDescribingJson] = Nil)(implicit timestamp: Option[Long] = None) = {
+    val payload: Payload = Map(EVENT -> Constants.EVENT_ECOMM_ITEM)
+
+    payload += (TI_ITEM_ID -> item.orderId)
+    payload += (TI_ITEM_SKU -> item.sku)
+    payload += (TI_ITEM_PRICE -> item.price.toString)
+    payload += (TI_ITEM_QUANTITY -> item.quantity.toString)
+    payload += (TI_ITEM_NAME -> item.name.getOrElse(""))
+    payload += (TI_ITEM_CATEGORY -> item.category.getOrElse(""))
+    payload += (TI_ITEM_CURRENCY -> item.currency.getOrElse(""))
+
+    emitters foreach { _ ! completePayload(payload)(subject = None, contexts, timestamp) }
   }
 
   override def trackPageView(pageView: PageView, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {

@@ -62,7 +62,7 @@ package object scalatracker {
   val TI_ITEM_CATEGORY = "ti_ca"
   val TI_ITEM_PRICE = "ti_pr"
   val TI_ITEM_QUANTITY = "ti_qu"
-  val TI_ITEM_CURRENTY = "ti_cu"
+  val TI_ITEM_CURRENCY = "ti_cu"
 
   // Screen View
   val SV_ID = "id"
