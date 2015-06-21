@@ -35,28 +35,30 @@ object Tracker {
   case class UnstructEvent(json: SelfDescribingJson) extends Props
 
   case class PageView(
-    pageUri: String,
+    pageUrl: String,
     pageTitle: Option[String],
     referrer: Option[String]) extends Props
 
   case class ECommerceTrans(
     orderId: String,
     totalValue: Double,
-    affiliation: Option[String],
-    taxValue: Option[Double],
-    shipping: Option[Double],
-    city: Option[String],
-    state: Option[String],
-    country: Option[String],
-    currency: Option[String],
-    transactionItems: Option[Seq[TransactionItem]]) extends Props
+    affiliation: Option[String] = None,
+    taxValue: Option[Double] = None,
+    shipping: Option[Double] = None,
+    city: Option[String] = None,
+    state: Option[String] = None,
+    country: Option[String] = None,
+    currency: Option[String] = None,
+    transactionItems: Option[Seq[TransactionItem]] = None) extends Props
 
   case class TransactionItem(
+    orderId: String,
     sku: String,
     price: Double,
-    quantity: Double,
+    quantity: Int,
     name: Option[String],
-    category: Option[String])
+    category: Option[String],
+    currency: Option[String])
 }
 
 trait Tracker {
@@ -129,7 +131,7 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
   override def trackPageView(pageView: PageView, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
     val payload: Payload = Map(EVENT -> Constants.EVENT_PAGE_VIEW)
 
-    payload += (PAGE_URL -> pageView.pageUri)
+    payload += (PAGE_URL -> pageView.pageUrl)
     payload += (PAGE_TITLE -> pageView.pageTitle.getOrElse(""))
     payload += (PAGE_REFR -> pageView.referrer.getOrElse(""))
 
