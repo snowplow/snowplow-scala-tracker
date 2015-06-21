@@ -62,13 +62,13 @@ object Tracker {
 trait Tracker {
   import Tracker._
 
-  def trackUnstructuredEvent(events: UnstructEvent)
+  def trackUnstructuredEvent(events: UnstructEvent)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
 
-  def trackStructuredEvent(events: StructEvent)
+  def trackStructuredEvent(events: StructEvent)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
 
-  def trackPageView(pageView: PageView)
+  def trackPageView(pageView: PageView)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
 
-  def trackECommerceTransaction(trans: ECommerceTrans)
+  def trackECommerceTransaction(trans: ECommerceTrans)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
 }
 
 object TrackerImpl {
@@ -85,7 +85,7 @@ object TrackerImpl {
 import TrackerImpl._
 import com.typesafe.config.ConfigFactory
 
-class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(implicit attr: Attributes, contexts: Seq[SelfDescribingJson], timestamp: Option[Long])
+class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None, contexts: Seq[SelfDescribingJson] = Nil)(implicit attr: Attributes)
   extends Tracker {
 
   import Tracker._
@@ -97,7 +97,7 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
 
   val log = Logging.getLogger(ActorSystem("Tracker-Logging", ConfigFactory.load.getConfig("akka")), this)
 
-  override def trackStructuredEvent(se: StructEvent) = {
+  override def trackStructuredEvent(se: StructEvent)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
     val payload: Payload = Map(EVENT -> Constants.EVENT_STRUCTURED)
 
     payload += (SE_CATEGORY -> se.category)
@@ -106,9 +106,9 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
     payload += (SE_PROPERTY -> se.property.getOrElse(""))
     payload += (SE_VALUE -> se.value.getOrElse(0.0).toString)
 
-    emitters foreach (_ ! completePayload(payload))
+    emitters foreach (_ ! completePayload(payload)(subject, timestamp))
   }
-  override def trackECommerceTransaction(trans: ECommerceTrans) = {
+  override def trackECommerceTransaction(trans: ECommerceTrans)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
     val payload: Payload = Map(EVENT -> Constants.EVENT_ECOMM)
 
     payload += (TR_ID -> trans.orderId)
@@ -123,20 +123,20 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
 
     // transaction item here
 
-    emitters foreach { _ ! completePayload(payload) }
+    emitters foreach { _ ! completePayload(payload)(subject, timestamp) }
   }
 
-  override def trackPageView(pageView: PageView) = {
+  override def trackPageView(pageView: PageView)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
     val payload: Payload = Map(EVENT -> Constants.EVENT_PAGE_VIEW)
 
     payload += (PAGE_URL -> pageView.pageUri)
     payload += (PAGE_TITLE -> pageView.pageTitle.getOrElse(""))
     payload += (PAGE_REFR -> pageView.referrer.getOrElse(""))
 
-    emitters foreach { _ ! completePayload(payload) }
+    emitters foreach { _ ! completePayload(payload)(subject, timestamp) }
   }
 
-  override def trackUnstructuredEvent(unstructEvent: UnstructEvent) {
+  override def trackUnstructuredEvent(unstructEvent: UnstructEvent)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) {
 
     val payload: Payload = Map(EVENT -> Constants.EVENT_UNSTRUCTURED)
 
@@ -149,11 +149,10 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
     payload.addJson(jsonString, attr.encodeBase64, which = (UNSTRUCTURED_ENCODED, UNSTRUCTURED))
 
     // send message to our emitter actors
-    log.info(s"The emitters <<<< $emitters >>>>")
-    emitters foreach (_ ! completePayload(payload))
+    emitters foreach { _ ! completePayload(payload)(subject, timestamp) }
   }
 
-  private def completePayload(payload: Payload): Payload = {
+  private def completePayload(payload: Payload)(subject: Option[Subject], timestamp: Option[Long]): Payload = {
     payload += (PLATFORM -> Server.abbreviation)
     payload += (EID -> UUID.randomUUID().toString)
 
@@ -175,9 +174,11 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
     payload += (NAMESPACE -> attr.namespace)
     payload += (APPID -> attr.appId)
 
-    val info: scala.collection.Map[String, String] = subject match {
-      case Some(ins: Subject) => ins.getSubjectInformation()
-      case None => Map.empty
+    val info: scala.collection.Map[String, String] = (this.subject, subject) match {
+      case (Some(ins: Subject), Some(ins2: Subject)) => ins.getSubjectInformation() ++ ins2.getSubjectInformation()
+      case (None, Some(ins2: Subject)) => ins2.getSubjectInformation()
+      case (Some(ins: Subject), None) => ins.getSubjectInformation()
+      case (None, None) => Map.empty
     }
     payload ++= info
 
