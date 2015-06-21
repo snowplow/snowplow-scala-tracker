@@ -18,19 +18,31 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
 // Specs2
-import org.specs2.mutable.Specification
-/*
-import emitters.TEmitter
-class TrackerSpec extends Specification {
+// import org.specs2.mutable.Specification
 
-  class TestEmitter extends TEmitter {
+// Scalatest
+import org.scalatest.WordSpecLike
+import org.scalatest.Matchers
+import org.scalatest.BeforeAndAfterAll
 
-    var lastInput = Map[String, String]()
+// akka testkit
+import akka.actor.{ ActorSystem, Actor }
+import akka.testkit._
+import akka.util.Timeout
+import com.typesafe.config.{ Config, ConfigFactory }
+import scala.concurrent.duration._
 
-    def input(event: Map[String, String]) {
-      lastInput = event
-    }
-  }
+class TrackerSpec(_system: ActorSystem) extends TestKit(_system)
+  with ImplicitSender
+  with WordSpecLike
+  with Matchers
+  with BeforeAndAfterAll {
+
+  import Tracker._
+
+  def this() = this(ActorSystem("TrackerSpec", ConfigFactory.parseString("""
+    akka.loglevel = INFO
+    akka.log-dead-letters = off""")))
 
   val unstructEventJson = SelfDescribingJson(
     "iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0",
@@ -41,89 +53,137 @@ class TrackerSpec extends Specification {
       "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
       ("number" -> 20)),
     SelfDescribingJson(
-    "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
-    ("letters" -> List("a", "b", "c"))))
+      "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
+      ("letters" -> List("a", "b", "c"))))
 
-  "trackUnstructEvent" should {
-
+  "trackUnstructEvent" must {
     "send an unstructured event to the emitter" in {
 
-      val emitter = new TestEmitter
+      import akka.testkit.TestActorRef
+      import emitters._
+      import emitters.Emitter._
 
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+      val testNamespace = "mytracker"
+      val testAppId = "myapp"
 
-      tracker.trackUnstructEvent(unstructEventJson)
+      implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
+      implicit val context: Seq[SelfDescribingJson] = Nil
+      implicit val ts = Some(0l)
 
-      val event = emitter.lastInput
+      var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
 
-      """[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}""".r.unapplySeq(event("eid")) must beSome
+      val emitterTest = TestActorRef(new Actor {
+        def receive = {
+          case payload: Payload =>
+            payloadFromEmitter = payload
+        }
+      })
 
-      """\d*""".r.unapplySeq(event("dtm")) must beSome
+      val tracker = new TrackerImpl(List(emitterTest))
 
-      event("tv") must_== s"scala-${generated.ProjectSettings.version}"
-      event("p") must_== "srv"
-      event("e") must_== "ue"
-      event("aid") must_== "myapp"
-      event("tna") must_== "mytracker"
+      tracker.trackUnstructuredEvent(UnstructEvent(unstructEventJson))
 
-      event("ue_pr") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0","data":{"k1":"v1","k2":"v2"}}}"""
+      assert(payloadFromEmitter("p") === "srv")
+      assert(payloadFromEmitter("aid") === testAppId)
+      assert(payloadFromEmitter("tna") === testNamespace)
+      assert(payloadFromEmitter("e") === "ue")
+      assert(payloadFromEmitter("ue_pr") === """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0","data":{"k1":"v1","k2":"v2"}}}""")
+      // assert(payloadFromEmitter("tv") === s"scala-${generate.ProjectSettings.version}")
+    }
+
+    "allow adding Subject data to all event" in {
+
+      import akka.testkit.TestActorRef
+      import emitters._
+      import emitters.Emitter._
+
+      val testNamespace = "mytracker"
+      val testAppId = "myapp"
+
+      implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
+      implicit val context: Seq[SelfDescribingJson] = Nil
+      implicit val ts = Some(0l)
+
+      var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
+
+      val emitterTest = TestActorRef(new Actor {
+        def receive = {
+          case payload: Payload =>
+            payloadFromEmitter = payload
+        }
+      })
+
+      val subject: Option[Subject] = Some(
+        new Subject()
+          .setPlatform(Mobile)
+          .setUserId("sabnis")
+          .setScreenResolution(200, 300)
+          .setViewport(50, 100)
+          .setColorDepth(24)
+          .setTimezone("Europe London")
+          .setDomainUserId("17")
+          .setIpAddress("255.255.255.255")
+          .setNetworkUserId("id"))
+
+      val tracker = new TrackerImpl(List(emitterTest), subject)
+
+      tracker.trackUnstructuredEvent(UnstructEvent(unstructEventJson))
+
+      assert(payloadFromEmitter("p") === "mob")
+      assert(payloadFromEmitter("uid") === "sabnis")
+      assert(payloadFromEmitter("res") === "200x300")
+      assert(payloadFromEmitter("vp") === "50x100")
+      assert(payloadFromEmitter("cd") === "24")
+      assert(payloadFromEmitter("tz") === "Europe London")
+      assert(payloadFromEmitter("duid") === "17")
+      assert(payloadFromEmitter("ip") === "255.255.255.255")
+      assert(payloadFromEmitter("tnuid") === "id")
+      assert(payloadFromEmitter("aid") === testAppId)
+      assert(payloadFromEmitter("tna") === testNamespace)
+      assert(payloadFromEmitter("e") === "ue")
+      assert(payloadFromEmitter("ue_pr") === """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0","data":{"k1":"v1","k2":"v2"}}}""")
+      // assert(payloadFromEmitter("tv") === s"scala-${generate.ProjectSettings.version}")
+    }
+
+    "allow adding custom contexts to event" in {
+
+      import akka.testkit.TestActorRef
+      import emitters._
+      import emitters.Emitter._
+
+      val testNamespace = "mytracker"
+      val testAppId = "myapp"
+
+      implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
+      implicit val ts = Some(0l)
+
+      var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
+
+      val emitterTest = TestActorRef(new Actor {
+        def receive = {
+          case payload: Payload =>
+            payloadFromEmitter = payload
+        }
+      })
+
+      val tracker = new TrackerImpl(List(emitterTest))(attr, contexts, ts)
+
+      tracker.trackUnstructuredEvent(UnstructEvent(unstructEventJson))
+
+      assert(payloadFromEmitter("co") === """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"number":20}},{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"letters":["a","b","c"]}}]}""")
 
     }
   }
 
-  "setSubject" should {
+  // "trackStructuredEvent" should {
 
-    "add the Subject's data to all events" in {
+  // }
 
-      val emitter = new TestEmitter
+  // "trackPageView" should {
 
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+  // }
 
-      val subject = new Subject()
-        .setPlatform(Mobile)
-        .setUserId("sabnis")
-        .setScreenResolution(200, 300)
-        .setViewport(50,100)
-        .setColorDepth(24)
-        .setTimezone("Europe London")
-        .setDomainUserId("17")
-        .setIpAddress("255.255.255.255")
-        .setNetworkUserId("id")
+  // "trackECommerceTransaction" should {
 
-      tracker.setSubject(subject)
-
-      tracker.trackUnstructEvent(unstructEventJson)
-
-      val event = emitter.lastInput
-
-      event("p") must_== "mob"
-      event("uid") must_== "sabnis"
-      event("res") must_== "200x300"
-      event("vp") must_== "50x100"
-      event("cd") must_== "24"
-      event("tz") must_== "Europe London"
-      event("duid") must_== "17"
-      event("ip") must_== "255.255.255.255"
-      event("tnuid") must_== "id"
-
-    }
-  }
-
-  "track" should {
-
-    "add custom contexts to the event" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
-      tracker.trackUnstructEvent(unstructEventJson, contexts)
-
-      val event = emitter.lastInput
-
-      event("co") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"number":20}},{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"letters":["a","b","c"]}}]}"""
-
-    }
-  }
+  // }
 }
-*/ 
