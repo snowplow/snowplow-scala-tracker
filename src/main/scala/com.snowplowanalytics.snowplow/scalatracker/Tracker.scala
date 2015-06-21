@@ -83,6 +83,7 @@ object TrackerImpl {
 }
 
 import TrackerImpl._
+import com.typesafe.config.ConfigFactory
 
 class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(implicit attr: Attributes, contexts: Seq[SelfDescribingJson], timestamp: Option[Long])
   extends Tracker {
@@ -91,6 +92,10 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
   import TrackerImpl._
   import com.snowplowanalytics.snowplow.scalatracker.emitters.Emitter._
   import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
+  import akka.actor.ActorSystem
+  import akka.event.Logging
+
+  val log = Logging.getLogger(ActorSystem("Tracker-Logging", ConfigFactory.load.getConfig("akka")), this)
 
   override def trackStructuredEvent(se: StructEvent) = {
     val payload: Payload = Map(EVENT -> Constants.EVENT_STRUCTURED)
@@ -118,7 +123,7 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
 
     // transaction item here
 
-    emitters foreach (_ ! completePayload(payload))
+    emitters foreach { _ ! completePayload(payload) }
   }
 
   override def trackPageView(pageView: PageView) = {
@@ -144,10 +149,12 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
     payload.addJson(jsonString, attr.encodeBase64, which = (UNSTRUCTURED_ENCODED, UNSTRUCTURED))
 
     // send message to our emitter actors
+    log.info(s"The emitters <<<< $emitters >>>>")
     emitters foreach (_ ! completePayload(payload))
   }
 
   private def completePayload(payload: Payload): Payload = {
+    payload += (PLATFORM -> Server.abbreviation)
     payload += (EID -> UUID.randomUUID().toString)
 
     if (!contexts.isEmpty) {
@@ -168,7 +175,11 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(impl
     payload += (NAMESPACE -> attr.namespace)
     payload += (APPID -> attr.appId)
 
-    payload ++= subject.get.getSubjectInformation()
+    val info: scala.collection.Map[String, String] = subject match {
+      case Some(ins: Subject) => ins.getSubjectInformation()
+      case None => Map.empty
+    }
+    payload ++= info
 
     payload
   }
