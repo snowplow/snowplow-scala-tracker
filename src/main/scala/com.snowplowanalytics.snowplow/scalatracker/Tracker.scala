@@ -62,13 +62,13 @@ object Tracker {
 trait Tracker {
   import Tracker._
 
-  def trackUnstructuredEvent(events: UnstructEvent)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
+  def trackUnstructuredEvent(events: UnstructEvent, contexts: Seq[SelfDescribingJson] = Nil)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
 
-  def trackStructuredEvent(events: StructEvent)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
+  def trackStructuredEvent(events: StructEvent, contexts: Seq[SelfDescribingJson] = Nil)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
 
-  def trackPageView(pageView: PageView)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
+  def trackPageView(pageView: PageView, contexts: Seq[SelfDescribingJson] = Nil)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
 
-  def trackECommerceTransaction(trans: ECommerceTrans)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
+  def trackECommerceTransaction(trans: ECommerceTrans, contexts: Seq[SelfDescribingJson] = Nil)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
 }
 
 object TrackerImpl {
@@ -85,7 +85,7 @@ object TrackerImpl {
 import TrackerImpl._
 import com.typesafe.config.ConfigFactory
 
-class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None, contexts: Seq[SelfDescribingJson] = Nil)(implicit attr: Attributes)
+class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(implicit attr: Attributes)
   extends Tracker {
 
   import Tracker._
@@ -97,7 +97,7 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None, cont
 
   val log = Logging.getLogger(ActorSystem("Tracker-Logging", ConfigFactory.load.getConfig("akka")), this)
 
-  override def trackStructuredEvent(se: StructEvent)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
+  override def trackStructuredEvent(se: StructEvent, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
     val payload: Payload = Map(EVENT -> Constants.EVENT_STRUCTURED)
 
     payload += (SE_CATEGORY -> se.category)
@@ -106,9 +106,9 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None, cont
     payload += (SE_PROPERTY -> se.property.getOrElse(""))
     payload += (SE_VALUE -> se.value.getOrElse(0.0).toString)
 
-    emitters foreach (_ ! completePayload(payload)(subject, timestamp))
+    emitters foreach (_ ! completePayload(payload)(subject, contexts, timestamp))
   }
-  override def trackECommerceTransaction(trans: ECommerceTrans)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
+  override def trackECommerceTransaction(trans: ECommerceTrans, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
     val payload: Payload = Map(EVENT -> Constants.EVENT_ECOMM)
 
     payload += (TR_ID -> trans.orderId)
@@ -123,20 +123,20 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None, cont
 
     // transaction item here
 
-    emitters foreach { _ ! completePayload(payload)(subject, timestamp) }
+    emitters foreach { _ ! completePayload(payload)(subject, contexts, timestamp) }
   }
 
-  override def trackPageView(pageView: PageView)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
+  override def trackPageView(pageView: PageView, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
     val payload: Payload = Map(EVENT -> Constants.EVENT_PAGE_VIEW)
 
     payload += (PAGE_URL -> pageView.pageUri)
     payload += (PAGE_TITLE -> pageView.pageTitle.getOrElse(""))
     payload += (PAGE_REFR -> pageView.referrer.getOrElse(""))
 
-    emitters foreach { _ ! completePayload(payload)(subject, timestamp) }
+    emitters foreach { _ ! completePayload(payload)(subject, contexts, timestamp) }
   }
 
-  override def trackUnstructuredEvent(unstructEvent: UnstructEvent)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) {
+  override def trackUnstructuredEvent(unstructEvent: UnstructEvent, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) {
 
     val payload: Payload = Map(EVENT -> Constants.EVENT_UNSTRUCTURED)
 
@@ -149,10 +149,10 @@ class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None, cont
     payload.addJson(jsonString, attr.encodeBase64, which = (UNSTRUCTURED_ENCODED, UNSTRUCTURED))
 
     // send message to our emitter actors
-    emitters foreach { _ ! completePayload(payload)(subject, timestamp) }
+    emitters foreach { _ ! completePayload(payload)(subject, contexts, timestamp) }
   }
 
-  private def completePayload(payload: Payload)(subject: Option[Subject], timestamp: Option[Long]): Payload = {
+  private def completePayload(payload: Payload)(subject: Option[Subject], contexts: Seq[SelfDescribingJson] = Nil, timestamp: Option[Long]): Payload = {
     payload += (PLATFORM -> Server.abbreviation)
     payload += (EID -> UUID.randomUUID().toString)
 

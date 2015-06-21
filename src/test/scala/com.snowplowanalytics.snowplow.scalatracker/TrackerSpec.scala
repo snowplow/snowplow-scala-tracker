@@ -67,7 +67,7 @@ class TrackerSpec(_system: ActorSystem) extends TestKit(_system)
       val testAppId = "myapp"
 
       implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
-      implicit val context: Seq[SelfDescribingJson] = Nil
+      // val context: Seq[SelfDescribingJson] = Nil
       implicit val ts = Some(0l)
 
       var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
@@ -101,7 +101,7 @@ class TrackerSpec(_system: ActorSystem) extends TestKit(_system)
       val testAppId = "myapp"
 
       implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
-      implicit val context: Seq[SelfDescribingJson] = Nil
+      // implicit val context: Seq[SelfDescribingJson] = Nil
       implicit val ts = Some(0l)
 
       var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
@@ -158,7 +158,6 @@ class TrackerSpec(_system: ActorSystem) extends TestKit(_system)
       implicit val ts = Some(0l)
 
       var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
-
       val emitterTest = TestActorRef(new Actor {
         def receive = {
           case payload: Payload =>
@@ -166,12 +165,11 @@ class TrackerSpec(_system: ActorSystem) extends TestKit(_system)
         }
       })
 
-      val tracker = new TrackerImpl(List(emitterTest))(attr, contexts, ts)
+      val tracker = new TrackerImpl(List(emitterTest))(attr)
 
-      tracker.trackUnstructuredEvent(UnstructEvent(unstructEventJson))
+      tracker.trackUnstructuredEvent(UnstructEvent(unstructEventJson), contexts)
 
       assert(payloadFromEmitter("co") === """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"number":20}},{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"letters":["a","b","c"]}}]}""")
-
     }
   }
 
