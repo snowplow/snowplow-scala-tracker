@@ -5,8 +5,6 @@ import akka.stream.ActorFlowMaterializer
 import com.typesafe.config.{ ConfigFactory }
 import akka.testkit._
 import scala.concurrent.duration._
-// import com.snowplowanalytics.snowplow.scalatracker.TestUtils
-// import SelfDescribingJson
 import org.scalatest._
 import scala.concurrent.Await
 // json4s
@@ -58,7 +56,7 @@ class TrackingIntegrationTest(_system: ActorSystem) extends TestKit(_system)
 
       val testRoute = {
         get {
-          path("/i".r) { path =>
+          path("i".r) { path =>
             headerValueByName("Raw-Request-URI") { rawRequest =>
               val query = rawRequest match {
                 case QuerystringExtractor(qs) => qs
@@ -66,7 +64,16 @@ class TrackingIntegrationTest(_system: ActorSystem) extends TestKit(_system)
               }
               complete(s"The query >>>> $query")
             }
-          }
+          } ~
+            path(Segment / Segment) { (path1, path2) =>
+              headerValueByName("Raw-Request-URI") { rawRequest =>
+                val query = rawRequest match {
+                  case QuerystringExtractor(qs) => qs
+                  case _ => ""
+                }
+                complete(s"The query >>>> $query")
+              }
+            }
         }
       }
 
@@ -85,7 +92,10 @@ class TrackingIntegrationTest(_system: ActorSystem) extends TestKit(_system)
       val tracker = new TrackerImpl(List(emitter))
 
       tracker.trackUnstructuredEvent(UnstructEvent(unstructEventJson))
+
+      testBinding.flatMap(_.unbind()).onComplete {
+        _ => system.shutdown()
+      }
     }
   }
-
 }
