@@ -5,8 +5,8 @@ import akka.stream.ActorFlowMaterializer
 import com.typesafe.config.{ ConfigFactory }
 import akka.testkit._
 import scala.concurrent.duration._
-import com.snowplowanalytics.snowplow.scalatracker.TestUtils
-import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
+// import com.snowplowanalytics.snowplow.scalatracker.TestUtils
+// import SelfDescribingJson
 import org.scalatest._
 import scala.concurrent.Await
 // json4s
@@ -53,18 +53,27 @@ class TrackingIntegrationTest(_system: ActorSystem) extends TestKit(_system)
 
       val (_, host, port) = TestUtils.temporaryServerHostnameAndPort()
 
+      val QuerystringExtractor = """^[^?]*\\?([^#]*)(?:#.*)?$""".r
+      var strPayload = ""
+
       val testRoute = {
         get {
-          path("/i") {
-            complete("Hello")
+          path("/i".r) { path =>
+            headerValueByName("Raw-Request-URI") { rawRequest =>
+              val query = rawRequest match {
+                case QuerystringExtractor(qs) => qs
+                case _ => ""
+              }
+              complete(s"The query >>>> $query")
+            }
           }
         }
       }
 
       val testNamespace = "mytracker"
       val testAppId = "myapp"
+
       implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
-      // val context: Seq[SelfDescribingJson] = Nil
       implicit val ts = Some(0l)
 
       val testBinding = Http().bindAndHandle(testRoute, host, port)
