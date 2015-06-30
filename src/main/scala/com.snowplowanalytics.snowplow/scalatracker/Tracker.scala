@@ -18,114 +18,187 @@ import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
-import emitters.TEmitter
+import akka.actor.{ ActorRef }
+import scala.collection.mutable.Map
 
-/**
- * Tracker class
- *
- * @param emitters Sequence of emitters to which events are passed
- * @param namespace Tracker namespace
- * @param appId ID of the application
- * @param encodeBase64 Whether to encode JSONs
- */
-class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeBase64: Boolean = true) {
+object Tracker {
 
-  private val Version = s"scala-${generated.ProjectSettings.version}"
+  sealed trait Props
 
-  private var subject: Subject = new Subject()
+  case class StructEvent(
+    category: String,
+    action: String,
+    label: Option[String],
+    property: Option[String],
+    value: Option[Double]) extends Props
 
-  private def getTimestamp(timestamp: Option[Long]): Long = timestamp match {
-    case None => System.currentTimeMillis()
+  case class UnstructEvent(json: SelfDescribingJson) extends Props
+
+  case class PageView(
+    pageUrl: String,
+    pageTitle: Option[String],
+    referrer: Option[String]) extends Props
+
+  case class ECommerceTrans(
+    orderId: String,
+    totalValue: Double,
+    affiliation: Option[String] = None,
+    taxValue: Option[Double] = None,
+    shipping: Option[Double] = None,
+    city: Option[String] = None,
+    state: Option[String] = None,
+    country: Option[String] = None,
+    currency: Option[String] = None,
+    transactionItems: Option[Seq[TransactionItem]] = None) extends Props
+
+  case class TransactionItem(
+    orderId: String,
+    sku: String,
+    price: Double,
+    quantity: Int,
+    name: Option[String],
+    category: Option[String],
+    currency: Option[String])
+}
+
+trait Tracker {
+  import Tracker._
+
+  def trackUnstructuredEvent(events: UnstructEvent, contexts: Seq[SelfDescribingJson] = Nil)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
+
+  def trackStructuredEvent(events: StructEvent, contexts: Seq[SelfDescribingJson] = Nil)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
+
+  def trackPageView(pageView: PageView, contexts: Seq[SelfDescribingJson] = Nil)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
+
+  def trackECommerceTransaction(trans: ECommerceTrans, contexts: Seq[SelfDescribingJson] = Nil)(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None)
+}
+
+object TrackerImpl {
+
+  val Version = s"scala-${generated.ProjectSettings.version}"
+  case class Attributes(namespace: String, appId: String, encodeBase64: Boolean = true)
+
+  def getTimestamp(timestamp: Option[Long]): Long = timestamp match {
+    case None => System.currentTimeMillis
     case Some(t) => t * 1000
   }
+}
 
-  /**
-   * Pass the assembled payload to every emitter
-   *
-   * @param payload
-   */
-  private def track(payload: Payload) {
-    val event = payload.get
-    emitters foreach {
-      e => e.input(event)
-    }
+import TrackerImpl._
+import com.typesafe.config.ConfigFactory
+
+class TrackerImpl(emitters: Seq[ActorRef], subject: Option[Subject] = None)(implicit attr: Attributes)
+  extends Tracker {
+
+  import Tracker._
+  import TrackerImpl._
+  import com.snowplowanalytics.snowplow.scalatracker.emitters.Emitter._
+  import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
+  import akka.actor.ActorSystem
+  import akka.event.Logging
+
+  val log = Logging.getLogger(ActorSystem("Tracker-Logging", ConfigFactory.load.getConfig("akka")), this)
+
+  override def trackStructuredEvent(se: StructEvent, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
+    val payload: Payload = Map(EVENT -> Constants.EVENT_STRUCTURED)
+
+    payload += (SE_CATEGORY -> se.category)
+    payload += (SE_ACTION -> se.action)
+    payload += (SE_LABEL -> se.label.getOrElse(""))
+    payload += (SE_PROPERTY -> se.property.getOrElse(""))
+    payload += (SE_VALUE -> se.value.getOrElse(0.0).toString)
+
+    emitters foreach (_ ! completePayload(payload)(subject, contexts, timestamp))
+  }
+  override def trackECommerceTransaction(trans: ECommerceTrans, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
+    val payload: Payload = Map(EVENT -> Constants.EVENT_ECOMM)
+
+    payload += (TR_ID -> trans.orderId)
+    payload += (TR_TOTAL -> trans.totalValue.toString)
+    payload += (TR_AFFILIATION -> trans.affiliation.getOrElse(""))
+    payload += (TR_TAX -> trans.taxValue.getOrElse(0.0).toString)
+    payload += (TR_SHIPPING -> trans.shipping.getOrElse(0.0).toString)
+    payload += (TR_CITY -> trans.city.getOrElse(""))
+    payload += (TR_STATE -> trans.state.getOrElse(""))
+    payload += (TR_COUNTRY -> trans.country.getOrElse(""))
+    payload += (TR_CURRENCY -> trans.currency.getOrElse(""))
+
+    // transaction item here
+    trans.transactionItems.get foreach { trackTransactionItem(_) }
+
+    emitters foreach { _ ! completePayload(payload)(subject, contexts, timestamp) }
   }
 
-  /**
-   * Add contexts and timestamp to the payload
-   *
-   * @param payload
-   * @param contexts
-   * @param timestamp
-   * @return payload with additional data
-   */
-  private def completePayload(
-    payload: Payload,
-    contexts: Seq[SelfDescribingJson],
-    timestamp: Option[Long]): Payload = {
+  protected def trackTransactionItem(item: TransactionItem, contexts: Seq[SelfDescribingJson] = Nil)(implicit timestamp: Option[Long] = None) = {
+    val payload: Payload = Map(EVENT -> Constants.EVENT_ECOMM_ITEM)
 
-    payload.add("eid", UUID.randomUUID().toString)
+    payload += (TI_ITEM_ID -> item.orderId)
+    payload += (TI_ITEM_SKU -> item.sku)
+    payload += (TI_ITEM_PRICE -> item.price.toString)
+    payload += (TI_ITEM_QUANTITY -> item.quantity.toString)
+    payload += (TI_ITEM_NAME -> item.name.getOrElse(""))
+    payload += (TI_ITEM_CATEGORY -> item.category.getOrElse(""))
+    payload += (TI_ITEM_CURRENCY -> item.currency.getOrElse(""))
 
-    if (! contexts.isEmpty) {
-
-      val contextsEnvelope = SelfDescribingJson(
-        "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
-        contexts
-        )
-
-      payload.addJson(contextsEnvelope.toJObject, encodeBase64, "cx", "co")
-    }
-
-    if (!payload.nvPairs.contains("dtm")) {
-      payload.add("dtm", getTimestamp(timestamp).toString)
-    }
-
-    payload.add("tv", Version)
-    payload.add("tna", namespace)
-    payload.add("aid", appId)
-
-    payload.addDict(subject.getSubjectInformation())
-
-    payload
+    emitters foreach { _ ! completePayload(payload)(subject = None, contexts, timestamp) }
   }
 
-  /**
-   * Track a Snowplow unstructured event
-   *
-   * @param unstructEvent self-describing JSON for the event
-   * @param contexts
-   * @param timestamp
-   * @return The tracker instance
-   */
-  def trackUnstructEvent(
-    unstructEvent: SelfDescribingJson,
-    contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Long] = None): Tracker = {
+  override def trackPageView(pageView: PageView, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) = {
+    val payload: Payload = Map(EVENT -> Constants.EVENT_PAGE_VIEW)
 
-    val payload = new Payload()
+    payload += (PAGE_URL -> pageView.pageUrl)
+    payload += (PAGE_TITLE -> pageView.pageTitle.getOrElse(""))
+    payload += (PAGE_REFR -> pageView.referrer.getOrElse(""))
 
-    payload.add("e", "ue")
+    emitters foreach { _ ! completePayload(payload)(subject, contexts, timestamp) }
+  }
+
+  override def trackUnstructuredEvent(unstructEvent: UnstructEvent, contexts: Seq[SelfDescribingJson])(implicit subject: Option[Subject] = None, timestamp: Option[Long] = None) {
+
+    val payload: Payload = Map(EVENT -> Constants.EVENT_UNSTRUCTURED)
 
     val envelope = SelfDescribingJson(
-      "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-      unstructEvent)
+      Constants.SCHEMA_UNSTRUCT_EVENT,
+      unstructEvent.json)
 
-    payload.addJson(envelope.toJObject, encodeBase64, "ue_px", "ue_pr")
+    val jsonString = compact(render(envelope.toJObject))
 
-    track(completePayload(payload, contexts, timestamp))
+    payload.addJson(jsonString, attr.encodeBase64, which = (UNSTRUCTURED_ENCODED, UNSTRUCTURED))
 
-    this
+    // send message to our emitter actors
+    emitters foreach { _ ! completePayload(payload)(subject, contexts, timestamp) }
   }
 
-  /**
-   * Set the Subject for the tracker
-   * The subject's configuration will be attached to every event
-   *
-   * @param subject
-   * @return The tracker instance
-   */
-  def setSubject(subject: Subject): Tracker = {
-    this.subject = subject
-    this
+  private def completePayload(payload: Payload)(subject: Option[Subject], contexts: Seq[SelfDescribingJson] = Nil, timestamp: Option[Long]): Payload = {
+    payload += (PLATFORM -> Server.abbreviation)
+    payload += (EID -> UUID.randomUUID().toString)
+
+    if (!contexts.isEmpty) {
+      val contextsEnvelope = SelfDescribingJson(
+        Constants.SCHEMA_CONTEXTS,
+        contexts)
+
+      val jsonString = compact(render(contextsEnvelope.toJObject))
+
+      payload.addJson(jsonString, attr.encodeBase64, which = (CONTEXT_ENCODED, CONTEXT))
+    }
+
+    if (!payload.contains(TIMESTAMP)) {
+      payload += (TIMESTAMP -> getTimestamp(timestamp).toString)
+    }
+
+    payload += (TRACKER_VERSION -> Version)
+    payload += (NAMESPACE -> attr.namespace)
+    payload += (APPID -> attr.appId)
+
+    val info: scala.collection.Map[String, String] = (this.subject, subject) match {
+      case (Some(ins: Subject), Some(ins2: Subject)) => ins.getSubjectInformation() ++ ins2.getSubjectInformation()
+      case (None, Some(ins2: Subject)) => ins2.getSubjectInformation()
+      case (Some(ins: Subject), None) => ins.getSubjectInformation()
+      case (None, None) => Map.empty
+    }
+    payload ++= info
+
+    payload
   }
 }

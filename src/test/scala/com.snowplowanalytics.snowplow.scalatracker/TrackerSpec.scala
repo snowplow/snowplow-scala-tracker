@@ -18,20 +18,31 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
 // Specs2
-import org.specs2.mutable.Specification
+// import org.specs2.mutable.Specification
 
-import emitters.TEmitter
+// Scalatest
+import org.scalatest.WordSpecLike
+import org.scalatest.Matchers
+import org.scalatest.BeforeAndAfterAll
 
-class TrackerSpec extends Specification {
+// akka testkit
+import akka.actor.{ ActorSystem, Actor }
+import akka.testkit._
+import akka.util.Timeout
+import com.typesafe.config.{ Config, ConfigFactory }
+import scala.concurrent.duration._
 
-  class TestEmitter extends TEmitter {
+class TrackerSpec(_system: ActorSystem) extends TestKit(_system)
+  with ImplicitSender
+  with WordSpecLike
+  with Matchers
+  with BeforeAndAfterAll {
 
-    var lastInput = Map[String, String]()
+  import Tracker._
 
-    def input(event: Map[String, String]) {
-      lastInput = event
-    }
-  }
+  def this() = this(ActorSystem("TrackerSpec", ConfigFactory.parseString("""
+    akka.loglevel = INFO
+    akka.log-dead-letters = off""")))
 
   val unstructEventJson = SelfDescribingJson(
     "iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0",
@@ -42,88 +53,269 @@ class TrackerSpec extends Specification {
       "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
       ("number" -> 20)),
     SelfDescribingJson(
-    "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
-    ("letters" -> List("a", "b", "c"))))
+      "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
+      ("letters" -> List("a", "b", "c"))))
 
-  "trackUnstructEvent" should {
-
+  "trackUnstructEvent" must {
     "send an unstructured event to the emitter" in {
 
-      val emitter = new TestEmitter
+      import akka.testkit.TestActorRef
+      import emitters._
+      import emitters.Emitter._
 
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+      val testNamespace = "mytracker"
+      val testAppId = "myapp"
 
-      tracker.trackUnstructEvent(unstructEventJson)
+      implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
+      // val context: Seq[SelfDescribingJson] = Nil
+      implicit val ts = Some(0l)
 
-      val event = emitter.lastInput
+      var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
 
-      """[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}""".r.unapplySeq(event("eid")) must beSome
+      val emitterTest = TestActorRef(new Actor {
+        def receive = {
+          case payload: Payload =>
+            payloadFromEmitter = payload
+        }
+      })
 
-      """\d*""".r.unapplySeq(event("dtm")) must beSome
+      val tracker = new TrackerImpl(List(emitterTest))
 
-      event("tv") must_== s"scala-${generated.ProjectSettings.version}"
-      event("p") must_== "srv"
-      event("e") must_== "ue"
-      event("aid") must_== "myapp"
-      event("tna") must_== "mytracker"
+      tracker.trackUnstructuredEvent(UnstructEvent(unstructEventJson))
 
-      event("ue_pr") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0","data":{"k1":"v1","k2":"v2"}}}"""
+      assert(payloadFromEmitter("p") === "srv")
+      assert(payloadFromEmitter("aid") === testAppId)
+      assert(payloadFromEmitter("tna") === testNamespace)
+      assert(payloadFromEmitter("e") === "ue")
+      assert(payloadFromEmitter("ue_pr") === """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0","data":{"k1":"v1","k2":"v2"}}}""")
+      assert(payloadFromEmitter("tv") === s"scala-${generated.ProjectSettings.version}")
+    }
 
+    "allow adding Subject data to all event" in {
+
+      import akka.testkit.TestActorRef
+      import emitters._
+      import emitters.Emitter._
+
+      val testNamespace = "mytracker"
+      val testAppId = "myapp"
+
+      implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
+      // implicit val context: Seq[SelfDescribingJson] = Nil
+      implicit val ts = Some(0l)
+
+      var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
+
+      val emitterTest = TestActorRef(new Actor {
+        def receive = {
+          case payload: Payload =>
+            payloadFromEmitter = payload
+        }
+      })
+
+      val subject: Option[Subject] = Some(
+        new Subject()
+          .setPlatform(Mobile)
+          .setUserId("sabnis")
+          .setScreenResolution(200, 300)
+          .setViewport(50, 100)
+          .setColorDepth(24)
+          .setTimezone("Europe London")
+          .setDomainUserId("17")
+          .setIpAddress("255.255.255.255")
+          .setNetworkUserId("id"))
+
+      val tracker = new TrackerImpl(List(emitterTest), subject)
+
+      tracker.trackUnstructuredEvent(UnstructEvent(unstructEventJson))
+
+      assert(payloadFromEmitter("p") === "mob")
+      assert(payloadFromEmitter("uid") === "sabnis")
+      assert(payloadFromEmitter("res") === "200x300")
+      assert(payloadFromEmitter("vp") === "50x100")
+      assert(payloadFromEmitter("cd") === "24")
+      assert(payloadFromEmitter("tz") === "Europe London")
+      assert(payloadFromEmitter("duid") === "17")
+      assert(payloadFromEmitter("ip") === "255.255.255.255")
+      assert(payloadFromEmitter("tnuid") === "id")
+      assert(payloadFromEmitter("aid") === testAppId)
+      assert(payloadFromEmitter("tna") === testNamespace)
+      assert(payloadFromEmitter("e") === "ue")
+      assert(payloadFromEmitter("ue_pr") === """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0","data":{"k1":"v1","k2":"v2"}}}""")
+      assert(payloadFromEmitter("tv") === s"scala-${generated.ProjectSettings.version}")
+    }
+
+    "allow adding custom contexts to event" in {
+
+      import akka.testkit.TestActorRef
+      import emitters._
+      import emitters.Emitter._
+
+      val testNamespace = "mytracker"
+      val testAppId = "myapp"
+
+      implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
+      implicit val ts = Some(0l)
+
+      var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
+      val emitterTest = TestActorRef(new Actor {
+        def receive = {
+          case payload: Payload =>
+            payloadFromEmitter = payload
+        }
+      })
+
+      val tracker = new TrackerImpl(List(emitterTest))(attr)
+
+      tracker.trackUnstructuredEvent(UnstructEvent(unstructEventJson), contexts)
+
+      assert(payloadFromEmitter("co") === """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-0","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"number":20}},{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"letters":["a","b","c"]}}]}""")
     }
   }
 
-  "setSubject" should {
+  "trackStructuredEvent" must {
+    "send a structured event to the emitter" in {
+      import akka.testkit.TestActorRef
+      import emitters._
+      import emitters.Emitter._
 
-    "add the Subject's data to all events" in {
+      val testNamespace = "mytracker"
+      val testAppId = "myapp"
 
-      val emitter = new TestEmitter
+      implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
+      // val context: Seq[SelfDescribingJson] = Nil
+      implicit val ts = Some(0l)
 
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+      var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
 
-      val subject = new Subject()
-        .setPlatform(Mobile)
-        .setUserId("sabnis")
-        .setScreenResolution(200, 300)
-        .setViewport(50,100)
-        .setColorDepth(24)
-        .setTimezone("Europe London")
-        .setDomainUserId("17")
-        .setIpAddress("255.255.255.255")
-        .setNetworkUserId("id")
+      val emitterTest = TestActorRef(new Actor {
+        def receive = {
+          case payload: Payload =>
+            payloadFromEmitter = payload
+        }
+      })
 
-      tracker.setSubject(subject)
+      val tracker = new TrackerImpl(List(emitterTest))
+      val event = StructEvent(
+        category = "Checkout",
+        action = "Add",
+        label = Some("AS001043"),
+        property = Some("blue:xxl"),
+        value = Some(2.0))
 
-      tracker.trackUnstructEvent(unstructEventJson)
+      tracker.trackStructuredEvent(event)
 
-      val event = emitter.lastInput
-
-      event("p") must_== "mob"
-      event("uid") must_== "sabnis"
-      event("res") must_== "200x300"
-      event("vp") must_== "50x100"
-      event("cd") must_== "24"
-      event("tz") must_== "Europe London"
-      event("duid") must_== "17"
-      event("ip") must_== "255.255.255.255"
-      event("tnuid") must_== "id"
-
+      assert(payloadFromEmitter("p") === "srv")
+      assert(payloadFromEmitter("aid") === testAppId)
+      assert(payloadFromEmitter("tna") === testNamespace)
+      assert(payloadFromEmitter("e") === "se")
+      assert(payloadFromEmitter("se_ca") === "Checkout")
+      assert(payloadFromEmitter("se_ac") === "Add")
+      assert(payloadFromEmitter("se_la") === "AS001043")
+      assert(payloadFromEmitter("se_pr") === "blue:xxl")
+      assert(payloadFromEmitter("se_va") === "2.0")
     }
   }
 
-  "track" should {
+  "trackPageView" must {
+    "send page view event to emitter" in {
 
-    "add custom contexts to the event" in {
+      import akka.testkit.TestActorRef
+      import emitters._
+      import emitters.Emitter._
 
-      val emitter = new TestEmitter
+      val testNamespace = "mytracker"
+      val testAppId = "myapp"
 
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+      implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
+      implicit val ts = Some(0l)
 
-      tracker.trackUnstructEvent(unstructEventJson, contexts)
+      var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
 
-      val event = emitter.lastInput
+      val emitterTest = TestActorRef(new Actor {
+        def receive = {
+          case payload: Payload =>
+            payloadFromEmitter = payload
+        }
+      })
 
-      event("co") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"number":20}},{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"letters":["a","b","c"]}}]}"""
+      val tracker = new TrackerImpl(List(emitterTest))
 
+      tracker.trackPageView(PageView(pageUrl = "http://example/test.html", pageTitle = None, referrer = Some("http://example/home.html")))
+
+      assert(payloadFromEmitter("p") === "srv")
+      assert(payloadFromEmitter("aid") === testAppId)
+      assert(payloadFromEmitter("tna") === testNamespace)
+      assert(payloadFromEmitter("e") === "pv")
+      assert(payloadFromEmitter("tv") === s"scala-${generated.ProjectSettings.version}")
+      assert(payloadFromEmitter("url") === "http://example/test.html")
+      assert(payloadFromEmitter("page") === "")
+      assert(payloadFromEmitter("refr") == "http://example/home.html")
+    }
+  }
+
+  "trackECommerceTransaction" must {
+    "send a transaction event to emitter" in {
+
+      import akka.testkit.TestActorRef
+      import emitters._
+      import emitters.Emitter._
+
+      val testNamespace = "mytracker"
+      val testAppId = "myapp"
+
+      implicit val attr = TrackerImpl.Attributes(namespace = testNamespace, appId = testAppId, encodeBase64 = false)
+      implicit val ts = Some(0l)
+
+      var payloadFromEmitter: Payload = scala.collection.mutable.Map.empty
+
+      val emitterTest = TestActorRef(new Actor {
+        def receive = {
+          case payload: Payload =>
+            payloadFromEmitter = payload
+        }
+      })
+
+      val tracker = new TrackerImpl(List(emitterTest))
+      val item = TransactionItem(
+        orderId = "order-8",
+        sku = "no_sku",
+        price = 34.0,
+        quantity = 1,
+        name = Some("Big Order"),
+        category = Some("Food"),
+        currency = Some("USD"))
+
+      val items = List(item)
+      val trans = ECommerceTrans(
+        orderId = "order-7",
+        totalValue = 34.5,
+        affiliation = Some("no_affiliate"),
+        taxValue = Some(0.0),
+        shipping = Some(0.0),
+        city = Some("Dover"),
+        state = Some("Delaware"),
+        country = Some("US"),
+        currency = Some("USD"),
+        transactionItems = Some(items))
+
+      tracker.trackECommerceTransaction(trans)
+
+      assert(payloadFromEmitter("p") === "srv")
+      assert(payloadFromEmitter("aid") === testAppId)
+      assert(payloadFromEmitter("tna") === testNamespace)
+      assert(payloadFromEmitter("e") === "tr")
+      assert(payloadFromEmitter("tv") === s"scala-${generated.ProjectSettings.version}")
+
+      assert(payloadFromEmitter("tr_id") === "order-7")
+      assert(payloadFromEmitter("tr_tt") === "34.5")
+      assert(payloadFromEmitter("tr_af") === "no_affiliate")
+      assert(payloadFromEmitter("tr_tax") === "0.0")
+      assert(payloadFromEmitter("tr_sh") === "0.0")
+      assert(payloadFromEmitter("tr_ci") === "Dover")
+      assert(payloadFromEmitter("tr_st") === "Delaware")
+      assert(payloadFromEmitter("tr_co") === "US")
+      assert(payloadFromEmitter("tr_cu") === "USD")
     }
   }
 }

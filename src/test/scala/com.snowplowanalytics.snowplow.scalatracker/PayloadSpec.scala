@@ -16,22 +16,24 @@ package com.snowplowanalytics.snowplow.scalatracker
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
+import scala.collection.mutable.Map
 
 // Specs2
 import org.specs2.mutable.Specification
 
 class PayloadSpec extends Specification {
+  import com.snowplowanalytics.snowplow.scalatracker.emitters.Emitter._
 
   "add" should {
 
     "add a new key-value pair to the payload" in {
 
-      val payload = new Payload()
+      val payload: Payload = Map("e" -> "se")
 
-      payload.add("e", "se")
-      payload.add("tna", "mytracker")
+      payload += ("e" -> "se")
+      payload += ("tna" -> "mytracker")
 
-      payload.get must_== Map("e" -> "se", "tna" -> "mytracker")
+      payload must_== Map("e" -> "se", "tna" -> "mytracker")
     }
   }
 
@@ -39,11 +41,10 @@ class PayloadSpec extends Specification {
 
     "add a dictionary of key-value pairs to the payload" in {
 
-      val payload = new Payload()
+      val payload: Payload = Map.empty
+      payload ++= Map("e" -> "se", "tna" -> "mytracker")
 
-      payload.addDict(Map("e" -> "se", "tna" -> "mytracker"))
-
-      payload.get must_== Map("e" -> "se", "tna" -> "mytracker")
+      payload must_== Map("e" -> "se", "tna" -> "mytracker")
     }
   }
 
@@ -51,20 +52,22 @@ class PayloadSpec extends Specification {
 
     "stringify a JSON and add it to the payload" in {
 
-      val payload = new Payload()
+      val payload: Payload = Map.empty
+      val jsonString = compact(render(("k" -> "v")))
 
-      payload.addJson(("k" -> "v"), false, "enc", "plain")
+      payload.addJson(jsonString, false, which = ("enc", "plain"))
 
-      payload.get must_== Map("plain" -> """{"k":"v"}""")
+      payload must_== Map("plain" -> """{"k":"v"}""")
     }
 
     "stringify and encode a JSON and add it to the payload" in {
 
-      val payload = new Payload()
+      val payload: Payload = Map.empty
+      val jsonString = compact(render(("k" -> "v")))
 
-      payload.addJson(("k" -> "v"), true, "enc", "plain")
+      payload.addJson(jsonString, true, which = ("enc", "plain"))
 
-      payload.get must_== Map("enc" -> "eyJrIjoidiJ9")
+      payload must_== Map("enc" -> "eyJrIjoidiJ9")
     }
   }
 }

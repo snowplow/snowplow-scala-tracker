@@ -15,6 +15,7 @@ import Keys._
 
 object BuildSettings {
 
+  // format: OFF
   // Basic settings for our app
   lazy val basicSettings = Seq[Setting[_]](
     organization          :=  "com.snowplowanalytics",
@@ -23,7 +24,14 @@ object BuildSettings {
     scalaVersion          :=  "2.10.4",
     crossScalaVersions    :=  Seq("2.10.4", "2.11.5"), 
     scalacOptions         :=  Seq("-deprecation", "-encoding", "utf8"),
-    resolvers             ++= Dependencies.resolutionRepos
+    resolvers             ++= Dependencies.resolutionRepos,
+    scalacOptions         ++= Seq(
+      "-feature",
+      "-deprecation",
+      "-language:implicitConversions",
+      "-language:postfixOps",
+      "-unchecked",
+      "-Xlint")
   )
 
   // Makes our SBT app settings available from within the ETL
