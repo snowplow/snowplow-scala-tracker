@@ -38,7 +38,7 @@ object Dependencies {
     val json4s      = "3.2.11"
     val sprayClient = "1.3.2"
     val akka        = "2.3.11"
-    val akkaHttp    = "1.0-RC3"
+    val akkaHttp    = "1.0-RC4"
     val scalaTest   = "2.2.4"
     object collUtil {
       val _29       = "5.3.10"

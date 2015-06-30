@@ -1,7 +1,7 @@
 package com.snowplowanalytics.snowplow.scalatracker
 
 import akka.actor.{ ActorSystem }
-import akka.stream.ActorFlowMaterializer
+import akka.stream.ActorMaterializer
 import com.typesafe.config.{ ConfigFactory }
 import akka.testkit._
 import scala.concurrent.duration._
@@ -37,7 +37,7 @@ class TrackingIntegrationTest(_system: ActorSystem) extends TestKit(_system)
       ("letters" -> List("a", "b", "c"))))
 
   import system.dispatcher
-  implicit val materializer = ActorFlowMaterializer()
+  implicit val materializer = ActorMaterializer()
 
   "trackUnstructuredEvent" must {
     "send the server the payload with unstructured events" in {

@@ -12,7 +12,7 @@ import akka.util.Timeout
 import scala.concurrent.duration._
 import scala.concurrent.Future
 
-import akka.stream.ActorFlowMaterializer
+import akka.stream.ActorMaterializer
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.client.RequestBuilding._
@@ -30,7 +30,7 @@ class EmitterSpec(_system: ActorSystem) extends TestKit(_system)
     akka.log-dead-letters = off""")
 
   import system.dispatcher
-  implicit val materializer = ActorFlowMaterializer()
+  implicit val materializer = ActorMaterializer()
 
   implicit lazy val timeout = Timeout(5.seconds)
 
@@ -49,6 +49,9 @@ class EmitterSpec(_system: ActorSystem) extends TestKit(_system)
       val (_, hostname, port) = TestUtils.temporaryServerHostnameAndPort()
 
       val testBinding = Http().bindAndHandleSync(_ => HttpResponse(), hostname, port)
+
+      testBinding flatMap (_.unbind()) onComplete (_ => system.shutdown())
+
       Await.result(testBinding, 1.second)
 
       val payload: Payload = scala.collection.mutable.Map.empty

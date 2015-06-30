@@ -33,7 +33,7 @@ object Emitter {
 
 class Emitter(host: String, port: Int) extends Actor with ActorLogging {
   import scala.concurrent.Future
-  import akka.stream.ActorFlowMaterializer
+  import akka.stream.ActorMaterializer
   import akka.stream.scaladsl._
   import akka.http.scaladsl.model._
   import akka.http.scaladsl.Http
@@ -44,7 +44,7 @@ class Emitter(host: String, port: Int) extends Actor with ActorLogging {
   import java.util.concurrent.TimeoutException
 
   implicit val system = context.system
-  implicit val materializer = ActorFlowMaterializer()
+  implicit val materializer = ActorMaterializer()
 
   val connection: Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]] =
     Http().outgoingConnection(host, port)
