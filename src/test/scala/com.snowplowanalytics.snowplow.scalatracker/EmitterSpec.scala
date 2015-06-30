@@ -25,16 +25,14 @@ class EmitterSpec(_system: ActorSystem) extends TestKit(_system)
   with Matchers
   with BeforeAndAfterAll {
 
-  val testConf: Config = ConfigFactory.parseString("""
-    akka.loglevel = INFO
-    akka.log-dead-letters = off""")
-
   import system.dispatcher
   implicit val materializer = ActorMaterializer()
 
   implicit lazy val timeout = Timeout(5.seconds)
 
-  def this() = this(ActorSystem("EmitterSpec"))
+  def this() = this(ActorSystem("EmitterSpec", ConfigFactory.parseString("""
+    akka.loglevel = INFO
+    akka.log-dead-letters = off""")))
 
   override def afterAll() {
     TestKit.shutdownActorSystem(system)
@@ -50,14 +48,14 @@ class EmitterSpec(_system: ActorSystem) extends TestKit(_system)
 
       val testBinding = Http().bindAndHandleSync(_ => HttpResponse(), hostname, port)
 
-      testBinding flatMap (_.unbind()) onComplete (_ => system.shutdown())
-
       Await.result(testBinding, 1.second)
 
       val payload: Payload = scala.collection.mutable.Map.empty
       val emitter = system.actorOf(Emitter.props(hostname, port))
 
-      val (pay, res: HttpResponse) = Await.result(emitter ? payload, 1.second)
+      val Response(pay, res) = Await.result(emitter ? payload, 1.second)
+
+      testBinding flatMap (_.unbind()) onComplete (_ => system.shutdown())
 
       assert(payload === pay)
       assert(res.status === StatusCodes.OK)

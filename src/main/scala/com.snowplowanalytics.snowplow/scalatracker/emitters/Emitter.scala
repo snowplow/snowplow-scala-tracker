@@ -6,6 +6,12 @@ import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.language.postfixOps
 import scala.collection.mutable.{ Map => MMap }
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl._
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.client.RequestBuilding._
+import akka.http.scaladsl.model.StatusCodes._
 
 object Emitter {
   import org.apache.commons.codec.binary.Base64
@@ -29,16 +35,12 @@ object Emitter {
   type Payload = MMap[String, String]
 
   def props(host: String, port: Int) = Props(new Emitter(host, port))
+
+  case class Response(payload: Payload, response: HttpResponse)
 }
 
 class Emitter(host: String, port: Int) extends Actor with ActorLogging {
   import scala.concurrent.Future
-  import akka.stream.ActorMaterializer
-  import akka.stream.scaladsl._
-  import akka.http.scaladsl.model._
-  import akka.http.scaladsl.Http
-  import akka.http.scaladsl.client.RequestBuilding._
-  import akka.http.scaladsl.model.StatusCodes._
   import context.dispatcher
   import Emitter._
   import java.util.concurrent.TimeoutException
@@ -58,12 +60,12 @@ class Emitter(host: String, port: Int) extends Actor with ActorLogging {
       sendRequest(Get(prepareUri("/i", payload))) flatMap { response =>
         response.status match {
           case OK =>
-            tracker ! (payload, response)
+            tracker ! Response(payload, response)
             Future.successful { log.info("Successfully sent event.") }
           case _ =>
             val error = s"Failed with status code ${response.status}"
             log.error(error)
-            tracker ! (payload, response)
+            tracker ! Response(payload, response)
             Future.failed(new IOException(error))
         }
       } recover {
