@@ -50,9 +50,9 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   /**
    * Add contexts and timestamp to the payload
    *
-   * @param payload
-   * @param contexts
-   * @param timestamp
+   * @param payload constructed event map
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp for the event
    * @return payload with additional data
    */
   private def completePayload(
@@ -89,8 +89,8 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * Track a Snowplow unstructured event
    *
    * @param unstructEvent self-describing JSON for the event
-   * @param contexts
-   * @param timestamp
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp for the event
    * @return The tracker instance
    */
   def trackUnstructEvent(
@@ -114,10 +114,45 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   }
 
   /**
+   * Track a Snowplow structured event
+   *
+   * @param category event category mapped to se_ca
+   * @param action event itself mapped to se_ac
+   * @param label optional object label mapped to se_la
+   * @param property optional event/object property mapped to se_pr
+   * @param value optional object value mapped to se_va
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp for the event
+   * @return the tracker instance
+   */
+  def trackStructEvent(
+    category: String,
+    action: String,
+    label: Option[String] = None,
+    property: Option[String] = None,
+    value: Option[Double] = None,
+    contexts: Seq[SelfDescribingJson] = Nil,
+    timestamp: Option[Long] = None): Tracker = {
+
+    val payload = new Payload()
+
+    payload.add("e", "se")
+    payload.add("se_ca", category)
+    payload.add("se_ac", action)
+    label.foreach(l => payload.add("se_la", l))
+    property.foreach(p => payload.add("se_pr", p))
+    value.foreach(v => payload.add("se_va", v.toString))
+
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
+
+  /**
    * Set the Subject for the tracker
    * The subject's configuration will be attached to every event
    *
-   * @param subject
+   * @param subject user which the Tracker will track
    * @return The tracker instance
    */
   def setSubject(subject: Subject): Tracker = {
