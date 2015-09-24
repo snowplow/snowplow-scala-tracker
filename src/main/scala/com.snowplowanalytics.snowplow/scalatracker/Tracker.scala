@@ -139,9 +139,38 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     payload.add("e", "se")
     payload.add("se_ca", category)
     payload.add("se_ac", action)
-    label.foreach(l => payload.add("se_la", l))
-    property.foreach(p => payload.add("se_pr", p))
-    value.foreach(v => payload.add("se_va", v.toString))
+    payload.add("se_la", label)
+    payload.add("se_pr", property)
+    payload.add("se_va", value.map(_.toString))
+
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
+
+  /**
+   * Record view of web page
+   *
+   * @param pageUrl viewed URL
+   * @param pageTitle page's title
+   * @param referrer referrer URL
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp for the event
+   * @return the tracker instance
+   */
+  def trackPageView(
+    pageUrl: String,
+    pageTitle: Option[String] = None,
+    referrer: Option[String] = None,
+    contexts: Seq[SelfDescribingJson] = Nil,
+    timestamp: Option[Long] = None): Tracker = {
+
+    val payload = new Payload()
+
+    payload.add("e", "pv")
+    payload.add("url", pageUrl)
+    payload.add("page", pageTitle)
+    payload.add("refr", referrer)
 
     track(completePayload(payload, contexts, timestamp))
 

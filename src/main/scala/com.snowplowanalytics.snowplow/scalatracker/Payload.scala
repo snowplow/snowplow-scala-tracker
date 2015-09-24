@@ -32,12 +32,25 @@ class Payload {
   /**
    * Add a key-value pair
    *
-   * @param name
-   * @param value
+   * @param name parameter name
+   * @param value parameter value
    */
   def add(name: String, value: String) {
     if (!name.isEmpty && name != null && !value.isEmpty && value != null) {
       nvPairs += (name -> value)
+    }
+  }
+
+  /**
+   * Overloaded add function for Option. Don't modify payload for None
+   *
+   * @param name parameter name
+   * @param value optional parameter value
+   */
+  def add(name: String, value: Option[String]): Unit = {
+    value match {
+      case Some(v) => add(name, v)
+      case None    =>
     }
   }
 
