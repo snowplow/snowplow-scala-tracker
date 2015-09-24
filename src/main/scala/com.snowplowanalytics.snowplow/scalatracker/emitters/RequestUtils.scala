@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.scalatracker
 package emitters
 
 // Scala
+import scala.util.{ Failure, Success }
 import scala.util.control.NonFatal
 import scala.concurrent.{
   Future,
@@ -23,19 +24,21 @@ import scala.concurrent.duration._
 
 // Akka
 import akka.io.IO
-import akka.actor.{Props, ActorSystem}
+import akka.actor.ActorSystem
 import akka.pattern.ask
 import akka.util.Timeout
 
 // Spray
 import spray.http._
-import spray.httpx.{UnsuccessfulResponseException => UrUnsuccessfulResponseException}
-import spray.httpx.unmarshalling.FromResponseUnmarshaller
+import spray.httpx.marshalling.Marshaller
 import spray.util._
 import spray.client.pipelining._
 import spray.can.Http
-import spray.can.Http.HostConnectorSetup
-import spray.io.ClientSSLEngineProvider
+
+// json4s
+import org.json4s._
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods._
 
 // Config
 import com.typesafe.config.ConfigFactory
@@ -44,15 +47,29 @@ import com.typesafe.config.ConfigFactory
  * Object to hold methods for sending HTTP requests
  */
 object RequestUtils {
-  private val Encoding = "UTF-8"
+  // JSON object with Iglu URI to Schema for payload
+  private val payloadBatchStub: JObject = ("schema", "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-3")
+
+  /**
+   * Transform List of Map[String, String] to JSON array of objects
+   *
+   * @param payload list of string-to-string maps taken from HTTP query
+   * @return JSON array represented as String
+   */
+  private def postPayload(payload: Seq[Map[String, String]]): String =
+    compact(payloadBatchStub ~ ("data", payload))
+
+  /**
+   * Marshall batch of events to string payload with application/json
+   */
+  implicit val eventsMarshaller = Marshaller.of[Seq[Map[String,String]]](ContentTypes.`application/json`) {
+    (value, ct, ctx) => ctx.marshalTo(HttpEntity(ct, postPayload(value)))
+  }
 
   implicit val system = ActorSystem(
     generated.ProjectSettings.name,
     ConfigFactory.parseString("akka.daemonic=on"))
-
-  import system.dispatcher
-  import system.log
-
+  import system.dispatcher                    // Context for Futures
   val longTimeout = 5.minutes
   implicit val timeout = Timeout(longTimeout)
 
@@ -64,51 +81,80 @@ object RequestUtils {
   })
 
   /**
-   * Attempt a GET request once
+   * Construct GET request with single event payload
    *
-   * @param host
-   * @param payload
-   * @param port
-   * @return Whether the request succeeded
+   * @param host URL host (not header)
+   * @param payload map of event keys
+   * @param port URL port (not header)
+   * @return HTTP request with event
    */
-  def attemptGet(host: String, payload: Map[String, String], port: Int = 80): Boolean = {
-    val connectedSendReceive = for {
-      Http.HostConnectorInfo(connector, _) <-
-        IO(Http) ? Http.HostConnectorSetup(host, port = port, sslEncryption = false)
-    } yield sendReceive(connector)
-
-    val pipeline = for (sendRecv <- connectedSendReceive) yield sendRecv
-
+  private[emitters] def constructGetRequest(host: String, payload: Map[String, String], port: Int): HttpRequest = {
     val uri = Uri()
       .withScheme("http")
       .withPath(Uri.Path("/i"))
       .withAuthority(Uri.Authority(Uri.Host(host), port))
       .withQuery(payload)
+    Get(uri)
+  }
 
-    val req = Get(uri)
+  /**
+   * Construct POST request with batch event payload
+   *
+   * @param host URL host (not header)
+   * @param payload list of events
+   * @param port URL port (not header)
+   * @return HTTP request with event
+   */
+  private[emitters] def constructPostRequest(host: String, payload: Seq[Map[String, String]], port: Int): HttpRequest = {
+    val uri = Uri()
+      .withScheme("http")
+      .withPath(Uri.Path("/com.snowplowanalytics.snowplow/tp2"))
+      .withAuthority(Uri.Authority(Uri.Host(host), port))
+    Post(uri, payload)
+  }
+
+  /**
+   * Connect to host and return Spray SendReceive pipeline
+   *
+   * @param host host to connect
+   * @param port port to connect
+   * @return future pipeline
+   */
+  private[emitters] def getPipeline(host: String, port: Int): Future[SendReceive] = {
+    val connectorSetup = Http.HostConnectorSetup(host, port = port, sslEncryption = false)
+    for {
+      Http.HostConnectorInfo(connector, _) <- IO(Http) ? connectorSetup
+    } yield sendReceive(connector)
+  }
+
+  /**
+   * Attempt a GET request once
+   *
+   * @param host collector host
+   * @param payload event map
+   * @param port collector port
+   * @return Whether the request succeeded
+   */
+  def attemptGet(host: String, payload: Map[String, String], port: Int = 80): Boolean = {
+    val pipeline = getPipeline(host, port)
+    val req = constructGetRequest(host, payload, port)
     val future = pipeline.flatMap(_(req))
     val result = Await.ready(future, longTimeout).value.get
-
     result match {
-      case scala.util.Success(s) => s.status.isSuccess
-      case scala.util.Failure(f) => false
+      case Success(s) => s.status.isSuccess   // 404 match Success(_) too
+      case Failure(_) => false
     }
   }
 
   /**
    * Attempt a GET request until successful
    *
-   * @param host
-   * @param payload
-   * @param port
+   * @param host collector host
+   * @param payload event map
+   * @param port collector port
    * @param backoffPeriod How long to wait between failed requests
    */
-  def retryGetUntilSuccessful(
-    host: String,
-    payload: Map[String, String],
-    port: Int = 80,
-    backoffPeriod: Long) {
-
+  def retryGetUntilSuccessful(host: String, payload: Map[String, String], port: Int = 80, backoffPeriod: Long) {
     val getSuccessful = try {
       attemptGet(host, payload, port)
     } catch {
@@ -118,6 +164,47 @@ object RequestUtils {
     if (!getSuccessful) {
       Thread.sleep(backoffPeriod)
       retryGetUntilSuccessful(host, payload, port, backoffPeriod)
+    }
+  }
+
+  /**
+   * Attempt a POST request once
+   *
+   * @param host collector host
+   * @param payload event map
+   * @param port collector port
+   * @return Whether the request succeeded
+   */
+  def attemptPost(host: String, payload: Seq[Map[String, String]], port: Int = 80): Boolean = {
+    val pipeline = getPipeline(host, port)
+    val req = constructPostRequest(host, payload, port)
+    val future = pipeline.flatMap(p => p(req))
+    val result = Await.ready(future, longTimeout).value.get
+    result match {
+      case Success(s) => s.status.isSuccess   // 404 match Success(_) too
+      case Failure(_) => false
+    }
+  }
+
+  /**
+   * Attempt a POST request until successful
+   *
+   * @param host collector host
+   * @param payload event map
+   * @param port collector port
+   * @param backoffPeriod How long to wait between failed requests
+   */
+  def retryPostUntilSuccessful( host: String, payload: Seq[Map[String, String]], port: Int = 80, backoffPeriod: Long) {
+
+    val getSuccessful = try {
+      attemptPost(host, payload, port)
+    } catch {
+      case NonFatal(f) => false
+    }
+
+    if (!getSuccessful) {
+      Thread.sleep(backoffPeriod)
+      retryPostUntilSuccessful(host, payload, port, backoffPeriod)
     }
   }
 

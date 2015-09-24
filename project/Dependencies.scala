@@ -35,7 +35,7 @@ object Dependencies {
     // Scala
     val scalaUtil   = "0.1.0"
     val json4s      = "3.2.11"
-    val sprayClient = "1.3.2"
+    val spray       = "1.3.2"
     val akka        = "2.3.5"
     object collUtil {
       val _29       = "5.3.10"
@@ -65,7 +65,7 @@ object Dependencies {
 
     // Scala
     val scalaUtil   = "com.snowplowanalytics"      %  "scala-util"        % V.scalaUtil
-    val sprayClient = "io.spray"                   %% "spray-client"      % V.sprayClient
+    val sprayClient = "io.spray"                   %% "spray-client"      % V.spray
     val akka        = "com.typesafe.akka"          %% "akka-actor"        % V.akka
     val json4sJackson = "org.json4s"               %% "json4s-jackson"    % V.json4s
     object collUtil {
@@ -83,6 +83,7 @@ object Dependencies {
       val _210      = "org.specs2"                 %% "specs2"            % V.specs2._210        % "test"
       val _211      = "org.specs2"                 %% "specs2"            % V.specs2._211        % "test"
     }
+    val sprayTest   = "io.spray"                   %% "spray-testkit"     % V.spray              % "test"
   }
 
   def onVersion[A](all: Seq[A] = Seq(), on29: => Seq[A] = Seq(), on210: => Seq[A] = Seq(), on211: => Seq[A] = Seq()) =

@@ -39,7 +39,8 @@ object SnowplowTrackerBuild extends Build {
         Libraries.json4sJackson,
         Libraries.sprayClient,
         Libraries.akka,
-        Libraries.mockito),
+        Libraries.mockito,
+        Libraries.sprayTest),
         on29 = Seq(Libraries.collUtil._29, Libraries.specs2._29),
         on210 = Seq(Libraries.collUtil._210, Libraries.specs2._210),
         on211 = Seq(Libraries.collUtil._211, Libraries.specs2._211)

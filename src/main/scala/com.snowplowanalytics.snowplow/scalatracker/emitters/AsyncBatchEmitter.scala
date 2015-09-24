@@ -15,41 +15,50 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters
 // Java
 import java.util.concurrent.LinkedBlockingQueue
 
+// Scala
+import scala.collection.mutable.ListBuffer
 
-object AsyncEmitter {
+
+object AsyncBatchEmitter {
   // Avoid starting thread in constructor
   /**
-   * Start async emitter with single event payload
+   * Start async emitter with batch event payload
    *
    * @param host collector host
    * @param port collector port
+   * @param bufferSize quantity of events in batch request
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80): AsyncEmitter = {
-    val emitter = new AsyncEmitter(host, port)
+  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50): AsyncBatchEmitter = {
+    val emitter = new AsyncBatchEmitter(host, port, bufferSize)
     emitter.startWorker()
     emitter
   }
 }
 
 /**
- * Asynchronous emitter using LinkedBlockingQueue
+ * Asynchronous batch emitter
+ * Store events in buffer and send them with POST request when buffer exceeds `bufferSize`
  *
  * @param host collector host
  * @param port collector port
+ * @param bufferSize quantity of events in a batch request
  */
-class AsyncEmitter private(host: String, port: Int) extends TEmitter {
+class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int) extends TEmitter {
 
-  val queue = new LinkedBlockingQueue[Map[String, String]]()
+  val queue = new LinkedBlockingQueue[Seq[Map[String, String]]]()
 
   // 10 second timeout between failed requests
   val BackoffPeriod = 10000
 
+  private var buffer = ListBuffer[Map[String, String]]()
+
+  // Start consumer thread synchronously trying to send events to collector
   val worker = new Thread {
     override def run {
       while (true) {
-        val event = queue.take()
-        RequestUtils.retryGetUntilSuccessful(host, event, port, BackoffPeriod)
+        val batch = queue.take()
+        RequestUtils.retryPostUntilSuccessful(host, batch, port, BackoffPeriod)
       }
     }
   }
@@ -63,11 +72,14 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
    * @param event Fully assembled event
    */
   def input(event: Map[String, String]) {
-    queue.put(event)
+    buffer.append(event)
+    if (buffer.size >= bufferSize) {
+      queue.put(buffer)
+      buffer = ListBuffer[Map[String, String]]()
+    }
   }
 
   private def startWorker() {
     worker.start()
   }
 }
-

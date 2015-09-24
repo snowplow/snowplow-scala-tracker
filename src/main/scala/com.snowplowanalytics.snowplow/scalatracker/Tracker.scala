@@ -14,10 +14,6 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import java.util.UUID
 
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
-
 import emitters.TEmitter
 
 /**
@@ -42,7 +38,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   /**
    * Pass the assembled payload to every emitter
    *
-   * @param payload
+   * @param payload constructed event map
    */
   private def track(payload: Payload) {
     val event = payload.get
