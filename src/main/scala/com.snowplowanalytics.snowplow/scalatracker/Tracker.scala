@@ -30,11 +30,6 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
   private var subject: Subject = new Subject()
 
-  private def getTimestamp(timestamp: Option[Long]): Long = timestamp match {
-    case None => System.currentTimeMillis()
-    case Some(t) => t * 1000
-  }
-
   /**
    * Pass the assembled payload to every emitter
    *
@@ -73,7 +68,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     }
 
     if (!payload.nvPairs.contains("dtm")) {
-      payload.add("dtm", getTimestamp(timestamp).toString)
+      payload.add("dtm", Utils.getTimestamp(timestamp).toString)
     }
 
     payload.add("tv", Version)

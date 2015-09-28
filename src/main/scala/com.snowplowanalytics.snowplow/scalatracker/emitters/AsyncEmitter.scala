@@ -45,6 +45,7 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
   // 10 second timeout between failed requests
   val BackoffPeriod = 10000
 
+  // TODO: consider move retryGet/PostUntilSuccessful with adding of stm to Emitter (it's not requests logic)
   val worker = new Thread {
     override def run {
       while (true) {

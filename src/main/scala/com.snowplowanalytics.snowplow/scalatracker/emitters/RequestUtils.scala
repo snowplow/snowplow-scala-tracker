@@ -31,9 +31,9 @@ import akka.util.Timeout
 // Spray
 import spray.http._
 import spray.httpx.marshalling.Marshaller
-import spray.util._
 import spray.client.pipelining._
 import spray.can.Http
+import spray.util.{ Utils => _, _ }
 
 // json4s
 import org.json4s._
@@ -137,7 +137,8 @@ object RequestUtils {
    */
   def attemptGet(host: String, payload: Map[String, String], port: Int = 80): Boolean = {
     val pipeline = getPipeline(host, port)
-    val req = constructGetRequest(host, payload, port)
+    val payloadWithStm = payload ++ Map("stm" -> Utils.getTimestamp(None).toString)
+    val req = constructGetRequest(host, payloadWithStm, port)
     val future = pipeline.flatMap(_(req))
     val result = Await.ready(future, longTimeout).value.get
     result match {
@@ -177,7 +178,9 @@ object RequestUtils {
    */
   def attemptPost(host: String, payload: Seq[Map[String, String]], port: Int = 80): Boolean = {
     val pipeline = getPipeline(host, port)
-    val req = constructPostRequest(host, payload, port)
+    val stm = Utils.getTimestamp(None).toString
+    val payloadWithStm = payload.map(_ ++ Map("stm" -> stm))
+    val req = constructPostRequest(host, payloadWithStm, port)
     val future = pipeline.flatMap(p => p(req))
     val result = Await.ready(future, longTimeout).value.get
     result match {
@@ -195,7 +198,6 @@ object RequestUtils {
    * @param backoffPeriod How long to wait between failed requests
    */
   def retryPostUntilSuccessful( host: String, payload: Seq[Map[String, String]], port: Int = 80, backoffPeriod: Long) {
-
     val getSuccessful = try {
       attemptPost(host, payload, port)
     } catch {
@@ -206,6 +208,11 @@ object RequestUtils {
       Thread.sleep(backoffPeriod)
       retryPostUntilSuccessful(host, payload, port, backoffPeriod)
     }
+  }
+
+  private def getTimestamp(timestamp: Option[Long]): Long = timestamp match {
+    case None => System.currentTimeMillis()
+    case Some(t) => t * 1000
   }
 
   /**
