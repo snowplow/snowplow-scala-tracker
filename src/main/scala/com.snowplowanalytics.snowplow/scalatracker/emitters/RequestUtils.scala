@@ -137,7 +137,7 @@ object RequestUtils {
    */
   def attemptGet(host: String, payload: Map[String, String], port: Int = 80): Boolean = {
     val pipeline = getPipeline(host, port)
-    val payloadWithStm = payload ++ Map("stm" -> Utils.getTimestamp(None).toString)
+    val payloadWithStm = payload ++ Map("stm" -> System.currentTimeMillis().toString)
     val req = constructGetRequest(host, payloadWithStm, port)
     val future = pipeline.flatMap(_(req))
     val result = Await.ready(future, longTimeout).value.get
@@ -178,7 +178,7 @@ object RequestUtils {
    */
   def attemptPost(host: String, payload: Seq[Map[String, String]], port: Int = 80): Boolean = {
     val pipeline = getPipeline(host, port)
-    val stm = Utils.getTimestamp(None).toString
+    val stm = System.currentTimeMillis().toString
     val payloadWithStm = payload.map(_ ++ Map("stm" -> stm))
     val req = constructPostRequest(host, payloadWithStm, port)
     val future = pipeline.flatMap(p => p(req))
@@ -208,11 +208,6 @@ object RequestUtils {
       Thread.sleep(backoffPeriod)
       retryPostUntilSuccessful(host, payload, port, backoffPeriod)
     }
-  }
-
-  private def getTimestamp(timestamp: Option[Long]): Long = timestamp match {
-    case None => System.currentTimeMillis()
-    case Some(t) => t * 1000
   }
 
   /**

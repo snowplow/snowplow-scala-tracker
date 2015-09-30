@@ -47,7 +47,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    *
    * @param payload constructed event map
    * @param contexts list of additional contexts
-   * @param timestamp optional user-provided timestamp for the event
+   * @param timestamp optional user-provided timestamp (ms) for the event
    * @return payload with additional data
    */
   private def completePayload(
@@ -68,7 +68,10 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     }
 
     if (!payload.nvPairs.contains("dtm")) {
-      payload.add("dtm", Utils.getTimestamp(timestamp).toString)
+      timestamp match {
+        case Some(dtm) => payload.add("dtm", dtm.toString)
+        case None =>      payload.add("dtm", System.currentTimeMillis().toString)
+      }
     }
 
     payload.add("tv", Version)
@@ -85,7 +88,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    *
    * @param unstructEvent self-describing JSON for the event
    * @param contexts list of additional contexts
-   * @param timestamp optional user-provided timestamp for the event
+   * @param timestamp optional user-provided timestamp (ms) for the event
    * @return The tracker instance
    */
   def trackUnstructEvent(
@@ -117,7 +120,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param property optional event/object property mapped to se_pr
    * @param value optional object value mapped to se_va
    * @param contexts list of additional contexts
-   * @param timestamp optional user-provided timestamp for the event
+   * @param timestamp optional user-provided timestamp (ms) for the event
    * @return the tracker instance
    */
   def trackStructEvent(
@@ -150,7 +153,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param pageTitle page's title
    * @param referrer referrer URL
    * @param contexts list of additional contexts
-   * @param timestamp optional user-provided timestamp for the event
+   * @param timestamp optional user-provided timestamp (ms) for the event
    * @return the tracker instance
    */
   def trackPageView(
