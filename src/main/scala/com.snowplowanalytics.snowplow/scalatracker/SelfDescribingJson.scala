@@ -20,14 +20,14 @@ object SelfDescribingJson {
   /**
    * Create a SelfDescribingJson from the individual components of a schema
    *
-   * @param protocol
-   * @param vendor
-   * @param name
-   * @param format
-   * @param model
-   * @param revision
-   * @param addition
-   * @param data
+   * @param protocol schema path protocol
+   * @param vendor schema vendor
+   * @param name schema name
+   * @param format schema format (eg. jsonschema)
+   * @param model model number of SchemaVer
+   * @param revision revision number of SchemaVer
+   * @param addition addition number of SchemaVer
+   * @param data JSON instance
    */
   def apply(
     protocol: String,
@@ -47,7 +47,7 @@ object SelfDescribingJson {
   /**
    * Convenience method to create an outer unstruct_event self-describing JSON
    *
-   * @param schema
+   * @param schema the schema string
    * @param data Unstructured event self-describing JSOn
    */
   def apply(schema: String, data: SelfDescribingJson): SelfDescribingJson = {
@@ -57,7 +57,7 @@ object SelfDescribingJson {
   /**
    * Convenience method to turn a sequence of contexts into a self-describing JSON
    *
-   * @param schema
+   * @param schema the schema string
    * @param data Sequence of self-describing JSONs representing custom contexts
    */
   def apply(schema: String, data: Seq[SelfDescribingJson]): SelfDescribingJson = {
@@ -68,8 +68,8 @@ object SelfDescribingJson {
 /**
  * JSON representing an unstructured event or a custom context
  *
- * @param schema
- * @param data
+ * @param schema the schema string
+ * @param data JSON instance
  */
 case class SelfDescribingJson(schema: String, data: JValue) {
   def toJObject(): JObject = ("schema" -> schema) ~ ("data" -> data)

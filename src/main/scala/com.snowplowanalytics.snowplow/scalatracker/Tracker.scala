@@ -12,7 +12,13 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
+// Java
 import java.util.UUID
+
+// Scala
+import scala.concurrent.Promise
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{ Failure, Success }
 
 import emitters.TEmitter
 
@@ -30,12 +36,31 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
   private var subject: Subject = new Subject()
 
+  private var attachEc2Context = false
+  private val ec2Context = Promise[SelfDescribingJson]
+
+  /**
+   * Send assembled payload to emitters or schedule it as callback of getting context
+   *
+   * @param payload constructed event map
+   */
+  private def track(payload: Payload): Unit = {
+    if (attachEc2Context) {
+      ec2Context.future.onComplete {
+        case Success(ctx) => send(addContext(payload, Seq(ctx)))
+        case Failure(_)   => send(payload)
+      }
+    } else {
+      send(payload)
+    }
+  }
+
   /**
    * Pass the assembled payload to every emitter
    *
    * @param payload constructed event map
    */
-  private def track(payload: Payload) {
+  private def send(payload: Payload): Unit = {
     val event = payload.get
     emitters foreach {
       e => e.input(event)
@@ -57,16 +82,6 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
     payload.add("eid", UUID.randomUUID().toString)
 
-    if (! contexts.isEmpty) {
-
-      val contextsEnvelope = SelfDescribingJson(
-        "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
-        contexts
-        )
-
-      payload.addJson(contextsEnvelope.toJObject, encodeBase64, "cx", "co")
-    }
-
     if (!payload.nvPairs.contains("dtm")) {
       timestamp match {
         case Some(dtm) => payload.add("dtm", dtm.toString)
@@ -80,7 +95,28 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
     payload.addDict(subject.getSubjectInformation())
 
-    payload
+    addContext(payload, contexts)
+  }
+
+  /**
+   * Add contexts to the payload or return same payload
+   *
+   * @param payload constructed event map
+   * @param contexts list of additional contexts
+   * @return payload with contexts
+   */
+  private def addContext(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload = {
+    if (!contexts.isEmpty) {
+      val contextsEnvelope = SelfDescribingJson(
+        "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
+        contexts
+      )
+
+      payload.addJson(contextsEnvelope.toJObject, encodeBase64, "cx", "co")
+      payload
+    } else {
+      payload
+    }
   }
 
   /**
@@ -186,4 +222,16 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     this.subject = subject
     this
   }
+
+
+  /**
+   * Adds EC2 context to each sent event
+   * This will also make tracker to wait for complete AWS EC2 request
+   * before send all events
+   */
+  def enableEc2Context(): Unit = {
+    attachEc2Context = true
+    ec2Context.completeWith(Ec2Metadata.getInstanceContextFuture)
+  }
 }
+

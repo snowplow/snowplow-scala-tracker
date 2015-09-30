@@ -72,6 +72,7 @@ object RequestUtils {
   import system.dispatcher                    // Context for Futures
   val longTimeout = 5.minutes
   implicit val timeout = Timeout(longTimeout)
+  val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
   // Close all connections when the application exits
   Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -114,20 +115,6 @@ object RequestUtils {
   }
 
   /**
-   * Connect to host and return Spray SendReceive pipeline
-   *
-   * @param host host to connect
-   * @param port port to connect
-   * @return future pipeline
-   */
-  private[emitters] def getPipeline(host: String, port: Int): Future[SendReceive] = {
-    val connectorSetup = Http.HostConnectorSetup(host, port = port, sslEncryption = false)
-    for {
-      Http.HostConnectorInfo(connector, _) <- IO(Http) ? connectorSetup
-    } yield sendReceive(connector)
-  }
-
-  /**
    * Attempt a GET request once
    *
    * @param host collector host
@@ -136,10 +123,9 @@ object RequestUtils {
    * @return Whether the request succeeded
    */
   def attemptGet(host: String, payload: Map[String, String], port: Int = 80): Boolean = {
-    val pipeline = getPipeline(host, port)
     val payloadWithStm = payload ++ Map("stm" -> System.currentTimeMillis().toString)
     val req = constructGetRequest(host, payloadWithStm, port)
-    val future = pipeline.flatMap(_(req))
+    val future = pipeline(req)
     val result = Await.ready(future, longTimeout).value.get
     result match {
       case Success(s) => s.status.isSuccess   // 404 match Success(_) too
@@ -177,11 +163,10 @@ object RequestUtils {
    * @return Whether the request succeeded
    */
   def attemptPost(host: String, payload: Seq[Map[String, String]], port: Int = 80): Boolean = {
-    val pipeline = getPipeline(host, port)
     val stm = System.currentTimeMillis().toString
     val payloadWithStm = payload.map(_ ++ Map("stm" -> stm))
     val req = constructPostRequest(host, payloadWithStm, port)
-    val future = pipeline.flatMap(p => p(req))
+    val future = pipeline(req)
     val result = Await.ready(future, longTimeout).value.get
     result match {
       case Success(s) => s.status.isSuccess   // 404 match Success(_) too
