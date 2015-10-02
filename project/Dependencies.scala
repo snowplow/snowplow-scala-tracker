@@ -35,8 +35,8 @@ object Dependencies {
     // Scala
     val scalaUtil   = "0.1.0"
     val json4s      = "3.2.11"
-    val spray       = "1.3.2"
-    val akka        = "2.3.5"
+    val spray       = "1.3.3"
+    val akka        = "2.3.14"
     object collUtil {
       val _29       = "5.3.10"
       val _210      = "6.3.4"
