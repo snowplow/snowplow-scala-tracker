@@ -63,11 +63,11 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
    *
    * @param event Fully assembled event
    */
-  def input(event: Map[String, String]) {
+  def input(event: Map[String, String]): Unit = {
     queue.put(event)
   }
 
-  private def startWorker() {
+  private def startWorker(): Unit = {
     worker.start()
   }
 }

@@ -35,7 +35,7 @@ class Payload {
    * @param name parameter name
    * @param value parameter value
    */
-  def add(name: String, value: String) {
+  def add(name: String, value: String): Unit = {
     if (!name.isEmpty && name != null && !value.isEmpty && value != null) {
       nvPairs += (name -> value)
     }
@@ -59,7 +59,7 @@ class Payload {
    *
    * @param dict
    */
-  def addDict(dict: Map[String, String]) {
+  def addDict(dict: Map[String, String]): Unit = {
     dict foreach {
       case (k, v) => add(k, v)
     }
@@ -77,7 +77,7 @@ class Payload {
     json: JObject,
     encodeBase64: Boolean,
     typeWhenEncoded: String,
-    typeWhenNotEncoded: String) {
+    typeWhenNotEncoded: String): Unit = {
 
     val jsonString = compact(render(json))
 

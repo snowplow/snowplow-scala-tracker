@@ -71,7 +71,7 @@ class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int) extend
    *
    * @param event Fully assembled event
    */
-  def input(event: Map[String, String]) {
+  def input(event: Map[String, String]): Unit = {
     buffer.append(event)
     if (buffer.size >= bufferSize) {
       queue.put(buffer)
@@ -79,7 +79,7 @@ class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int) extend
     }
   }
 
-  private def startWorker() {
+  private def startWorker(): Unit = {
     worker.start()
   }
 }
