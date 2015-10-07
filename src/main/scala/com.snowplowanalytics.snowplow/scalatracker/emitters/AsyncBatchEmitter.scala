@@ -48,8 +48,8 @@ class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int) extend
 
   val queue = new LinkedBlockingQueue[Seq[Map[String, String]]]()
 
-  // 10 second timeout between failed requests
-  val BackoffPeriod = 10000
+  // 2 seconds timeout after 1st failed request
+  val initialBackoffPeriod = 2000
 
   private var buffer = ListBuffer[Map[String, String]]()
 
@@ -58,7 +58,7 @@ class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int) extend
     override def run {
       while (true) {
         val batch = queue.take()
-        RequestUtils.retryPostUntilSuccessful(host, batch, port, BackoffPeriod)
+        RequestUtils.retryPostUntilSuccessful(host, batch, port, initialBackoffPeriod)
       }
     }
   }

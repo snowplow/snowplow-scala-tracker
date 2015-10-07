@@ -134,23 +134,25 @@ object RequestUtils {
   }
 
   /**
-   * Attempt a GET request until successful
+   * Attempt a GET request until success or 10th try
+   * Double backoff period after each failed try
    *
    * @param host collector host
    * @param payload event map
    * @param port collector port
-   * @param backoffPeriod How long to wait between failed requests
+   * @param backoffPeriod How long to wait after first failed request
+   * @param attempt accumulated value of tries
    */
-  def retryGetUntilSuccessful(host: String, payload: Map[String, String], port: Int = 80, backoffPeriod: Long) {
+  def retryGetUntilSuccessful(host: String, payload: Map[String, String], port: Int = 80, backoffPeriod: Long, attempt: Int = 1) {
     val getSuccessful = try {
       attemptGet(host, payload, port)
     } catch {
       case NonFatal(f) => false
     }
 
-    if (!getSuccessful) {
+    if (!getSuccessful && attempt < 10) {
       Thread.sleep(backoffPeriod)
-      retryGetUntilSuccessful(host, payload, port, backoffPeriod)
+      retryGetUntilSuccessful(host, payload, port, backoffPeriod * 2, attempt + 1)
     }
   }
 
@@ -175,23 +177,25 @@ object RequestUtils {
   }
 
   /**
-   * Attempt a POST request until successful
+   * Attempt a POST request until success or 10th try
+   * Double backoff period after each failed try
    *
    * @param host collector host
    * @param payload event map
    * @param port collector port
-   * @param backoffPeriod How long to wait between failed requests
+   * @param backoffPeriod How long to wait after first failed request
+   * @param attempt accumulated value of tries
    */
-  def retryPostUntilSuccessful( host: String, payload: Seq[Map[String, String]], port: Int = 80, backoffPeriod: Long) {
+  def retryPostUntilSuccessful(host: String, payload: Seq[Map[String, String]], port: Int = 80, backoffPeriod: Long, attempt: Int = 1) {
     val getSuccessful = try {
       attemptPost(host, payload, port)
     } catch {
       case NonFatal(f) => false
     }
 
-    if (!getSuccessful) {
+    if (!getSuccessful && attempt < 10) {
       Thread.sleep(backoffPeriod)
-      retryPostUntilSuccessful(host, payload, port, backoffPeriod)
+      retryPostUntilSuccessful(host, payload, port, backoffPeriod * 2, attempt + 1)
     }
   }
 

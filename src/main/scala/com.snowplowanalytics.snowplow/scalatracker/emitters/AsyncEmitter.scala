@@ -42,15 +42,15 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
 
   val queue = new LinkedBlockingQueue[Map[String, String]]()
 
-  // 10 second timeout between failed requests
-  val BackoffPeriod = 10000
+  // 2 seconds timeout after 1st failed request
+  val initialBackoffPeriod = 2000
 
   // TODO: consider move retryGet/PostUntilSuccessful with adding of stm to Emitter (it's not requests logic)
   val worker = new Thread {
     override def run {
       while (true) {
         val event = queue.take()
-        RequestUtils.retryGetUntilSuccessful(host, event, port, BackoffPeriod)
+        RequestUtils.retryGetUntilSuccessful(host, event, port, initialBackoffPeriod)
       }
     }
   }
