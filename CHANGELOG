@@ -1,4 +1,4 @@
-Version 0.2.0 (2015-10-xx)
+Version 0.2.0 (2015-10-14)
 --------------------------
 Added a custom context based on EC2 instance metadata (#2)
 Added POST request support (#11)
