@@ -15,42 +15,50 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters
 // Java
 import java.util.concurrent.LinkedBlockingQueue
 
+// Scala
+import scala.collection.mutable.ListBuffer
 
-object AsyncEmitter {
+
+object AsyncBatchEmitter {
   // Avoid starting thread in constructor
   /**
-   * Start async emitter with single event payload
+   * Start async emitter with batch event payload
    *
    * @param host collector host
    * @param port collector port
+   * @param bufferSize quantity of events in batch request
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80): AsyncEmitter = {
-    val emitter = new AsyncEmitter(host, port)
+  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50): AsyncBatchEmitter = {
+    val emitter = new AsyncBatchEmitter(host, port, bufferSize)
     emitter.startWorker()
     emitter
   }
 }
 
 /**
- * Asynchronous emitter using LinkedBlockingQueue
+ * Asynchronous batch emitter
+ * Store events in buffer and send them with POST request when buffer exceeds `bufferSize`
  *
  * @param host collector host
  * @param port collector port
+ * @param bufferSize quantity of events in a batch request
  */
-class AsyncEmitter private(host: String, port: Int) extends TEmitter {
+class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int) extends TEmitter {
 
-  val queue = new LinkedBlockingQueue[Map[String, String]]()
+  val queue = new LinkedBlockingQueue[Seq[Map[String, String]]]()
 
   // 2 seconds timeout after 1st failed request
   val initialBackoffPeriod = 2000
 
-  // TODO: consider move retryGet/PostUntilSuccessful with adding of stm to Emitter (it's not requests logic)
+  private var buffer = ListBuffer[Map[String, String]]()
+
+  // Start consumer thread synchronously trying to send events to collector
   val worker = new Thread {
     override def run {
       while (true) {
-        val event = queue.take()
-        RequestUtils.retryGetUntilSuccessful(host, event, port, initialBackoffPeriod)
+        val batch = queue.take()
+        RequestUtils.retryPostUntilSuccessful(host, batch, port, initialBackoffPeriod)
       }
     }
   }
@@ -64,11 +72,14 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
    * @param event Fully assembled event
    */
   def input(event: Map[String, String]): Unit = {
-    queue.put(event)
+    buffer.append(event)
+    if (buffer.size >= bufferSize) {
+      queue.put(buffer)
+      buffer = ListBuffer[Map[String, String]]()
+    }
   }
 
   private def startWorker(): Unit = {
     worker.start()
   }
 }
-

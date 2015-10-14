@@ -1,3 +1,14 @@
+Version 0.2.0 (2015-10-14)
+--------------------------
+Added a custom context based on EC2 instance metadata (#2)
+Added POST request support (#11)
+Added support for page view events (#12)
+Added support for structured events (#13)
+Added dvce_sent_tstamp (#15)
+Timestamp units changed to milliseconds (#17)
+Dependencies versions bumped (#21)
+Removed infinite loop of failed requests (#24)
+
 Version 0.1.0 (2015-05-28)
 --------------------------
 Initial release

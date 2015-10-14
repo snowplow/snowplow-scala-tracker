@@ -12,11 +12,13 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
+// Java
 import java.util.UUID
 
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
+// Scala
+import scala.concurrent.Promise
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{ Failure, Success }
 
 import emitters.TEmitter
 
@@ -34,17 +36,31 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
   private var subject: Subject = new Subject()
 
-  private def getTimestamp(timestamp: Option[Long]): Long = timestamp match {
-    case None => System.currentTimeMillis()
-    case Some(t) => t * 1000
+  private var attachEc2Context = false
+  private val ec2Context = Promise[SelfDescribingJson]
+
+  /**
+   * Send assembled payload to emitters or schedule it as callback of getting context
+   *
+   * @param payload constructed event map
+   */
+  private def track(payload: Payload): Unit = {
+    if (attachEc2Context) {
+      ec2Context.future.onComplete {
+        case Success(ctx) => send(addContext(payload, Seq(ctx)))
+        case Failure(_)   => send(payload)
+      }
+    } else {
+      send(payload)
+    }
   }
 
   /**
    * Pass the assembled payload to every emitter
    *
-   * @param payload
+   * @param payload constructed event map
    */
-  private def track(payload: Payload) {
+  private def send(payload: Payload): Unit = {
     val event = payload.get
     emitters foreach {
       e => e.input(event)
@@ -54,9 +70,9 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   /**
    * Add contexts and timestamp to the payload
    *
-   * @param payload
-   * @param contexts
-   * @param timestamp
+   * @param payload constructed event map
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp (ms) for the event
    * @return payload with additional data
    */
   private def completePayload(
@@ -66,18 +82,11 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
     payload.add("eid", UUID.randomUUID().toString)
 
-    if (! contexts.isEmpty) {
-
-      val contextsEnvelope = SelfDescribingJson(
-        "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
-        contexts
-        )
-
-      payload.addJson(contextsEnvelope.toJObject, encodeBase64, "cx", "co")
-    }
-
     if (!payload.nvPairs.contains("dtm")) {
-      payload.add("dtm", getTimestamp(timestamp).toString)
+      timestamp match {
+        case Some(dtm) => payload.add("dtm", dtm.toString)
+        case None =>      payload.add("dtm", System.currentTimeMillis().toString)
+      }
     }
 
     payload.add("tv", Version)
@@ -86,15 +95,36 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
     payload.addDict(subject.getSubjectInformation())
 
-    payload
+    addContext(payload, contexts)
+  }
+
+  /**
+   * Add contexts to the payload or return same payload
+   *
+   * @param payload constructed event map
+   * @param contexts list of additional contexts
+   * @return payload with contexts
+   */
+  private def addContext(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload = {
+    if (!contexts.isEmpty) {
+      val contextsEnvelope = SelfDescribingJson(
+        "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
+        contexts
+      )
+
+      payload.addJson(contextsEnvelope.toJObject, encodeBase64, "cx", "co")
+      payload
+    } else {
+      payload
+    }
   }
 
   /**
    * Track a Snowplow unstructured event
    *
    * @param unstructEvent self-describing JSON for the event
-   * @param contexts
-   * @param timestamp
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp (ms) for the event
    * @return The tracker instance
    */
   def trackUnstructEvent(
@@ -118,14 +148,90 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   }
 
   /**
+   * Track a Snowplow structured event
+   *
+   * @param category event category mapped to se_ca
+   * @param action event itself mapped to se_ac
+   * @param label optional object label mapped to se_la
+   * @param property optional event/object property mapped to se_pr
+   * @param value optional object value mapped to se_va
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp (ms) for the event
+   * @return the tracker instance
+   */
+  def trackStructEvent(
+    category: String,
+    action: String,
+    label: Option[String] = None,
+    property: Option[String] = None,
+    value: Option[Double] = None,
+    contexts: Seq[SelfDescribingJson] = Nil,
+    timestamp: Option[Long] = None): Tracker = {
+
+    val payload = new Payload()
+
+    payload.add("e", "se")
+    payload.add("se_ca", category)
+    payload.add("se_ac", action)
+    payload.add("se_la", label)
+    payload.add("se_pr", property)
+    payload.add("se_va", value.map(_.toString))
+
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
+
+  /**
+   * Record view of web page
+   *
+   * @param pageUrl viewed URL
+   * @param pageTitle page's title
+   * @param referrer referrer URL
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp (ms) for the event
+   * @return the tracker instance
+   */
+  def trackPageView(
+    pageUrl: String,
+    pageTitle: Option[String] = None,
+    referrer: Option[String] = None,
+    contexts: Seq[SelfDescribingJson] = Nil,
+    timestamp: Option[Long] = None): Tracker = {
+
+    val payload = new Payload()
+
+    payload.add("e", "pv")
+    payload.add("url", pageUrl)
+    payload.add("page", pageTitle)
+    payload.add("refr", referrer)
+
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
+
+  /**
    * Set the Subject for the tracker
    * The subject's configuration will be attached to every event
    *
-   * @param subject
+   * @param subject user which the Tracker will track
    * @return The tracker instance
    */
   def setSubject(subject: Subject): Tracker = {
     this.subject = subject
     this
   }
+
+
+  /**
+   * Adds EC2 context to each sent event
+   * This will also make tracker to wait for complete AWS EC2 request
+   * before send all events
+   */
+  def enableEc2Context(): Unit = {
+    attachEc2Context = true
+    ec2Context.completeWith(Ec2Metadata.getInstanceContextFuture)
+  }
 }
+

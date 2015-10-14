@@ -13,9 +13,7 @@
 package com.snowplowanalytics.snowplow.scalatracker
 
 // json4s
-import org.json4s._
 import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
 
 // Specs2
 import org.specs2.mutable.Specification
