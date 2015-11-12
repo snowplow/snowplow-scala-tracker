@@ -51,6 +51,11 @@ class Subject {
     this
   }
 
+  def setLang(lang: String): Subject = {
+    standardNvPairs += ("lang" -> lang)
+    this
+  }
+
   def setDomainUserId(domainUserId: String): Subject = {
     standardNvPairs += ("duid" -> domainUserId)
     this
@@ -58,6 +63,11 @@ class Subject {
 
   def setIpAddress(ip: String): Subject = {
     standardNvPairs += ("ip" -> ip)
+    this
+  }
+
+  def setUseragent(useragent: String): Subject = {
+    standardNvPairs += ("ua" -> useragent)
     this
   }
 
