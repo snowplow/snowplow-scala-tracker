@@ -85,8 +85,10 @@ class TrackerSpec extends Specification {
         .setViewport(50,100)
         .setColorDepth(24)
         .setTimezone("Europe London")
+        .setLang("en")
         .setDomainUserId("17")
         .setIpAddress("255.255.255.255")
+        .setUseragent("Mozilla/5.0 (Windows NT 5.1; rv:24.0) Gecko/20100101 Firefox/24.0")
         .setNetworkUserId("id")
 
       tracker.setSubject(subject)
@@ -101,10 +103,11 @@ class TrackerSpec extends Specification {
       event("vp") must_== "50x100"
       event("cd") must_== "24"
       event("tz") must_== "Europe London"
+      event("lang") must_== "en"
       event("duid") must_== "17"
       event("ip") must_== "255.255.255.255"
+      event("ua") must_== "Mozilla/5.0 (Windows NT 5.1; rv:24.0) Gecko/20100101 Firefox/24.0"
       event("tnuid") must_== "id"
-
     }
   }
 
