@@ -23,10 +23,11 @@ object AsyncEmitter {
    *
    * @param host collector host
    * @param port collector port
+   * @param https should this use the https scheme
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80): AsyncEmitter = {
-    val emitter = new AsyncEmitter(host, port)
+  def createAndStart(host: String, port: Int = 80, https: Boolean = false): AsyncEmitter = {
+    val emitter = new AsyncEmitter(host, port, https)
     emitter.startWorker()
     emitter
   }
@@ -37,8 +38,9 @@ object AsyncEmitter {
  *
  * @param host collector host
  * @param port collector port
+ * @param https should this use the https scheme
  */
-class AsyncEmitter private(host: String, port: Int) extends TEmitter {
+class AsyncEmitter private(host: String, port: Int, https: Boolean = false) extends TEmitter {
 
   val queue = new LinkedBlockingQueue[Map[String, String]]()
 
@@ -50,7 +52,7 @@ class AsyncEmitter private(host: String, port: Int) extends TEmitter {
     override def run {
       while (true) {
         val event = queue.take()
-        RequestUtils.retryGetUntilSuccessful(host, event, port, initialBackoffPeriod)
+        RequestUtils.retryGetUntilSuccessful(host, event, port, initialBackoffPeriod, https = https)
       }
     }
   }
