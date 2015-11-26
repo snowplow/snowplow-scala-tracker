@@ -17,10 +17,11 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters
  *
  * @param host
  * @param port
+ * @param https
  */
-class SyncEmitter(host: String, port: Int = 80) extends TEmitter {
+class SyncEmitter(host: String, port: Int = 80, https: Boolean = false) extends TEmitter {
 
   def input(event: Map[String, String]): Unit = {
-    RequestUtils.attemptGet(host, event, port)
+    RequestUtils.attemptGet(host, event, port, https)
   }
 }

@@ -27,10 +27,11 @@ object AsyncBatchEmitter {
    * @param host collector host
    * @param port collector port
    * @param bufferSize quantity of events in batch request
+   * @param https should this use the https scheme
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50): AsyncBatchEmitter = {
-    val emitter = new AsyncBatchEmitter(host, port, bufferSize)
+  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50, https: Boolean = false): AsyncBatchEmitter = {
+    val emitter = new AsyncBatchEmitter(host, port, bufferSize, https = https)
     emitter.startWorker()
     emitter
   }
@@ -43,8 +44,9 @@ object AsyncBatchEmitter {
  * @param host collector host
  * @param port collector port
  * @param bufferSize quantity of events in a batch request
+ * @param https should this use the https scheme
  */
-class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int) extends TEmitter {
+class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int, https: Boolean = false) extends TEmitter {
 
   val queue = new LinkedBlockingQueue[Seq[Map[String, String]]]()
 
@@ -58,7 +60,7 @@ class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int) extend
     override def run {
       while (true) {
         val batch = queue.take()
-        RequestUtils.retryPostUntilSuccessful(host, batch, port, initialBackoffPeriod)
+        RequestUtils.retryPostUntilSuccessful(host, batch, port, initialBackoffPeriod, https = https)
       }
     }
   }
