@@ -76,6 +76,21 @@ class Subject {
     this
   }
 
+  def setPageUrl(url: String): Subject = {
+    standardNvPairs += ("url" -> url)
+    this
+  }
+
+  def setPageTitle(title: String): Subject = {
+    standardNvPairs += ("page" -> title)
+    this
+  }
+
+  def setPageReferrer(url: String): Subject = {
+    standardNvPairs += ("refr" -> url)
+    this
+  }
+
   /**
    * Retrieve the configured information as an immutable map
    *
