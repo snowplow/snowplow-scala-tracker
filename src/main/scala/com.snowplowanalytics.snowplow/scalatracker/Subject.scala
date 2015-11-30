@@ -51,6 +51,11 @@ class Subject {
     this
   }
 
+  def setLang(lang: String): Subject = {
+    standardNvPairs += ("lang" -> lang)
+    this
+  }
+
   def setDomainUserId(domainUserId: String): Subject = {
     standardNvPairs += ("duid" -> domainUserId)
     this
@@ -61,8 +66,28 @@ class Subject {
     this
   }
 
+  def setUseragent(useragent: String): Subject = {
+    standardNvPairs += ("ua" -> useragent)
+    this
+  }
+
   def setNetworkUserId(nuid: String): Subject = {
     standardNvPairs += ("tnuid" -> nuid)
+    this
+  }
+
+  def setPageUrl(url: String): Subject = {
+    standardNvPairs += ("url" -> url)
+    this
+  }
+
+  def setPageTitle(title: String): Subject = {
+    standardNvPairs += ("page" -> title)
+    this
+  }
+
+  def setPageReferrer(url: String): Subject = {
+    standardNvPairs += ("refr" -> url)
     this
   }
 
