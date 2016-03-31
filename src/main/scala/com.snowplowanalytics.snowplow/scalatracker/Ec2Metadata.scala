@@ -43,7 +43,7 @@ object Ec2Metadata {
   implicit val timeout = Timeout(shortTimeout)
   val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
-  val instanceIdentitySchema = "iglu:com.amazon.aws.ec2/instance_identity_document"
+  val instanceIdentitySchema = "iglu:com.amazon.aws.ec2/instance_identity_document/jsonschema/1-0-0"
   val instanceIdentityUri = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 
   private var contextSlot: Option[SelfDescribingJson] = None
