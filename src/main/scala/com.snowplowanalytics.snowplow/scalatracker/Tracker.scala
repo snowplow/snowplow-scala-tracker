@@ -148,6 +148,21 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   }
 
   /**
+   * Track a Snowplow unstructured event
+   * Alias for [[trackUnstructEvent]]
+   *
+   * @param unstructEvent self-describing JSON for the event
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp (ms) for the event
+   * @return The tracker instance
+   */
+  def trackSelfDescribingEvent(
+    unstructEvent: SelfDescribingJson,
+    contexts: Seq[SelfDescribingJson] = Nil,
+    timestamp: Option[Long] = None): Tracker =
+    trackUnstructEvent(unstructEvent, contexts, timestamp)
+
+  /**
    * Track a Snowplow structured event
    *
    * @param category event category mapped to se_ca
