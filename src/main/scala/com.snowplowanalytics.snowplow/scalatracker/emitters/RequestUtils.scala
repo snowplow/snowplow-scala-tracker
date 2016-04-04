@@ -48,7 +48,7 @@ import com.typesafe.config.ConfigFactory
  */
 object RequestUtils {
   // JSON object with Iglu URI to Schema for payload
-  private val payloadBatchStub: JObject = ("schema", "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-3")
+  private val payloadBatchStub: JObject = ("schema", "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4")
 
   /**
    * Transform List of Map[String, String] to JSON array of objects

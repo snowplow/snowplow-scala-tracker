@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2016 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -126,5 +126,40 @@ class TrackerSpec extends Specification {
       event("co") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"number":20}},{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"letters":["a","b","c"]}}]}"""
 
     }
+
+    "implicitly (and without additional imports) assume device_timestamp when no data constructor specified for timestamp" in {
+
+      val emitter = new TestEmitter
+
+      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+
+      tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(1459778142000L)) // Long
+
+      val event = emitter.lastInput
+
+      (event("dtm") must_== "1459778142000").and(
+        event.get("ttm") must beNone
+      )
+
+    }
+
+    "set true_timestamp when data constructor applied explicitly" in {
+
+      val emitter = new TestEmitter
+
+      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+
+      val timestamp = Tracker.TrueTimestamp(1459778542000L)
+
+      tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(timestamp))
+
+      val event = emitter.lastInput
+
+      (event("ttm") must_== "1459778542000").and(
+        event.get("dtm") must beNone
+      )
+
+    }
+
   }
 }
