@@ -8,3 +8,14 @@ jdk:
   - openjdk7
 script:
   - sbt test
+deploy:
+  skip_cleanup: true
+  provider: script
+  script: ./.travis/deploy.sh $TRAVIS_TAG
+  on:
+    condition: '"${TRAVIS_SCALA_VERSION}" == "2.11.5" && "${TRAVIS_JDK_VERSION}" == "oraclejdk7"' 
+    tags: true
+env:
+  global:
+  - secure: "YTyO7algll9BM6I3RA5qMmfjgDTv7Al+oCZQ1SXewNV9jZQYy3DdQjwFDMvhSI2tqTlJs9rWb2pr0yE12YE/JRQDEJqf0XIZYRF6skkqSJy7BcOcbTqseRbY8DThaVtW9HqIHJq2WzoJMEU9KtYsU4ZX3MlthNgPH8hqoFLjKyg="
+  - secure: "hKu4UPezvg5GCUyOwtnQ0ZOUZA6bLLC1coodfnSKhTGZTvT4kS5ckbLqMtQTMpbW3+TZLbAuhzIemrxWbvPKJVbw6YEl9ScrsPuJ7ovyRBoIuFp66+BH4apQig7YQ8Lpt2f3Vhq74X0x4NLSfVTgnC2TzzE3wc5T8X/f03rbKzU="
