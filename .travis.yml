@@ -8,3 +8,9 @@ jdk:
   - openjdk7
 script:
   - sbt test
+deploy:
+  skip_cleanup: true
+  provider: script
+  script: ./.travis/deploy.sh $TRAVIS_TAG
+  on:
+    tags: true
