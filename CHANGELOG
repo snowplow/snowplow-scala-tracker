@@ -1,3 +1,14 @@
+Version 0.3.0 (2016-05-13)
+--------------------------
+Added support for true timestamp (#28)
+Added HTTPS support to all emitters (#33)
+Added missing setters for lang, page and useragent (#34)
+Added trackSelfDescribingEvent method (#30)
+Added Bintray credentials to .travis.yml (#41)
+Fixed incorrect `instance_identity_document` jsonschema (#29)
+Updated build configuration to publish to JCenter and Maven Central (#31)
+Removed Snowplow Maven Repo and scala-util dependency (#42)
+
 Version 0.2.0 (2015-10-14)
 --------------------------
 Added a custom context based on EC2 instance metadata (#2)
