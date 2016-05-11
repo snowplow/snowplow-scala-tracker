@@ -35,7 +35,6 @@ object SnowplowTrackerBuild extends Build {
         Libraries.jodaConvert,
         Libraries.jodaMoney,
         Libraries.jackson,
-        Libraries.scalaUtil,
         Libraries.json4sJackson,
         Libraries.sprayClient,
         Libraries.akka,
