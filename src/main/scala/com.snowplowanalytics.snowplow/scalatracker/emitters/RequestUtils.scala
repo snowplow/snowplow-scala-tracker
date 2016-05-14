@@ -48,7 +48,7 @@ import com.typesafe.config.ConfigFactory
  */
 object RequestUtils {
   // JSON object with Iglu URI to Schema for payload
-  private val payloadBatchStub: JObject = ("schema", "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-3")
+  private val payloadBatchStub: JObject = ("schema", "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4")
 
   /**
    * Transform List of Map[String, String] to JSON array of objects
@@ -87,11 +87,12 @@ object RequestUtils {
    * @param host URL host (not header)
    * @param payload map of event keys
    * @param port URL port (not header)
+   * @param https should this request use the https scheme
    * @return HTTP request with event
    */
-  private[emitters] def constructGetRequest(host: String, payload: Map[String, String], port: Int): HttpRequest = {
+  private[emitters] def constructGetRequest(host: String, payload: Map[String, String], port: Int, https: Boolean = false): HttpRequest = {
     val uri = Uri()
-      .withScheme("http")
+      .withScheme(Uri.httpScheme(https))
       .withPath(Uri.Path("/i"))
       .withAuthority(Uri.Authority(Uri.Host(host), port))
       .withQuery(payload)
@@ -104,11 +105,12 @@ object RequestUtils {
    * @param host URL host (not header)
    * @param payload list of events
    * @param port URL port (not header)
+   * @param https should this request use the https scheme
    * @return HTTP request with event
    */
-  private[emitters] def constructPostRequest(host: String, payload: Seq[Map[String, String]], port: Int): HttpRequest = {
+  private[emitters] def constructPostRequest(host: String, payload: Seq[Map[String, String]], port: Int, https: Boolean = false): HttpRequest = {
     val uri = Uri()
-      .withScheme("http")
+      .withScheme(Uri.httpScheme(https))
       .withPath(Uri.Path("/com.snowplowanalytics.snowplow/tp2"))
       .withAuthority(Uri.Authority(Uri.Host(host), port))
     Post(uri, payload)
@@ -120,11 +122,12 @@ object RequestUtils {
    * @param host collector host
    * @param payload event map
    * @param port collector port
+   * @param https should this request use the https scheme
    * @return Whether the request succeeded
    */
-  def attemptGet(host: String, payload: Map[String, String], port: Int = 80): Boolean = {
+  def attemptGet(host: String, payload: Map[String, String], port: Int = 80, https: Boolean = false): Boolean = {
     val payloadWithStm = payload ++ Map("stm" -> System.currentTimeMillis().toString)
-    val req = constructGetRequest(host, payloadWithStm, port)
+    val req = constructGetRequest(host, payloadWithStm, port, https)
     val future = pipeline(req)
     val result = Await.ready(future, longTimeout).value.get
     result match {
@@ -142,17 +145,25 @@ object RequestUtils {
    * @param port collector port
    * @param backoffPeriod How long to wait after first failed request
    * @param attempt accumulated value of tries
+   * @param https should this request use the https scheme
    */
-  def retryGetUntilSuccessful(host: String, payload: Map[String, String], port: Int = 80, backoffPeriod: Long, attempt: Int = 1) {
+  def retryGetUntilSuccessful(
+       host: String,
+       payload: Map[String, String],
+       port: Int = 80,
+       backoffPeriod: Long,
+       attempt: Int = 1,
+       https: Boolean = false) {
+
     val getSuccessful = try {
-      attemptGet(host, payload, port)
+      attemptGet(host, payload, port, https)
     } catch {
       case NonFatal(f) => false
     }
 
     if (!getSuccessful && attempt < 10) {
       Thread.sleep(backoffPeriod)
-      retryGetUntilSuccessful(host, payload, port, backoffPeriod * 2, attempt + 1)
+      retryGetUntilSuccessful(host, payload, port, backoffPeriod * 2, attempt + 1, https)
     }
   }
 
@@ -162,12 +173,13 @@ object RequestUtils {
    * @param host collector host
    * @param payload event map
    * @param port collector port
+   * @param https should this request use the https scheme
    * @return Whether the request succeeded
    */
-  def attemptPost(host: String, payload: Seq[Map[String, String]], port: Int = 80): Boolean = {
+  def attemptPost(host: String, payload: Seq[Map[String, String]], port: Int = 80, https: Boolean = false): Boolean = {
     val stm = System.currentTimeMillis().toString
     val payloadWithStm = payload.map(_ ++ Map("stm" -> stm))
-    val req = constructPostRequest(host, payloadWithStm, port)
+    val req = constructPostRequest(host, payloadWithStm, port, https)
     val future = pipeline(req)
     val result = Await.ready(future, longTimeout).value.get
     result match {
@@ -185,17 +197,25 @@ object RequestUtils {
    * @param port collector port
    * @param backoffPeriod How long to wait after first failed request
    * @param attempt accumulated value of tries
+   * @param https should this request use the https scheme
    */
-  def retryPostUntilSuccessful(host: String, payload: Seq[Map[String, String]], port: Int = 80, backoffPeriod: Long, attempt: Int = 1) {
+  def retryPostUntilSuccessful(
+      host: String,
+      payload: Seq[Map[String, String]],
+      port: Int = 80,
+      backoffPeriod: Long,
+      attempt: Int = 1,
+      https: Boolean = false) {
+
     val getSuccessful = try {
-      attemptPost(host, payload, port)
+      attemptPost(host, payload, port, https)
     } catch {
       case NonFatal(f) => false
     }
 
     if (!getSuccessful && attempt < 10) {
       Thread.sleep(backoffPeriod)
-      retryPostUntilSuccessful(host, payload, port, backoffPeriod * 2, attempt + 1)
+      retryPostUntilSuccessful(host, payload, port, backoffPeriod * 2, attempt + 1, https)
     }
   }
 

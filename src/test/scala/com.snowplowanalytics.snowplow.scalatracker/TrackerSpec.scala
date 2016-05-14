@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2012-2016 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -85,8 +85,10 @@ class TrackerSpec extends Specification {
         .setViewport(50,100)
         .setColorDepth(24)
         .setTimezone("Europe London")
+        .setLang("en")
         .setDomainUserId("17")
         .setIpAddress("255.255.255.255")
+        .setUseragent("Mozilla/5.0 (Windows NT 5.1; rv:24.0) Gecko/20100101 Firefox/24.0")
         .setNetworkUserId("id")
 
       tracker.setSubject(subject)
@@ -101,10 +103,11 @@ class TrackerSpec extends Specification {
       event("vp") must_== "50x100"
       event("cd") must_== "24"
       event("tz") must_== "Europe London"
+      event("lang") must_== "en"
       event("duid") must_== "17"
       event("ip") must_== "255.255.255.255"
+      event("ua") must_== "Mozilla/5.0 (Windows NT 5.1; rv:24.0) Gecko/20100101 Firefox/24.0"
       event("tnuid") must_== "id"
-
     }
   }
 
@@ -123,5 +126,40 @@ class TrackerSpec extends Specification {
       event("co") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"number":20}},{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"letters":["a","b","c"]}}]}"""
 
     }
+
+    "implicitly (and without additional imports) assume device_timestamp when no data constructor specified for timestamp" in {
+
+      val emitter = new TestEmitter
+
+      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+
+      tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(1459778142000L)) // Long
+
+      val event = emitter.lastInput
+
+      (event("dtm") must_== "1459778142000").and(
+        event.get("ttm") must beNone
+      )
+
+    }
+
+    "set true_timestamp when data constructor applied explicitly" in {
+
+      val emitter = new TestEmitter
+
+      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+
+      val timestamp = Tracker.TrueTimestamp(1459778542000L)
+
+      tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(timestamp))
+
+      val event = emitter.lastInput
+
+      (event("ttm") must_== "1459778542000").and(
+        event.get("dtm") must beNone
+      )
+
+    }
+
   }
 }

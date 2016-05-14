@@ -1,10 +1,23 @@
 language: scala
 scala:
-   - 2.10.4
-   - 2.11.5
+- 2.10.4
+- 2.11.5
 jdk:
-  - oraclejdk7
-  - openjdk6
-  - openjdk7
+- oraclejdk7
+- openjdk6
+- openjdk7
 script:
-  - sbt test
+- sbt test
+deploy:
+  skip_cleanup: true
+  provider: script
+  script: ./.travis/deploy.sh $TRAVIS_TAG
+  on:
+    condition: '"${TRAVIS_SCALA_VERSION}" == "2.11.5" && "${TRAVIS_JDK_VERSION}" == "oraclejdk7"' 
+    tags: true
+env:
+  global:
+  - secure: CMQoRlhW/ejJjiTIryucBgLXpbMOPx4tP9fzEKDpcltjQMZDIRyAezilraVXdI6Nap4BwbR+JuBXaG0wnfIR7hmEJe2EiWJoTWDXaHM2XnbPMsr44lXvDFPBm2H56jTf/yVTpp2HJO/iaeg+wMODPs9NqK974NY90WlwXuqIbZY=
+  - secure: WuGBdY3IXh9RP2q0ffVy/Q/qDGTv/DOxjW8dG1BK6F21Itz+9O3cnqHlQtNsoVMB2FmpU3Gb66sOyOYsbE4FDNB+RkFZ+bQ5qlYwNtqea6IgyODWFYMf/6+BxlyEKyFo45BHF33TIZet37vVWx9qdDPaN0tZ8fV5+gwtUa4BJ44=
+  - secure: "YTyO7algll9BM6I3RA5qMmfjgDTv7Al+oCZQ1SXewNV9jZQYy3DdQjwFDMvhSI2tqTlJs9rWb2pr0yE12YE/JRQDEJqf0XIZYRF6skkqSJy7BcOcbTqseRbY8DThaVtW9HqIHJq2WzoJMEU9KtYsU4ZX3MlthNgPH8hqoFLjKyg="
+  - secure: "hKu4UPezvg5GCUyOwtnQ0ZOUZA6bLLC1coodfnSKhTGZTvT4kS5ckbLqMtQTMpbW3+TZLbAuhzIemrxWbvPKJVbw6YEl9ScrsPuJ7ovyRBoIuFp66+BH4apQig7YQ8Lpt2f3Vhq74X0x4NLSfVTgnC2TzzE3wc5T8X/f03rbKzU="
