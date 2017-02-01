@@ -22,6 +22,8 @@ import scala.language.implicitConversions
 import scala.util.{ Failure, Success }
 
 import emitters.TEmitter
+import org.json4s.JsonDSL._
+
 
 /**
  * Tracker class
@@ -228,6 +230,170 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     track(completePayload(payload, contexts, timestamp))
 
     this
+  }
+
+  /**
+   * Record view of transaction
+   *
+   * @param orderId Order ID
+   * @param affiliation Transaction affiliation
+   * @param total Total transaction value
+   * @param tax Total tax included in transaction value
+   * @param shipping Delivery cost charged
+   * @param city Delivery address, city
+   * @param state Delivery address, state
+   * @param country Delivery address, country
+   * @param currency Currency
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp (ms) for the event
+   * @return the tracker instance
+   */
+  def trackTransaction(
+    orderId: String,
+    affiliation: Option[String] = None,
+    total: Double,
+    tax: Option[Double] = None,
+    shipping: Option[Double] = None,
+    city: Option[String] = None,
+    state: Option[String] = None,
+    country: Option[String] = None,
+    currency: Option[String] = None,
+    contexts: Seq[SelfDescribingJson] = Nil,
+    timestamp: Option[Timestamp] = None): Tracker = {
+
+    val payload = new Payload()
+
+    payload.add("e", "tr")
+    payload.add("tr_id", orderId)
+    payload.add("tr_af", affiliation)
+    payload.add("tr_tt", total.toString)
+    payload.add("tr_tx", tax.map(_.toString))
+    payload.add("tr_sh", shipping.map(_.toString))
+    payload.add("tr_ci", city)
+    payload.add("tr_st", state)
+    payload.add("tr_co", country)
+    payload.add("tr_cu", currency)
+
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
+
+  /**
+   * @param orderId Order ID
+   * @param sku Product SKU
+   * @param name Product name
+   * @param category Product category
+   * @param price Product unit price
+   * @param quantity Number of product in transaction
+   * @param currency The currency the price is expressed in
+   * @param contexts Custom context relating to the event
+   * @param timestamp optional user-provided timestamp (ms) for the event
+   * @return the tracker instance
+   */
+  def trackTransactionItem(
+    orderId: String,
+    sku: String,
+    name: Option[String] = None,
+    category: Option[String] = None,
+    price: Double,
+    quantity: Int,
+    currency: Option[String] = None,
+    contexts: List[SelfDescribingJson] = Nil,
+    timestamp: Option[Timestamp] = None): Tracker = {
+
+    val payload = new Payload()
+
+    payload.add("e", "ti")
+    payload.add("ti_id", orderId)
+    payload.add("ti_sk", sku)
+    payload.add("ti_nm", name)
+    payload.add("ti_ca", category)
+    payload.add("ti_pr", price.toString)
+    payload.add("ti_qu", quantity.toString)
+    payload.add("ti_cu", currency)
+
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
+
+  /**
+   * Track an add-to-cart event
+   *
+   * @param sku Required. Item's SKU code.
+   * @param name Optional. Product name.
+   * @param category Optional. Product category.
+   * @param unitPrice Optional. Product price.
+   * @param quantity Required. Quantity added.
+   * @param currency Optional. Product price currency.
+   * @param contexts Optional. Context relating to the event.
+   * @param timestamp optional user-provided timestamp (ms) for the event
+   * @return the tracker instance
+   */
+  def trackAddToCart(
+    sku: String,
+    name: Option[String] = None,
+    category: Option[String] = None,
+    unitPrice: Option[Double] = None,
+    quantity: Int,
+    currency: Option[String] = None,
+    contexts: List[SelfDescribingJson] = Nil,
+    timestamp: Option[Timestamp] = None): Tracker = {
+
+    val eventJson =
+      ("sku" -> sku) ~
+        ("name" -> name) ~
+        ("category" -> category) ~
+        ("unitPrice" -> unitPrice) ~
+        ("quantity" -> quantity) ~
+        ("currency" -> currency)
+
+    trackSelfDescribingEvent(
+      SelfDescribingJson(
+        schema = "iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0",
+        data = eventJson),
+      contexts,
+      timestamp)
+  }
+
+  /**
+   * Track a remove-from-cart event
+   *
+   * @param sku Required. Item's SKU code.
+   * @param name Optional. Product name.
+   * @param category Optional. Product category.
+   * @param unitPrice Optional. Product price.
+   * @param quantity Required. Quantity removed.
+   * @param currency Optional. Product price currency.
+   * @param contexts Optional. Context relating to the event.
+   * @param timestamp optional user-provided timestamp (ms) for the event
+   * @return the tracker instance
+   */
+  def trackRemoveFromCart(
+    sku: String,
+    name: Option[String] = None,
+    category: Option[String] = None,
+    unitPrice: Option[Double] = None,
+    quantity: Double,
+    currency: Option[String] = None,
+    contexts: List[SelfDescribingJson] = Nil,
+    timestamp: Option[Timestamp] = None): Tracker = {
+
+    val eventJson =
+      ("sku" -> sku) ~
+        ("name" -> name) ~
+        ("category" -> category) ~
+        ("unitPrice" -> unitPrice) ~
+        ("quantity" -> quantity) ~
+        ("currency" -> currency)
+
+    trackSelfDescribingEvent(
+      SelfDescribingJson(
+        schema = "iglu:com.snowplowanalytics.snowplow/remove_from_cart/jsonschema/1-0-0",
+        data = eventJson),
+      contexts,
+      timestamp)
   }
 
   /**
