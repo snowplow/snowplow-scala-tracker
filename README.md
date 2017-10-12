@@ -1,16 +1,16 @@
 # Snowplow Scala Tracker
 
 [![Build Status][travis-image]][travis]
-[![Release] [release-image]][releases] 
+[![Release][release-image]][releases] 
 [![License][license-image]][license]
 
 ## Overview
 
-Add analytics to your Scala, Akka and Play apps and servers using the **[Snowplow] [snowplow]** event tracker for **[Scala][scala]**.
+Add analytics to your Scala, Akka and Play apps and servers using the **[Snowplow][snowplow]** event tracker for **[Scala][scala]**.
 
 ## Quickstart
 
-Assuming git, **[Vagrant] [vagrant-install]** and **[VirtualBox] [virtualbox-install]** installed:
+Assuming git, **[Vagrant][vagrant-install]** and **[VirtualBox][virtualbox-install]** installed:
 
 ```bash
  host$ git clone https://github.com/snowplow/snowplow-scala-tracker.git
@@ -22,16 +22,16 @@ guest$ sbt test
 
 ## Find out more
 
-| Technical Docs                  | Setup Guide               | Roadmap                 | Contributing                      |
-|---------------------------------|---------------------------|-------------------------|-----------------------------------|
-| ![i1] [techdocs-image]          | ![i2] [setup-image]       | ![i3] [roadmap-image]   | ![i4] [contributing-image]        |
-| **[Technical Docs] [techdocs]** | **[Setup Guide] [setup]** | **[Roadmap] [roadmap]** | **[Contributing] [contributing]** |
+| Technical Docs                 | Setup Guide              | Roadmap                | Contributing                     |
+|--------------------------------|--------------------------|------------------------|----------------------------------|
+| ![i1][techdocs-image]          | ![i2][setup-image]       | ![i3][roadmap-image]   | ![i4][contributing-image]        |
+| **[Technical Docs][techdocs]** | **[Setup Guide][setup]** | **[Roadmap][roadmap]** | **[Contributing][contributing]** |
 
 ## Copyright and license
 
-The Snowplow Scala Tracker is copyright 2015-2016 Snowplow Analytics Ltd.
+The Snowplow Scala Tracker is copyright 2015-2017 Snowplow Analytics Ltd.
 
-Licensed under the **[Apache License, Version 2.0] [license]** (the "License");
+Licensed under the **[Apache License, Version 2.0][license]** (the "License");
 you may not use this software except in compliance with the License.
 
 Unless required by applicable law or agreed to in writing, software
@@ -46,7 +46,7 @@ limitations under the License.
 [license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
 
-[release-image]: http://img.shields.io/badge/release-0.3.0-blue.svg?style=flat
+[release-image]: http://img.shields.io/badge/release-0.4.0-blue.svg?style=flat
 [releases]: https://github.com/snowplow/snowplow-scala-tracker/releases
 
 [snowplow]: http://snowplowanalytics.com
