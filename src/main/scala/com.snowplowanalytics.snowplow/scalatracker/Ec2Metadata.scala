@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,36 +12,22 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-// Scala
 import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
 
-// Akka
-import akka.util.Timeout
+import scalaj.http._
 
-// Spray
-import spray.http._
-import spray.client.pipelining._
-
-// json4s
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
-
-// This library
-import emitters.RequestUtils
 
 /**
  * Trait with parsing EC2 meta data logic
  * http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
  */
 object Ec2Metadata {
-  import RequestUtils.system
-  import system.dispatcher
-  val shortTimeout = 10.seconds
-  implicit val timeout = Timeout(shortTimeout)
-  val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
   val instanceIdentitySchema = "iglu:com.amazon.aws.ec2/instance_identity_document/jsonschema/1-0-0"
   val instanceIdentityUri = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
@@ -58,7 +44,7 @@ object Ec2Metadata {
   /**
    * Set callback on successful instance identity GET request
    */
-  def initializeContextRequest: Unit = {
+  def initializeContextRequest(): Unit = {
     getInstanceContextFuture.onSuccess {
       case json: SelfDescribingJson => contextSlot = Some(json)
     }
@@ -72,7 +58,7 @@ object Ec2Metadata {
    */
   def getInstanceContextBlocking: Option[SelfDescribingJson] =
     try {
-      Some(Await.result(getInstanceContextFuture, 3 seconds))
+      Some(Await.result(getInstanceContextFuture, 3.seconds))
     }
     catch {
       case NonFatal(_) => None
@@ -93,14 +79,13 @@ object Ec2Metadata {
    * @return future JSON object with identity data
    */
   def getInstanceIdentity: Future[JObject] = {
-    val instanceIdentityDocument = pipeline(Get(instanceIdentityUri))
-    instanceIdentityDocument.map(_.entity.asString).map { (resp: String) =>
+    val instanceIdentityDocument = getContent(instanceIdentityUri)
+    instanceIdentityDocument.map { (resp: String) =>
       parseOpt(resp) match {
-        case Some(jsonObject: JObject) => {
+        case Some(jsonObject: JObject) =>
           val prepared = prepareEc2Context(jsonObject)
-          if (prepared.values.keySet.size == 0) { throw new Exception("Document contains no known keys") }
+          if (prepared.values.keySet.isEmpty) { throw new Exception("Document contains no known keys") }
           else { prepared }
-        }
         case _ =>
           throw new Exception("Document can not be parsed")
       }
@@ -144,13 +129,13 @@ object Ec2Metadata {
   }
 
   /**
-   * Get URL content (for leaf-link)
+   * Get string body of URL
    *
    * @param url leaf URL (without slash at the end)
    * @return future value
    */
   private def getContent(url: String): Future[String] =
-    pipeline(Get(url)).map(_.entity.asString)
+    Future.apply(Http(url).asString.body)
 
   /**
    * Get content of node-link

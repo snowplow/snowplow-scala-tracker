@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -14,34 +14,22 @@ package com.snowplowanalytics.snowplow.scalatracker
 package emitters
 
 // Scala
-import scala.util.{ Failure, Success }
+import scala.util.Success
 import scala.util.control.NonFatal
 import scala.concurrent.{
   Future,
   Await
 }
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-// Akka
-import akka.io.IO
-import akka.actor.ActorSystem
-import akka.pattern.ask
-import akka.util.Timeout
-
-// Spray
-import spray.http._
-import spray.httpx.marshalling.Marshaller
-import spray.client.pipelining._
-import spray.can.Http
-import spray.util.{ Utils => _, _ }
+import scalaj.http._
 
 // json4s
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
-// Config
-import com.typesafe.config.ConfigFactory
 
 /**
  * Object to hold methods for sending HTTP requests
@@ -59,27 +47,10 @@ object RequestUtils {
   private def postPayload(payload: Seq[Map[String, String]]): String =
     compact(payloadBatchStub ~ ("data", payload))
 
-  /**
-   * Marshall batch of events to string payload with application/json
-   */
-  implicit val eventsMarshaller = Marshaller.of[Seq[Map[String,String]]](ContentTypes.`application/json`) {
-    (value, ct, ctx) => ctx.marshalTo(HttpEntity(ct, postPayload(value)))
-  }
-
-  implicit val system = ActorSystem(
-    generated.ProjectSettings.name,
-    ConfigFactory.parseString("akka.daemonic=on"))
-  import system.dispatcher                    // Context for Futures
   val longTimeout = 5.minutes
-  implicit val timeout = Timeout(longTimeout)
-  val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
-  // Close all connections when the application exits
-  Runtime.getRuntime().addShutdownHook(new Thread() {
-    override def run() {
-      shutdown()
-    }
-  })
+  def pipeline(request: HttpRequest): Future[HttpResponse[Array[Byte]]] =
+    Future(request.asBytes)
 
   /**
    * Construct GET request with single event payload
@@ -91,12 +62,8 @@ object RequestUtils {
    * @return HTTP request with event
    */
   private[emitters] def constructGetRequest(host: String, payload: Map[String, String], port: Int, https: Boolean = false): HttpRequest = {
-    val uri = Uri()
-      .withScheme(Uri.httpScheme(https))
-      .withPath(Uri.Path("/i"))
-      .withAuthority(Uri.Authority(Uri.Host(host), port))
-      .withQuery(payload)
-    Get(uri)
+    val scheme = if (https) "https://" else "http://"
+    Http(s"$scheme$host:$port/i").params(payload)
   }
 
   /**
@@ -108,12 +75,11 @@ object RequestUtils {
    * @param https should this request use the https scheme
    * @return HTTP request with event
    */
-  private[emitters] def constructPostRequest(host: String, payload: Seq[Map[String, String]], port: Int, https: Boolean = false): HttpRequest = {
-    val uri = Uri()
-      .withScheme(Uri.httpScheme(https))
-      .withPath(Uri.Path("/com.snowplowanalytics.snowplow/tp2"))
-      .withAuthority(Uri.Authority(Uri.Host(host), port))
-    Post(uri, payload)
+  private[emitters] def constructPostRequest(host: String, payload: List[Map[String, String]], port: Int, https: Boolean = false): HttpRequest = {
+    val scheme = if (https) "https://" else "http://"
+    Http(s"$scheme$host:$port/com.snowplowanalytics.snowplow/tp2")
+      .postData(postPayload(payload))
+      .header("content-type", "application/json")
   }
 
   /**
@@ -131,8 +97,8 @@ object RequestUtils {
     val future = pipeline(req)
     val result = Await.ready(future, longTimeout).value.get
     result match {
-      case Success(s) => s.status.isSuccess   // 404 match Success(_) too
-      case Failure(_) => false
+      case Success(s) => s.code >= 200 && s.code < 300
+      case _ => false
     }
   }
 
@@ -158,7 +124,7 @@ object RequestUtils {
     val getSuccessful = try {
       attemptGet(host, payload, port, https)
     } catch {
-      case NonFatal(f) => false
+      case NonFatal(_) => false
     }
 
     if (!getSuccessful && attempt < 10) {
@@ -176,15 +142,15 @@ object RequestUtils {
    * @param https should this request use the https scheme
    * @return Whether the request succeeded
    */
-  def attemptPost(host: String, payload: Seq[Map[String, String]], port: Int = 80, https: Boolean = false): Boolean = {
+  def attemptPost(host: String, payload: List[Map[String, String]], port: Int = 80, https: Boolean = false): Boolean = {
     val stm = System.currentTimeMillis().toString
     val payloadWithStm = payload.map(_ ++ Map("stm" -> stm))
     val req = constructPostRequest(host, payloadWithStm, port, https)
     val future = pipeline(req)
     val result = Await.ready(future, longTimeout).value.get
     result match {
-      case Success(s) => s.status.isSuccess   // 404 match Success(_) too
-      case Failure(_) => false
+      case Success(s) => s.code >= 200 && s.code < 300
+      case _ => false
     }
   }
 
@@ -201,7 +167,7 @@ object RequestUtils {
    */
   def retryPostUntilSuccessful(
       host: String,
-      payload: Seq[Map[String, String]],
+      payload: List[Map[String, String]],
       port: Int = 80,
       backoffPeriod: Long,
       attempt: Int = 1,
@@ -210,20 +176,12 @@ object RequestUtils {
     val getSuccessful = try {
       attemptPost(host, payload, port, https)
     } catch {
-      case NonFatal(f) => false
+      case NonFatal(_) => false
     }
 
     if (!getSuccessful && attempt < 10) {
       Thread.sleep(backoffPeriod)
       retryPostUntilSuccessful(host, payload, port, backoffPeriod * 2, attempt + 1, https)
     }
-  }
-
-  /**
-   * Close the actor system and all connections
-   */
-  def shutdown() {
-    IO(Http).ask(Http.CloseAll)(1.second).await
-    system.shutdown
   }
 }

@@ -48,7 +48,7 @@ object AsyncBatchEmitter {
  */
 class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int, https: Boolean = false) extends TEmitter {
 
-  val queue = new LinkedBlockingQueue[Seq[Map[String, String]]]()
+  val queue = new LinkedBlockingQueue[List[Map[String, String]]]()
 
   // 2 seconds timeout after 1st failed request
   val initialBackoffPeriod = 2000
@@ -76,7 +76,7 @@ class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int, https:
   def input(event: Map[String, String]): Unit = {
     buffer.append(event)
     if (buffer.size >= bufferSize) {
-      queue.put(buffer)
+      queue.put(buffer.toList)
       buffer = ListBuffer[Map[String, String]]()
     }
   }
