@@ -35,7 +35,6 @@ object Dependencies {
     val spray       = "1.3.3"
     val akka        = "2.3.14"
     object collUtil {
-      val _29       = "5.3.10"
       val _210      = "6.3.4"
       val _211      = "6.23.0"
     }
@@ -45,7 +44,6 @@ object Dependencies {
 
     // Scala (test only)
     object specs2 {
-      val _29       = "1.12.4.1"
       val _210      = "2.3.13"
       val _211      = "2.3.13"
     }
@@ -65,7 +63,6 @@ object Dependencies {
     val akka        = "com.typesafe.akka"          %% "akka-actor"        % V.akka
     val json4sJackson = "org.json4s"               %% "json4s-jackson"    % V.json4s
     object collUtil {
-      val _29       = "com.twitter"                % "util-collection"    % V.collUtil._29
       val _210      = "com.twitter"                %% "util-collection"   % V.collUtil._210
       val _211      = "com.twitter"                %% "util-collection"   % V.collUtil._211
     }
@@ -75,17 +72,14 @@ object Dependencies {
 
     // Scala (test only)
     object specs2 {
-      val _29       = "org.specs2"                 %% "specs2"            % V.specs2._29         % "test"
       val _210      = "org.specs2"                 %% "specs2"            % V.specs2._210        % "test"
       val _211      = "org.specs2"                 %% "specs2"            % V.specs2._211        % "test"
     }
     val sprayTest   = "io.spray"                   %% "spray-testkit"     % V.spray              % "test"
   }
 
-  def onVersion[A](all: Seq[A] = Seq(), on29: => Seq[A] = Seq(), on210: => Seq[A] = Seq(), on211: => Seq[A] = Seq()) =
-    scalaVersion(v => all ++ (if (v.contains("2.9.")) {
-      on29
-    } else if (v.contains("2.10.")) {
+  def onVersion[A](all: Seq[A] = Seq(), on210: => Seq[A] = Seq(), on211: => Seq[A] = Seq()) =
+    scalaVersion(v => all ++ (if (v.contains("2.10.")) {
       on210
     } else {
       on211
