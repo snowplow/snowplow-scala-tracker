@@ -28,10 +28,8 @@ lazy val root = project.in(file("."))
   .settings(
     libraryDependencies := Seq(
       Dependencies.Libraries.commonsCodec,
+      Dependencies.Libraries.scalajHttp,
       Dependencies.Libraries.json4sJackson,
-      Dependencies.Libraries.sprayClient,
-      Dependencies.Libraries.akka,
       Dependencies.Libraries.mockito,
-      Dependencies.Libraries.specs2,
-      Dependencies.Libraries.sprayTest)
+      Dependencies.Libraries.specs2)
   )
