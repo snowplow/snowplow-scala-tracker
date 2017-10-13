@@ -19,9 +19,8 @@ object Dependencies {
     val commonsCodec = "1.5"
 
     // Scala
+    val scalajHttp  = "2.3.0"
     val json4s      = "3.2.11"
-    val spray       = "1.3.3"
-    val akka        = "2.3.14"
 
     // Java (test only)
     val mockito     = "1.9.5"
@@ -35,8 +34,7 @@ object Dependencies {
     val commonsCodec  = "commons-codec"     % "commons-codec"     % V.commonsCodec
 
     // Scala
-    val sprayClient   = "io.spray"          %% "spray-client"      % V.spray
-    val akka          = "com.typesafe.akka" %% "akka-actor"        % V.akka
+    val scalajHttp    = "org.scalaj"        %% "scalaj-http"       % V.scalajHttp
     val json4sJackson = "org.json4s"        %% "json4s-jackson"    % V.json4s
 
     // Java (test only)
@@ -44,6 +42,5 @@ object Dependencies {
 
     // Scala (test only)
     val specs2        = "org.specs2"        %% "specs2"            % V.specs2             % "test"
-    val sprayTest     = "io.spray"          %% "spray-testkit"     % V.spray              % "test"
   }
 }
