@@ -17,8 +17,8 @@ lazy val root = project.in(file("."))
     description        := "Scala tracker for Snowplow",
     name               := "snowplow-scala-tracker",
     description        := "Scala analytics SDK for Snowplow",
-    scalaVersion       := "2.10.6",
-    crossScalaVersions := Seq("2.10.6", "2.11.5"),
+    scalaVersion       := "2.11.11",
+    crossScalaVersions := Seq("2.10.6", "2.11.11"),
     scalacOptions      := Seq("-deprecation", "-encoding", "utf8")
   ))
   .settings(BuildSettings.buildSettings)
