@@ -72,5 +72,5 @@ object SelfDescribingJson {
  * @param data JSON instance
  */
 case class SelfDescribingJson(schema: String, data: JValue) {
-  def toJObject(): JObject = ("schema" -> schema) ~ ("data" -> data)
+  def toJObject: JObject = ("schema" -> schema) ~ ("data" -> data)
 }
