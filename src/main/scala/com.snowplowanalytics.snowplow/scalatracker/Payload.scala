@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import org.apache.commons.codec.binary.Base64
+import java.util.Base64
 
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -53,11 +53,7 @@ class Payload {
     }
   }
 
-  /**
-   * Add a map of key-value pairs one by one
-   *
-   * @param dict
-   */
+  /** Add a map of key-value pairs one by one */
   def addDict(dict: Map[String, String]): Unit = {
     dict foreach {
       case (k, v) => add(k, v)
@@ -67,7 +63,7 @@ class Payload {
   /**
    * Stringify a JSON and add it
    *
-   * @param json
+   * @param json JSON object to encode
    * @param encodeBase64 Whether to base 64 encode the JSON
    * @param typeWhenEncoded Key to use if encodeBase64 is true
    * @param typeWhenNotEncoded Key to use if encodeBase64 is false
@@ -81,7 +77,7 @@ class Payload {
     val jsonString = compact(render(json))
 
     if (encodeBase64) {
-      add(typeWhenEncoded, new String(Base64.encodeBase64(jsonString.getBytes(Encoding)), Encoding))
+      add(typeWhenEncoded, new String(Base64.getEncoder.encode(jsonString.getBytes(Encoding)), Encoding))
     } else {
       add(typeWhenNotEncoded, jsonString)
     }

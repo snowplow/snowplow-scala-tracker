@@ -16,6 +16,7 @@ import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
+import scala.util.{ Success, Failure }
 
 import scalaj.http._
 
@@ -45,8 +46,9 @@ object Ec2Metadata {
    * Set callback on successful instance identity GET request
    */
   def initializeContextRequest(): Unit = {
-    getInstanceContextFuture.onSuccess {
-      case json: SelfDescribingJson => contextSlot = Some(json)
+    getInstanceContextFuture.onComplete {
+      case Success(json: SelfDescribingJson) => contextSlot = Some(json)
+      case Failure(error) => System.err.println(s"Unable to retrieve EC2 context. ${error.getMessage}")
     }
   }
 
