@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -15,32 +15,26 @@ import sbt._
 object Dependencies {
 
   object V {
-    // Java
-    val commonsCodec = "1.5"
-
     // Scala
-    val scalajHttp  = "2.3.0"
-    val json4s      = "3.2.11"
+    val scalajHttp = "2.3.0"
+    val json4s     = "3.2.11"
 
     // Java (test only)
-    val mockito     = "1.9.5"
+    val mockito    = "1.9.5"
 
     // Scala (test only)
-    val specs2      = "2.3.13"
+    val specs2     = "3.9.5"
   }
 
   object Libraries {
-    // Java
-    val commonsCodec  = "commons-codec"     % "commons-codec"     % V.commonsCodec
-
     // Scala
-    val scalajHttp    = "org.scalaj"        %% "scalaj-http"       % V.scalajHttp
-    val json4sJackson = "org.json4s"        %% "json4s-jackson"    % V.json4s
+    val scalajHttp    = "org.scalaj"        %% "scalaj-http"    % V.scalajHttp
+    val json4sJackson = "org.json4s"        %% "json4s-jackson" % V.json4s
 
     // Java (test only)
-    val mockito       = "org.mockito"       %  "mockito-all"       % V.mockito            % "test"
+    val mockito       = "org.mockito"       %  "mockito-all"    % V.mockito       % "test"
 
     // Scala (test only)
-    val specs2        = "org.specs2"        %% "specs2"            % V.specs2             % "test"
+    val specs2        = "org.specs2"        %% "specs2-core"    % V.specs2        % "test"
   }
 }
