@@ -42,6 +42,8 @@ object AsyncBatchEmitter {
 /**
  * Asynchronous batch emitter
  * Store events in buffer and send them with POST request when buffer exceeds `bufferSize`
+ * Backed by `java.util.concurrent.LinkedBlockingQueue`, which has
+ * capacity of `Int.MaxValue` will block thread when buffer reach capacity
  *
  * @param host collector host
  * @param port collector port
