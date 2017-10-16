@@ -13,28 +13,53 @@
 package com.snowplowanalytics.snowplow.scalatracker
 package emitters
 
-// Scala
-import scala.util.Success
-import scala.util.control.NonFatal
-import scala.concurrent.{
-  Future,
-  Await
-}
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
+import scala.util.{ Success, Random }
+
+import java.util.concurrent.BlockingQueue
+import java.util.{Timer, TimerTask}
 
 import scalaj.http._
 
-// json4s
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
-
 /**
- * Object to hold methods for sending HTTP requests
+ * Module responsible for communication with collector
  */
 object RequestUtils {
+
+  /** Payload (either GET or POST) ready to be send to collector */
+  sealed trait CollectorRequest extends Product with Serializable {
+    /** Attempt to send */
+    def attempt: Int
+
+    /** Increment attempt number. Must be used whenever payload failed */
+    def updateAttempt: CollectorRequest = this match {
+      case g: GetCollectorRequest => g.copy(attempt = attempt + 1)
+      case p: PostCollectorRequest => p.copy(attempt = attempt + 1)
+    }
+
+    /**
+      * Return same payload, but with updated stm
+      * **Must** be used right before payload goes to collector
+      */
+    def updateStm: CollectorRequest = this match {
+      case GetCollectorRequest(_, map) =>
+        val stm = System.currentTimeMillis().toString
+        GetCollectorRequest(attempt, map.updated("stm", stm))
+      case PostCollectorRequest(_, list) =>
+        val stm = System.currentTimeMillis().toString
+        PostCollectorRequest(attempt, list.map(_.updated("stm", stm)))
+    }
+  }
+
+  case class GetCollectorRequest(attempt: Int, payload: Map[String, String]) extends CollectorRequest
+  case class PostCollectorRequest(attempt: Int, payload: List[Map[String, String]]) extends CollectorRequest
+
+
   // JSON object with Iglu URI to Schema for payload
   private val payloadBatchStub: JObject = ("schema", "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4")
 
@@ -47,141 +72,80 @@ object RequestUtils {
   private def postPayload(payload: Seq[Map[String, String]]): String =
     compact(payloadBatchStub ~ ("data", payload))
 
-  val longTimeout = 5.minutes
-
-  def pipeline(request: HttpRequest): Future[HttpResponse[Array[Byte]]] =
-    Future(request.asBytes)
-
-  /**
-   * Construct GET request with single event payload
-   *
-   * @param host URL host (not header)
-   * @param payload map of event keys
-   * @param port URL port (not header)
-   * @param https should this request use the https scheme
-   * @return HTTP request with event
-   */
-  private[emitters] def constructGetRequest(host: String, payload: Map[String, String], port: Int, https: Boolean = false): HttpRequest = {
-    val scheme = if (https) "https://" else "http://"
-    Http(s"$scheme$host:$port/i").params(payload)
-  }
-
   /**
    * Construct POST request with batch event payload
    *
    * @param host URL host (not header)
-   * @param payload list of events
+   * @param request events enveloped with either Get or Post request
    * @param port URL port (not header)
    * @param https should this request use the https scheme
    * @return HTTP request with event
    */
-  private[emitters] def constructPostRequest(host: String, payload: List[Map[String, String]], port: Int, https: Boolean = false): HttpRequest = {
+  private[emitters] def constructRequest(host: String, request: CollectorRequest, port: Int, https: Boolean = false): HttpRequest = {
     val scheme = if (https) "https://" else "http://"
-    Http(s"$scheme$host:$port/com.snowplowanalytics.snowplow/tp2")
-      .postData(postPayload(payload))
-      .header("content-type", "application/json")
-  }
-
-  /**
-   * Attempt a GET request once
-   *
-   * @param host collector host
-   * @param payload event map
-   * @param port collector port
-   * @param https should this request use the https scheme
-   * @return Whether the request succeeded
-   */
-  def attemptGet(host: String, payload: Map[String, String], port: Int = 80, https: Boolean = false): Boolean = {
-    val payloadWithStm = payload ++ Map("stm" -> System.currentTimeMillis().toString)
-    val req = constructGetRequest(host, payloadWithStm, port, https)
-    val future = pipeline(req)
-    val result = Await.ready(future, longTimeout).value.get
-    result match {
-      case Success(s) => s.code >= 200 && s.code < 300
-      case _ => false
+    request match {
+      case PostCollectorRequest(_, payload) =>
+        Http(s"$scheme$host:$port/com.snowplowanalytics.snowplow/tp2")
+          .postData(postPayload(payload))
+          .header("content-type", "application/json")
+      case GetCollectorRequest(_, payload) =>
+        val scheme = if (https) "https://" else "http://"
+        Http(s"$scheme$host:$port/i").params(payload)
     }
   }
 
   /**
-   * Attempt a GET request until success or 10th try
-   * Double backoff period after each failed try
-   *
+   * Attempt a HTTP request. Return request back to queue
+   * if it was unsuccessful
+   * @param originQueue reference to queue, where event can be re-added
+   *                    in case of unsuccessful delivery
    * @param host collector host
-   * @param payload event map
    * @param port collector port
-   * @param backoffPeriod How long to wait after first failed request
-   * @param attempt accumulated value of tries
    * @param https should this request use the https scheme
+   * @param payload either GET or POST payload
    */
-  def retryGetUntilSuccessful(
-       host: String,
-       payload: Map[String, String],
-       port: Int = 80,
-       backoffPeriod: Long,
-       attempt: Int = 1,
-       https: Boolean = false) {
-
-    val getSuccessful = try {
-      attemptGet(host, payload, port, https)
-    } catch {
-      case NonFatal(_) => false
-    }
-
-    if (!getSuccessful && attempt < 10) {
-      Thread.sleep(backoffPeriod)
-      retryGetUntilSuccessful(host, payload, port, backoffPeriod * 2, attempt + 1, https)
+  def send(originQueue: BlockingQueue[CollectorRequest], host: String, port: Int = 80, https: Boolean, payload: CollectorRequest): Unit = {
+    sendAsync(host, port, https = https, payload).onComplete {
+      case Success(s) if s.code >= 200 && s.code < 300 => ()
+      case _ => backToQueue(originQueue, payload.updateAttempt)
     }
   }
 
   /**
-   * Attempt a POST request once
-   *
-   * @param host collector host
-   * @param payload event map
-   * @param port collector port
-   * @param https should this request use the https scheme
-   * @return Whether the request succeeded
-   */
-  def attemptPost(host: String, payload: List[Map[String, String]], port: Int = 80, https: Boolean = false): Boolean = {
-    val stm = System.currentTimeMillis().toString
-    val payloadWithStm = payload.map(_ ++ Map("stm" -> stm))
-    val req = constructPostRequest(host, payloadWithStm, port, https)
-    val future = pipeline(req)
-    val result = Await.ready(future, longTimeout).value.get
-    result match {
-      case Success(s) => s.code >= 200 && s.code < 300
-      case _ => false
+    * Attempt a HTTP request
+    * @param host collector host
+    * @param port collector port
+    * @param https should this request use the https scheme
+    * @param payload either GET or POST payload
+    */
+  def sendAsync(host: String, port: Int = 80, https: Boolean, payload: CollectorRequest): Future[HttpResponse[_]] =
+    Future(constructRequest(host, payload.updateStm, port, https).asBytes)
+
+  /** Timer thread, responsible for adding failed payloads to queue after delay */
+  private val timer = new Timer("snowplow-event-retry-timer", true)
+
+  /** RNG to generate back-off periods */
+  private val rng = new Random()
+
+  /**
+    * Schedule re-adding of a failed event to queue after some delay.
+    * Delay is calculated based on number of undertaken attempts
+    */
+  def backToQueue(queue: BlockingQueue[CollectorRequest], event: CollectorRequest): Unit = {
+    if (event.attempt > 10) System.err.println("Snowplow Scala Tracker gave up trying to send a payload to collector after 10 attempts")
+    else {
+      val task = new TimerTask {
+        override def run(): Unit = queue.put(event)
+      }
+      val delay = getDelay(event.attempt)
+      timer.schedule(task, delay)
     }
   }
 
-  /**
-   * Attempt a POST request until success or 10th try
-   * Double backoff period after each failed try
-   *
-   * @param host collector host
-   * @param payload event map
-   * @param port collector port
-   * @param backoffPeriod How long to wait after first failed request
-   * @param attempt accumulated value of tries
-   * @param https should this request use the https scheme
-   */
-  def retryPostUntilSuccessful(
-      host: String,
-      payload: List[Map[String, String]],
-      port: Int = 80,
-      backoffPeriod: Long,
-      attempt: Int = 1,
-      https: Boolean = false) {
-
-    val getSuccessful = try {
-      attemptPost(host, payload, port, https)
-    } catch {
-      case NonFatal(_) => false
-    }
-
-    if (!getSuccessful && attempt < 10) {
-      Thread.sleep(backoffPeriod)
-      retryPostUntilSuccessful(host, payload, port, backoffPeriod * 2, attempt + 1, https)
-    }
+  /** Get delay with increased non-linear back-off period */
+  private def getDelay(attempt: Int): Int = {
+    val rangeMin = attempt.toDouble
+    val rangeMax = attempt.toDouble * 3
+    ((rangeMin + (rangeMax - rangeMin) * rng.nextDouble()) * 1000).toInt
   }
 }
