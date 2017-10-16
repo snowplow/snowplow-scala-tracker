@@ -1,3 +1,17 @@
+Version 0.4.0 (2017-10-XX)
+--------------------------
+Add Scala 2.12 support (#51)
+Add a note in Scaladoc about queue capacity (#16)
+Allow to provide ExecutionContext for async emitters (#57)
+Bump Scala 2.11 to 2.11.11 (#54)
+Bump SBT to 0.13.16 (#53)
+Bump sbt-bintray to 0.5.1 (#59)
+Drop Scala 2.9 support (#50)
+Deprecate trackUnstructEvent (#43)
+Remove blocking calls (#55)
+Replace Akka with scalaj-http (#49)
+Update READMEs markdown in according with CommonMark (#52)
+
 Version 0.3.0 (2016-05-14)
 --------------------------
 Added support for true timestamp (#28)
