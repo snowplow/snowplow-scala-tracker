@@ -23,6 +23,8 @@ object AsyncEmitter {
   // Avoid starting thread in constructor
   /**
    * Start async emitter with single event payload
+   * Backed by `java.util.concurrent.LinkedBlockingQueue`, which has
+   * capacity of `Int.MaxValue` will block thread when buffer reach capacity
    *
    * @param host collector host
    * @param port collector port
