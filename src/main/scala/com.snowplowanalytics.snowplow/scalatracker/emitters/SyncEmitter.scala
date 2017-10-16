@@ -14,22 +14,27 @@ package com.snowplowanalytics.snowplow.scalatracker
 package emitters
 
 import scala.concurrent.Await
+import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 import scala.util.Failure
 
-import RequestUtils.GetCollectorRequest
+import RequestUtils.{ GetCollectorRequest, CollectorParams }
 
 /**
  * Blocking emitter.
- * This emitter blocks whole thread for specified amount of time. Use at own risk
+ * This emitter blocks whole thread (from global execution context)
+ * for specified amount of time. Use at own risk
  * @param host collector host
  * @param port collector port
  * @param https whether to use HTTPS
  * @param blockingDuration amount of time to wait (block) for response
  */
 class SyncEmitter(host: String, port: Int = 80, https: Boolean = false, blockingDuration: Duration = 5.seconds) extends TEmitter {
+
+  private val collector = CollectorParams(host, port, https)
+
   def input(event: Map[String, String]): Unit = {
-    val response = RequestUtils.sendAsync(host, port, https, GetCollectorRequest(1, event))
+    val response = RequestUtils.sendAsync(global, collector, GetCollectorRequest(1, event))
     Await.ready(response, blockingDuration).value match {
       case None =>
         System.err.println(s"Snowplow SyncEmitter failed to get response in $blockingDuration")
