@@ -63,7 +63,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param payload constructed event map
    */
   private def send(payload: Payload): Unit = {
-    val event = payload.get
+    val event = payload.get()
     emitters foreach {
       e => e.input(event)
     }
@@ -109,7 +109,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @return payload with contexts
    */
   private def addContext(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload = {
-    if (!contexts.isEmpty) {
+    if (contexts.nonEmpty) {
       val contextsEnvelope = SelfDescribingJson(
         "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
         contexts
