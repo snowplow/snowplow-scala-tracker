@@ -13,12 +13,11 @@
 package com.snowplowanalytics.snowplow.scalatracker
 package emitters
 
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{ Success, Random }
-
 import java.util.concurrent.BlockingQueue
 import java.util.{Timer, TimerTask}
+
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Random, Success}
 
 import scalaj.http._
 
@@ -59,6 +58,7 @@ object RequestUtils {
   case class GetCollectorRequest(attempt: Int, payload: Map[String, String]) extends CollectorRequest
   case class PostCollectorRequest(attempt: Int, payload: List[Map[String, String]]) extends CollectorRequest
 
+  case class CollectorParams(host: String, port: Int, https: Boolean)
 
   // JSON object with Iglu URI to Schema for payload
   private val payloadBatchStub: JObject = ("schema", "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4")
@@ -75,51 +75,47 @@ object RequestUtils {
   /**
    * Construct POST request with batch event payload
    *
-   * @param host URL host (not header)
+   * @param collector endpoint preferences
    * @param request events enveloped with either Get or Post request
-   * @param port URL port (not header)
-   * @param https should this request use the https scheme
    * @return HTTP request with event
    */
-  private[emitters] def constructRequest(host: String, request: CollectorRequest, port: Int, https: Boolean = false): HttpRequest = {
-    val scheme = if (https) "https://" else "http://"
+  private[emitters] def constructRequest(collector: CollectorParams, request: CollectorRequest): HttpRequest = {
+    val scheme = if (collector.https) "https://" else "http://"
     request match {
       case PostCollectorRequest(_, payload) =>
-        Http(s"$scheme$host:$port/com.snowplowanalytics.snowplow/tp2")
+        Http(s"$scheme${collector.host}:${collector.port}/com.snowplowanalytics.snowplow/tp2")
           .postData(postPayload(payload))
           .header("content-type", "application/json")
       case GetCollectorRequest(_, payload) =>
-        val scheme = if (https) "https://" else "http://"
-        Http(s"$scheme$host:$port/i").params(payload)
+        val scheme = if (collector.https) "https://" else "http://"
+        Http(s"$scheme${collector.host}:${collector.port}/i").params(payload)
     }
   }
 
   /**
    * Attempt a HTTP request. Return request back to queue
    * if it was unsuccessful
+   * @param ec thread pool to send HTTP requests to collector
    * @param originQueue reference to queue, where event can be re-added
    *                    in case of unsuccessful delivery
-   * @param host collector host
-   * @param port collector port
-   * @param https should this request use the https scheme
+   * @param collector endpoint preferences
    * @param payload either GET or POST payload
    */
-  def send(originQueue: BlockingQueue[CollectorRequest], host: String, port: Int = 80, https: Boolean, payload: CollectorRequest): Unit = {
-    sendAsync(host, port, https = https, payload).onComplete {
+  def send(originQueue: BlockingQueue[CollectorRequest], ec: ExecutionContext, collector: CollectorParams, payload: CollectorRequest): Unit = {
+    sendAsync(ec, collector, payload).onComplete {
       case Success(s) if s.code >= 200 && s.code < 300 => ()
       case _ => backToQueue(originQueue, payload.updateAttempt)
-    }
+    }(ec)
   }
 
   /**
     * Attempt a HTTP request
-    * @param host collector host
-    * @param port collector port
-    * @param https should this request use the https scheme
+    * @param ec thread pool to send HTTP requests to collector
+    * @param collector endpoint preferences
     * @param payload either GET or POST payload
     */
-  def sendAsync(host: String, port: Int = 80, https: Boolean, payload: CollectorRequest): Future[HttpResponse[_]] =
-    Future(constructRequest(host, payload.updateStm, port, https).asBytes)
+  def sendAsync(ec: ExecutionContext, collector: CollectorParams, payload: CollectorRequest): Future[HttpResponse[_]] =
+    Future(constructRequest(collector, payload.updateStm).asBytes)(ec)
 
   /** Timer thread, responsible for adding failed payloads to queue after delay */
   private val timer = new Timer("snowplow-event-retry-timer", true)

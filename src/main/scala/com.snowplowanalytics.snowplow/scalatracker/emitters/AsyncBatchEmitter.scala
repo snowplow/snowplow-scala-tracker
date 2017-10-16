@@ -17,7 +17,8 @@ import java.util.concurrent.LinkedBlockingQueue
 
 import scala.collection.mutable.ListBuffer
 
-import RequestUtils.{ CollectorRequest, PostCollectorRequest }
+import scala.concurrent.ExecutionContext
+import RequestUtils.{CollectorRequest, PostCollectorRequest, CollectorParams}
 
 object AsyncBatchEmitter {
   // Avoid starting thread in constructor
@@ -28,10 +29,11 @@ object AsyncBatchEmitter {
    * @param port collector port
    * @param bufferSize quantity of events in batch request
    * @param https should this use the https scheme
+   * @param ec thread pool to send HTTP requests to collector
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50, https: Boolean = false): AsyncBatchEmitter = {
-    val emitter = new AsyncBatchEmitter(host, port, bufferSize, https = https)
+  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50, https: Boolean = false)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
+    val emitter = new AsyncBatchEmitter(ec, host, port, bufferSize, https = https)
     emitter.startWorker()
     emitter
   }
@@ -46,18 +48,20 @@ object AsyncBatchEmitter {
  * @param bufferSize quantity of events in a batch request
  * @param https should this use the https scheme
  */
-class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int, https: Boolean = false) extends TEmitter {
+class AsyncBatchEmitter private(ec: ExecutionContext, host: String, port: Int, bufferSize: Int, https: Boolean = false) extends TEmitter {
 
   private val queue = new LinkedBlockingQueue[CollectorRequest]()
 
   private var buffer = ListBuffer[Map[String, String]]()
+
+  private val collector = CollectorParams(host, port, https)
 
   // Start consumer thread synchronously trying to send events to collector
   val worker = new Thread {
     override def run() {
       while (true) {
         val batch = queue.take()
-        RequestUtils.send(queue, host, port, https = https, batch)
+        RequestUtils.send(queue, ec, collector, batch)
       }
     }
   }

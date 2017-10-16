@@ -15,7 +15,9 @@ package emitters
 
 import java.util.concurrent.LinkedBlockingQueue
 
-import RequestUtils.{ CollectorRequest, GetCollectorRequest }
+import scala.concurrent.ExecutionContext
+
+import RequestUtils.{CollectorParams, CollectorRequest, GetCollectorRequest}
 
 object AsyncEmitter {
   // Avoid starting thread in constructor
@@ -27,8 +29,8 @@ object AsyncEmitter {
    * @param https should this use the https scheme
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80, https: Boolean = false): AsyncEmitter = {
-    val emitter = new AsyncEmitter(host, port, https)
+  def createAndStart(host: String, port: Int = 80, https: Boolean = false)(implicit ec: ExecutionContext): AsyncEmitter = {
+    val emitter = new AsyncEmitter(ec, host, port, https)
     emitter.startWorker()
     emitter
   }
@@ -41,15 +43,17 @@ object AsyncEmitter {
  * @param port collector port
  * @param https should this use the https scheme
  */
-class AsyncEmitter private(host: String, port: Int, https: Boolean = false) extends TEmitter {
+class AsyncEmitter private(ec: ExecutionContext, host: String, port: Int, https: Boolean) extends TEmitter {
 
   val queue = new LinkedBlockingQueue[CollectorRequest]()
+
+  private val collector = CollectorParams(host, port, https)
 
   val worker = new Thread {
     override def run() {
       while (true) {
         val event = queue.take()
-        RequestUtils.send(queue, host, port, https, event)
+        RequestUtils.send(queue, ec, collector, event)
       }
     }
   }

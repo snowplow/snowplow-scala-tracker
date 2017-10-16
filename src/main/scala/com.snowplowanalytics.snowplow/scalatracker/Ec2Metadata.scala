@@ -86,10 +86,10 @@ object Ec2Metadata {
       parseOpt(resp) match {
         case Some(jsonObject: JObject) =>
           val prepared = prepareEc2Context(jsonObject)
-          if (prepared.values.keySet.isEmpty) { throw new Exception("Document contains no known keys") }
+          if (prepared.values.keySet.isEmpty) { throw new RuntimeException("Document contains no known keys") }
           else { prepared }
         case _ =>
-          throw new Exception("Document can not be parsed")
+          throw new RuntimeException("Document can not be parsed")
       }
     }
   }
