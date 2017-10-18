@@ -31,5 +31,6 @@ lazy val root = project.in(file("."))
       Dependencies.Libraries.scalajHttp,
       Dependencies.Libraries.json4sJackson,
       Dependencies.Libraries.mockito,
-      Dependencies.Libraries.specs2)
+      Dependencies.Libraries.specs2,
+      Dependencies.Libraries.scalaCheck)
   )

@@ -24,6 +24,7 @@ object Dependencies {
 
     // Scala (test only)
     val specs2     = "3.9.5"
+    val scalaCheck = "1.13.4"
   }
 
   object Libraries {
@@ -35,6 +36,7 @@ object Dependencies {
     val mockito       = "org.mockito"       %  "mockito-all"    % V.mockito       % "test"
 
     // Scala (test only)
-    val specs2        = "org.specs2"        %% "specs2-core"    % V.specs2        % "test"
+    val specs2        = "org.specs2"         %% "specs2-core"    % V.specs2        % "test"
+    val scalaCheck    = "org.scalacheck"     %% "scalacheck"     % V.scalaCheck    % "test"
   }
 }
