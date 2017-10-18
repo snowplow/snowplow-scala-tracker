@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -10,24 +10,29 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.scalatracker.emitters
+package com.snowplowanalytics.snowplow.scalatracker
+package emitters
 
-// Java
 import java.util.concurrent.LinkedBlockingQueue
 
+import scala.concurrent.ExecutionContext
+
+import RequestUtils.{CollectorParams, CollectorRequest, GetCollectorRequest}
 
 object AsyncEmitter {
   // Avoid starting thread in constructor
   /**
    * Start async emitter with single event payload
+   * Backed by `java.util.concurrent.LinkedBlockingQueue`, which has
+   * capacity of `Int.MaxValue` will block thread when buffer reach capacity
    *
    * @param host collector host
    * @param port collector port
    * @param https should this use the https scheme
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80, https: Boolean = false): AsyncEmitter = {
-    val emitter = new AsyncEmitter(host, port, https)
+  def createAndStart(host: String, port: Int = 80, https: Boolean = false)(implicit ec: ExecutionContext): AsyncEmitter = {
+    val emitter = new AsyncEmitter(ec, host, port, https)
     emitter.startWorker()
     emitter
   }
@@ -40,19 +45,17 @@ object AsyncEmitter {
  * @param port collector port
  * @param https should this use the https scheme
  */
-class AsyncEmitter private(host: String, port: Int, https: Boolean = false) extends TEmitter {
+class AsyncEmitter private(ec: ExecutionContext, host: String, port: Int, https: Boolean) extends TEmitter {
 
-  val queue = new LinkedBlockingQueue[Map[String, String]]()
+  val queue = new LinkedBlockingQueue[CollectorRequest]()
 
-  // 2 seconds timeout after 1st failed request
-  val initialBackoffPeriod = 2000
+  private val collector = CollectorParams(host, port, https)
 
-  // TODO: consider move retryGet/PostUntilSuccessful with adding of stm to Emitter (it's not requests logic)
   val worker = new Thread {
-    override def run {
+    override def run() {
       while (true) {
         val event = queue.take()
-        RequestUtils.retryGetUntilSuccessful(host, event, port, initialBackoffPeriod, https = https)
+        RequestUtils.send(queue, ec, collector, event)
       }
     }
   }
@@ -66,7 +69,7 @@ class AsyncEmitter private(host: String, port: Int, https: Boolean = false) exte
    * @param event Fully assembled event
    */
   def input(event: Map[String, String]): Unit = {
-    queue.put(event)
+    queue.put(GetCollectorRequest(1, event))
   }
 
   private def startWorker(): Unit = {

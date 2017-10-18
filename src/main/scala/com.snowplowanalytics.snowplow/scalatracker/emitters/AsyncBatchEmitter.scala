@@ -10,14 +10,15 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.scalatracker.emitters
+package com.snowplowanalytics.snowplow.scalatracker
+package emitters
 
-// Java
 import java.util.concurrent.LinkedBlockingQueue
 
-// Scala
 import scala.collection.mutable.ListBuffer
 
+import scala.concurrent.ExecutionContext
+import RequestUtils.{CollectorRequest, PostCollectorRequest, CollectorParams}
 
 object AsyncBatchEmitter {
   // Avoid starting thread in constructor
@@ -28,10 +29,11 @@ object AsyncBatchEmitter {
    * @param port collector port
    * @param bufferSize quantity of events in batch request
    * @param https should this use the https scheme
+   * @param ec thread pool to send HTTP requests to collector
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50, https: Boolean = false): AsyncBatchEmitter = {
-    val emitter = new AsyncBatchEmitter(host, port, bufferSize, https = https)
+  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50, https: Boolean = false)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
+    val emitter = new AsyncBatchEmitter(ec, host, port, bufferSize, https = https)
     emitter.startWorker()
     emitter
   }
@@ -40,27 +42,28 @@ object AsyncBatchEmitter {
 /**
  * Asynchronous batch emitter
  * Store events in buffer and send them with POST request when buffer exceeds `bufferSize`
+ * Backed by `java.util.concurrent.LinkedBlockingQueue`, which has
+ * capacity of `Int.MaxValue` will block thread when buffer reach capacity
  *
  * @param host collector host
  * @param port collector port
  * @param bufferSize quantity of events in a batch request
  * @param https should this use the https scheme
  */
-class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int, https: Boolean = false) extends TEmitter {
+class AsyncBatchEmitter private(ec: ExecutionContext, host: String, port: Int, bufferSize: Int, https: Boolean = false) extends TEmitter {
 
-  val queue = new LinkedBlockingQueue[Seq[Map[String, String]]]()
-
-  // 2 seconds timeout after 1st failed request
-  val initialBackoffPeriod = 2000
+  private val queue = new LinkedBlockingQueue[CollectorRequest]()
 
   private var buffer = ListBuffer[Map[String, String]]()
 
+  private val collector = CollectorParams(host, port, https)
+
   // Start consumer thread synchronously trying to send events to collector
   val worker = new Thread {
-    override def run {
+    override def run() {
       while (true) {
         val batch = queue.take()
-        RequestUtils.retryPostUntilSuccessful(host, batch, port, initialBackoffPeriod, https = https)
+        RequestUtils.send(queue, ec, collector, batch)
       }
     }
   }
@@ -74,10 +77,13 @@ class AsyncBatchEmitter private(host: String, port: Int, bufferSize: Int, https:
    * @param event Fully assembled event
    */
   def input(event: Map[String, String]): Unit = {
-    buffer.append(event)
-    if (buffer.size >= bufferSize) {
-      queue.put(buffer)
-      buffer = ListBuffer[Map[String, String]]()
+    // Multiple threads can input via same tracker and override buffer
+    buffer.synchronized {
+      buffer.append(event)
+      if (buffer.size >= bufferSize) {
+        queue.put(PostCollectorRequest(1, buffer.toList))
+        buffer = ListBuffer[Map[String, String]]()
+      }
     }
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -63,7 +63,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param payload constructed event map
    */
   private def send(payload: Payload): Unit = {
-    val event = payload.get
+    val event = payload.get()
     emitters foreach {
       e => e.input(event)
     }
@@ -109,7 +109,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @return payload with contexts
    */
   private def addContext(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload = {
-    if (!contexts.isEmpty) {
+    if (contexts.nonEmpty) {
       val contextsEnvelope = SelfDescribingJson(
         "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
         contexts
@@ -124,13 +124,29 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
   /**
    * Track a Snowplow unstructured event
+   * Alias for `trackSelfDescribingEvent`
    *
    * @param unstructEvent self-describing JSON for the event
    * @param contexts list of additional contexts
    * @param timestamp optional user-provided timestamp (ms) for the event
    * @return The tracker instance
    */
+  @deprecated("Use Tracker#trackSelfDescribingEvent instead", "0.4.0")
   def trackUnstructEvent(
+    unstructEvent: SelfDescribingJson,
+    contexts: Seq[SelfDescribingJson] = Nil,
+    timestamp: Option[Timestamp] = None): Tracker =
+    trackSelfDescribingEvent(unstructEvent, contexts, timestamp)
+
+  /**
+   * Track a Snowplow self-describing event
+   *
+   * @param unstructEvent self-describing JSON for the event
+   * @param contexts list of additional contexts
+   * @param timestamp optional user-provided timestamp (ms) for the event
+   * @return The tracker instance
+   */
+  def trackSelfDescribingEvent(
     unstructEvent: SelfDescribingJson,
     contexts: Seq[SelfDescribingJson] = Nil,
     timestamp: Option[Timestamp] = None): Tracker = {
@@ -149,21 +165,6 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
     this
   }
-
-  /**
-   * Track a Snowplow unstructured event
-   * Alias for [[trackUnstructEvent]]
-   *
-   * @param unstructEvent self-describing JSON for the event
-   * @param contexts list of additional contexts
-   * @param timestamp optional user-provided timestamp (ms) for the event
-   * @return The tracker instance
-   */
-  def trackSelfDescribingEvent(
-    unstructEvent: SelfDescribingJson,
-    contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker =
-    trackUnstructEvent(unstructEvent, contexts, timestamp)
 
   /**
    * Track a Snowplow structured event
