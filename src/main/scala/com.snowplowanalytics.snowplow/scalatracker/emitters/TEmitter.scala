@@ -14,14 +14,23 @@ package com.snowplowanalytics.snowplow.scalatracker
 package emitters
 
 /**
- * Emitter trait
+ * Emitters are entities in charge of transforming events sent from tracker
+ * into actual HTTP requests (IO), which includes:
+ * + Async/Multithreading
+ * + Queing `EmitterPayload`
+ * + Transforming `EmitterPayload` into Bytes
  */
 trait TEmitter {
+  import TEmitter._
 
   /**
    * Method called to send an event from the tracker to the emitter
    *
    * @param event Fully assembled event
    */
-  def input(event: Map[String, String]): Unit
+  def input(event: EmitterPayload): Unit
+}
+
+object TEmitter {
+  type EmitterPayload = Map[String, String]
 }

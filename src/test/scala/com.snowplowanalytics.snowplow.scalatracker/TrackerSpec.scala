@@ -13,12 +13,15 @@
 package com.snowplowanalytics.snowplow.scalatracker
 
 // json4s
+import org.json4s.JValue
 import org.json4s.JsonDSL._
 
 // Specs2
 import org.specs2.mutable.Specification
 
 import emitters.TEmitter
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData, SchemaVer}
 
 class TrackerSpec extends Specification {
 
@@ -31,17 +34,18 @@ class TrackerSpec extends Specification {
     }
   }
 
-  val unstructEventJson = SelfDescribingJson(
-    "iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0",
-    ("k1" -> "v1") ~ ("k2" -> "v2"))
+  val unstructEventJson =
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "myevent", "jsonschema", SchemaVer.Full(1,0,0)),
+      ("k1" -> "v1") ~ ("k2" -> "v2"))
 
   val contexts = List(
-    SelfDescribingJson(
-      "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1,0,0)),
       ("number" -> 20)),
-    SelfDescribingJson(
-    "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
-    ("letters" -> List("a", "b", "c"))))
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1,0,0)),
+      ("letters" -> List("a", "b", "c"))))
 
   "trackUnstructEvent" should {
 

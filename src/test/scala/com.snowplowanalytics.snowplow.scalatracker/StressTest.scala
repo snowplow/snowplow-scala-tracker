@@ -22,6 +22,9 @@ import org.scalacheck.Gen
 
 import Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
 
+import com.snowplowanalytics.iglu.core.{ SelfDescribingData, SchemaKey, SchemaVer }
+import com.snowplowanalytics.iglu.core.json4s.implicits._
+
 import com.snowplowanalytics.snowplow.scalatracker.emitters.AsyncBatchEmitter
 
 /**
@@ -41,7 +44,7 @@ object StressTest {
   }
 
   implicit val sdJsonsRead = new Read[List[SelfDescribingJson]] {
-    def parseJson(json: JValue): SelfDescribingJson = {
+    def parseJson(json: JValue): SelfDescribingData[JValue] = {
       json match {
         case JObject(fields) =>
           val map = fields.toMap
@@ -99,7 +102,7 @@ object StressTest {
     latitude <- Gen.choose[Double](-90, 90)
     longitude <- Gen.choose[Double](-180, 180)
     data = JObject("latitude" -> JDouble(latitude), "longitude" -> JDouble(longitude))
-    sd = SelfDescribingJson("iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/1-1-0", data)
+    sd = SelfDescribingData[JValue](SchemaKey("com.snowplowanalytics.snowplow", "geolocation_context", "jsonschema", SchemaVer.Full(1,1,0)), data)
   } yield sd
 
   // Generate timestamp
@@ -118,8 +121,8 @@ object StressTest {
     tstamp <- timestampGen
   } yield PageView(url, title, referrer, ctx, tstamp)
 
-  def writeContext(sd: List[SelfDescribingJson]): String =
-    compact(JArray(sd.map(s => s.toJObject)))
+  def writeContext(sd: List[SelfDescribingData[JValue]]): String =
+    compact(JArray(sd.map(s => s.normalize)))
 
   def writeTimestamp(tstamp: Timestamp): String = tstamp match {
     case TrueTimestamp(tst) => s"ttm:$tst"

@@ -13,7 +13,7 @@
 lazy val root = project.in(file("."))
   .settings(Seq[Setting[_]](
     organization       := "com.snowplowanalytics",
-    version            := "0.4.0",
+    version            := "0.5.0-M1",
     description        := "Scala tracker for Snowplow",
     name               := "snowplow-scala-tracker",
     description        := "Scala analytics SDK for Snowplow",
@@ -30,6 +30,8 @@ lazy val root = project.in(file("."))
     libraryDependencies := Seq(
       Dependencies.Libraries.scalajHttp,
       Dependencies.Libraries.json4sJackson,
+      Dependencies.Libraries.igluCore,
+      Dependencies.Libraries.igluCoreJson4s,
       Dependencies.Libraries.mockito,
       Dependencies.Libraries.specs2,
       Dependencies.Libraries.scalaCheck)

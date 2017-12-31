@@ -21,9 +21,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 import scala.util.{ Failure, Success }
 
-import emitters.TEmitter
+import org.json4s._
 import org.json4s.JsonDSL._
 
+import com.snowplowanalytics.iglu.core.{ SelfDescribingData, SchemaKey, SchemaVer }
+import com.snowplowanalytics.iglu.core.json4s.implicits._
+
+import emitters.TEmitter
 
 /**
  * Tracker class
@@ -36,10 +40,7 @@ import org.json4s.JsonDSL._
 class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeBase64: Boolean = true) {
   import Tracker._
 
-  private val Version = s"scala-${generated.ProjectSettings.version}"
-
   private var subject: Subject = new Subject()
-
   private var attachEc2Context = false
   private val ec2Context = Promise[SelfDescribingJson]
 
@@ -89,8 +90,8 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     if (!payload.nvPairs.contains("dtm")) {
       timestamp match {
         case Some(DeviceCreatedTimestamp(dtm)) => payload.add("dtm", dtm.toString)
-        case Some(TrueTimestamp(ttm))   => payload.add("ttm", ttm.toString)
-        case None                       => payload.add("dtm", System.currentTimeMillis().toString)
+        case Some(TrueTimestamp(ttm)) => payload.add("ttm", ttm.toString)
+        case None => payload.add("dtm", System.currentTimeMillis().toString)
       }
     }
 
@@ -112,12 +113,10 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    */
   private def addContext(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload = {
     if (contexts.nonEmpty) {
-      val contextsEnvelope = SelfDescribingJson(
-        "iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1",
-        contexts
-      )
+      val contextsEnvelope: SelfDescribingJson =
+        SelfDescribingData(ContextsSchemaKey, JArray(contexts.toList.map(_.normalize)))
 
-      payload.addJson(contextsEnvelope.toJObject, encodeBase64, "cx", "co")
+      payload.addJson(contextsEnvelope.normalize, encodeBase64, "cx", "co")
       payload
     } else {
       payload
@@ -154,15 +153,9 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     timestamp: Option[Timestamp] = None): Tracker = {
 
     val payload = new Payload()
-
     payload.add("e", "ue")
-
-    val envelope = SelfDescribingJson(
-      "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0",
-      unstructEvent)
-
-    payload.addJson(envelope.toJObject, encodeBase64, "ue_px", "ue_pr")
-
+    val envelope = SelfDescribingData(SelfDescribingEventSchemaKey, unstructEvent.normalize)
+    payload.addJson(envelope.normalize, encodeBase64, "ue_px", "ue_pr")
     track(completePayload(payload, contexts, timestamp))
 
     this
@@ -350,9 +343,8 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
         ("currency" -> currency)
 
     trackSelfDescribingEvent(
-      SelfDescribingJson(
-        schema = "iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0",
-        data = eventJson),
+      SelfDescribingData(
+        SchemaKey("com.snowplowanalytics.snowplow", "add_to_cart", "jsonschema", SchemaVer.Full(1,0,0)), eventJson),
       contexts,
       timestamp)
   }
@@ -389,9 +381,9 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
         ("currency" -> currency)
 
     trackSelfDescribingEvent(
-      SelfDescribingJson(
-        schema = "iglu:com.snowplowanalytics.snowplow/remove_from_cart/jsonschema/1-0-0",
-        data = eventJson),
+      SelfDescribingData(
+        SchemaKey("com.snowplowanalytics.snowplow", "remove_from_cart", "jsonschema", SchemaVer.Full(1,0,0)),
+        eventJson),
       contexts,
       timestamp)
   }
@@ -421,6 +413,22 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 }
 
 object Tracker {
+
+  /** Tracker's version */
+  val Version = s"scala-${generated.ProjectSettings.version}"
+
+  /** Contexts wrapper */
+  val ContextsSchemaKey: SchemaKey =
+    SchemaKey("com.snowplowanalytics.snowplow", "contexts", "jsonschema", SchemaVer.Full(1,0,1))
+
+  /** Unstruct event wrapper */
+  val SelfDescribingEventSchemaKey: SchemaKey =
+    SchemaKey("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", SchemaVer.Full(1,0,0))
+
+  /** POST-payload wrapper */
+  val PayloadDataSchemaKey: SchemaKey =
+    SchemaKey("com.snowplowanalytics.snowplow", "payload_data", "jsonschema", SchemaVer.Full(1,0,4))
+
 
   /**
    * Tag-type for timestamp, allowing to set ttm/dtm

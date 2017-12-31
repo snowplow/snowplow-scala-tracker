@@ -24,13 +24,15 @@ import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData }
+
 /**
  * Trait with parsing EC2 meta data logic
  * http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
  */
 object Ec2Metadata {
 
-  val instanceIdentitySchema = "iglu:com.amazon.aws.ec2/instance_identity_document/jsonschema/1-0-0"
+  val instanceIdentitySchema = SchemaKey("com.amazon.aws.ec2", "instance_identity_document", "jsonschema", SchemaVer.Full(1,0,0))
   val instanceIdentityUri = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 
   private var contextSlot: Option[SelfDescribingJson] = None
@@ -47,7 +49,7 @@ object Ec2Metadata {
    */
   def initializeContextRequest(): Unit = {
     getInstanceContextFuture.onComplete {
-      case Success(json: SelfDescribingJson) => contextSlot = Some(json)
+      case Success(json) => contextSlot = Some(json)
       case Failure(error) => System.err.println(s"Unable to retrieve EC2 context. ${error.getMessage}")
     }
   }
@@ -73,7 +75,7 @@ object Ec2Metadata {
    * @return future JSON with identity data
    */
   def getInstanceContextFuture: Future[SelfDescribingJson] =
-    getInstanceIdentity.map(SelfDescribingJson(instanceIdentitySchema, _))
+    getInstanceIdentity.map(SelfDescribingData(instanceIdentitySchema, _))
 
   /**
    * Tries to GET instance identity document for EC2 instance

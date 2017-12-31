@@ -19,6 +19,8 @@ import org.json4s.jackson.JsonMethods._
 
 import scala.collection.mutable.{Map => MMap}
 
+import emitters.TEmitter.EmitterPayload
+
 /**
  * Contains the map of key-value pairs making up an event
  */
@@ -69,7 +71,7 @@ class Payload {
    * @param typeWhenNotEncoded Key to use if encodeBase64 is false
    */
   def addJson(
-    json: JObject,
+    json: JValue,
     encodeBase64: Boolean,
     typeWhenEncoded: String,
     typeWhenNotEncoded: String): Unit = {
@@ -88,6 +90,6 @@ class Payload {
    *
    * @return Event map
    */
-  def get(): Map[String, String] = Map(nvPairs.toList: _*)
+  def get(): EmitterPayload = Map(nvPairs.toList: _*)
 
 }

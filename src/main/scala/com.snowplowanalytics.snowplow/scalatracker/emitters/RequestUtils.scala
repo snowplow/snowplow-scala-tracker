@@ -61,7 +61,7 @@ object RequestUtils {
   case class CollectorParams(host: String, port: Int, https: Boolean)
 
   // JSON object with Iglu URI to Schema for payload
-  private val payloadBatchStub: JObject = ("schema", "iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4")
+  private val payloadBatchStub: JObject = ("schema", Tracker.PayloadDataSchemaKey.toSchemaUri)
 
   /**
    * Transform List of Map[String, String] to JSON array of objects
