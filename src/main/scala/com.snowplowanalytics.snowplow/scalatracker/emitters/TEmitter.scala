@@ -102,6 +102,16 @@ object TEmitter {
     def getUri: String = s"${if (https) "https" else "http"}://$host:$port"
   }
 
+  object CollectorParams {
+    /** Construct collector preferences with correct default port */
+    def construct(host: String, port: Option[Int] = None, https: Boolean = false): CollectorParams =
+      port match {
+        case Some(p) => CollectorParams(host, p, https)
+        case None if https => CollectorParams(host, 443, https = true)
+        case None => CollectorParams(host, 80, https = false)
+      }
+  }
+
   // JSON object with Iglu URI to Schema for payload
   private val payloadBatchStub: JObject = ("schema", Tracker.PayloadDataSchemaKey.toSchemaUri)
 

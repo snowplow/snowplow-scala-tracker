@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -202,7 +202,7 @@ object StressTest {
     files.foreach { file => write(file, cardinality) }
     println(s"Writing to files completed. ${files.mkString(", ")}")
 
-    val emitter = AsyncBatchEmitter.createAndStart(collector, port, bufferSize = 10, callback = callback)
+    val emitter = AsyncBatchEmitter.createAndStart(collector, Some(port), bufferSize = 10)
     val tracker = new Tracker(List(emitter), "test-tracker-ns", "test-app")
 
     files.map(file => new TrackerThread(file, tracker).getWorker)

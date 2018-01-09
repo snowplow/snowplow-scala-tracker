@@ -19,33 +19,47 @@ import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
-import TEmitter.{CollectorParams, GetCollectorRequest, sendAsync}
+import TEmitter._
 
 /**
  * Blocking emitter.
  * This emitter blocks whole thread (from global execution context)
  * for specified amount of time. Use at own risk
- * @param host collector host
- * @param port collector port
- * @param https whether to use HTTPS
+ * @param collector collector preferences
  * @param blockingDuration amount of time to wait (block) for response
+ * @param callback optional callback executed after each sent event
+ *
  */
-class SyncEmitter(host: String, port: Int = 80, https: Boolean = false, blockingDuration: Duration = 5.seconds, val callback: Option[TEmitter.Callback]) extends TEmitter {
-
-  val collectorParams = CollectorParams(host, port, https)
+class SyncEmitter(collector: CollectorParams, blockingDuration: Duration, callback: Option[Callback]) extends TEmitter {
 
   def input(event: Map[String, String]): Unit = {
     val payload = GetCollectorRequest(1, event)
-    val response = sendAsync(global, collectorParams, payload)
+    val response = sendAsync(global, collector, payload)
     val result =
       Await.ready(response, blockingDuration)
         .value
-        .map(TEmitter.httpToCollector)
-        .getOrElse(TEmitter.TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $blockingDuration")))
+        .map(httpToCollector)
+        .getOrElse(TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $blockingDuration")))
 
     callback match {
       case None => ()
-      case Some(cb) => cb(collectorParams, payload, result)
+      case Some(cb) => cb(collector, payload, result)
     }
+  }
+}
+
+object SyncEmitter {
+  /**
+    * Aux constructor for sync emitter
+    *
+    * @param host collector host name
+    * @param port collector port number, default 80 for http and 443 for https
+    * @param https should this use the https scheme
+    * @param callback optional callback executed after each sent event
+    * @return emitter
+    */
+  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback] = None, blockingDuration: Duration = 5.seconds): SyncEmitter = {
+    val collector = CollectorParams.construct(host, port, https)
+    new SyncEmitter(collector, blockingDuration, callback)
   }
 }
