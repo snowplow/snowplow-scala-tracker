@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,10 +12,8 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-// Java
 import java.util.UUID
 
-// Scala
 import scala.concurrent.Promise
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
@@ -52,7 +50,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   private def track(payload: Payload): Unit = {
     if (attachEc2Context) {
       ec2Context.future.onComplete {
-        case Success(ctx) => send(addContext(payload, Seq(ctx)))
+        case Success(ctx) => send(addContexts(payload, Seq(ctx)))
         case Failure(_)   => send(payload)
       }
     } else {
@@ -66,7 +64,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param payload constructed event map
    */
   private def send(payload: Payload): Unit = {
-    val event = payload.get()
+    val event = payload.get
     emitters foreach {
       e => e.input(event)
     }
@@ -101,7 +99,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
     payload.addDict(subject.getSubjectInformation())
 
-    addContext(payload, contexts)
+    addContexts(payload, contexts)
   }
 
   /**
@@ -111,7 +109,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param contexts list of additional contexts
    * @return payload with contexts
    */
-  private def addContext(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload = {
+  private def addContexts(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload = {
     if (contexts.nonEmpty) {
       val contextsEnvelope: SelfDescribingJson =
         SelfDescribingData(ContextsSchemaKey, JArray(contexts.toList.map(_.normalize)))

@@ -26,6 +26,7 @@ import com.snowplowanalytics.iglu.core.{ SelfDescribingData, SchemaKey, SchemaVe
 import com.snowplowanalytics.iglu.core.json4s.implicits._
 
 import com.snowplowanalytics.snowplow.scalatracker.emitters.AsyncBatchEmitter
+import com.snowplowanalytics.snowplow.scalatracker.emitters.TEmitter._
 
 /**
   * Ad-hoc load testing
@@ -108,7 +109,7 @@ object StressTest {
   // Generate timestamp
   val timestampGen = for {
     tstType <- Gen.option(Gen.oneOf(List(TrueTimestamp.apply _, DeviceCreatedTimestamp.apply _)))
-    tstamp <- Gen.choose[Long](1508316432L - (2 * 365 * 86400), 1508316432L)
+    tstamp <- Gen.choose[Long](1508316432000L - (2 * 365 * 86400 * 1000L), 1508316432000L)
     result <- tstType.map { x => x(tstamp) }
   } yield result
 
@@ -142,6 +143,7 @@ object StressTest {
       }
       i = i + 1
     }
+    fw.close()
   }
 
   /**
@@ -193,14 +195,14 @@ object StressTest {
     * @param threads amount of parallel threads
     * @return list of threads
     */
-  def testAsyncBatch(collector: String, port: Int, dir: String, cardinality: Int, threads: Int = 1) = {
+  def testAsyncBatch(collector: String, port: Int, dir: String, cardinality: Int, threads: Int = 1, callback: Option[Callback]) = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     val files = List.fill(threads)(dir).zipWithIndex.map { case (path, i) => s"$path/events-$i.tsv" }
     files.foreach { file => write(file, cardinality) }
     println(s"Writing to files completed. ${files.mkString(", ")}")
 
-    val emitter = AsyncBatchEmitter.createAndStart(collector, port, bufferSize = 10)
+    val emitter = AsyncBatchEmitter.createAndStart(collector, port, bufferSize = 10, callback = callback)
     val tracker = new Tracker(List(emitter), "test-tracker-ns", "test-app")
 
     files.map(file => new TrackerThread(file, tracker).getWorker)

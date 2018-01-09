@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -16,24 +16,24 @@ package emitters
 import java.util.concurrent.LinkedBlockingQueue
 
 import scala.collection.mutable.ListBuffer
-
 import scala.concurrent.ExecutionContext
-import RequestUtils.{CollectorRequest, PostCollectorRequest, CollectorParams}
+
+import TEmitter._
 
 object AsyncBatchEmitter {
   // Avoid starting thread in constructor
   /**
    * Start async emitter with batch event payload
    *
-   * @param host collector host
-   * @param port collector port
+   * @param host collector host name
+   * @param port collector port number
    * @param bufferSize quantity of events in batch request
    * @param https should this use the https scheme
    * @param ec thread pool to send HTTP requests to collector
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50, https: Boolean = false)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
-    val emitter = new AsyncBatchEmitter(ec, host, port, bufferSize, https = https)
+  def createAndStart(host: String, port: Int = 80, bufferSize: Int = 50, https: Boolean = false, callback: Option[Callback] = None)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
+    val emitter = new AsyncBatchEmitter(ec, host, port, bufferSize, https = https, callback = callback)
     emitter.startWorker()
     emitter
   }
@@ -45,25 +45,26 @@ object AsyncBatchEmitter {
  * Backed by `java.util.concurrent.LinkedBlockingQueue`, which has
  * capacity of `Int.MaxValue` will block thread when buffer reach capacity
  *
- * @param host collector host
- * @param port collector port
+ * @param host collector host name
+ * @param port collector port number
  * @param bufferSize quantity of events in a batch request
  * @param https should this use the https scheme
  */
-class AsyncBatchEmitter private(ec: ExecutionContext, host: String, port: Int, bufferSize: Int, https: Boolean = false) extends TEmitter {
-
-  private val queue = new LinkedBlockingQueue[CollectorRequest]()
+class AsyncBatchEmitter private(ec: ExecutionContext, host: String, port: Int, bufferSize: Int, https: Boolean = false, callback: Option[Callback] = None) extends TEmitter {
 
   private var buffer = ListBuffer[Map[String, String]]()
 
-  private val collector = CollectorParams(host, port, https)
+  /** Queue of HTTP requests */
+  val queue = new LinkedBlockingQueue[CollectorRequest]()
+
+  val collectorParams = CollectorParams(host, port, https)
 
   // Start consumer thread synchronously trying to send events to collector
   val worker = new Thread {
     override def run() {
       while (true) {
         val batch = queue.take()
-        RequestUtils.send(queue, ec, collector, batch)
+        submit(queue, ec, callback, collectorParams, batch)
       }
     }
   }
@@ -76,7 +77,7 @@ class AsyncBatchEmitter private(ec: ExecutionContext, host: String, port: Int, b
    *
    * @param event Fully assembled event
    */
-  def input(event: Map[String, String]): Unit = {
+  def input(event: EmitterPayload): Unit = {
     // Multiple threads can input via same tracker and override buffer
     buffer.synchronized {
       buffer.append(event)

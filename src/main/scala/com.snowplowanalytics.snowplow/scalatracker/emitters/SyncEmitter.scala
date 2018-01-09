@@ -13,12 +13,13 @@
 package com.snowplowanalytics.snowplow.scalatracker
 package emitters
 
+import java.util.concurrent.TimeoutException
+
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
-import scala.util.Failure
 
-import RequestUtils.{ GetCollectorRequest, CollectorParams }
+import TEmitter.{CollectorParams, GetCollectorRequest, sendAsync}
 
 /**
  * Blocking emitter.
@@ -29,18 +30,22 @@ import RequestUtils.{ GetCollectorRequest, CollectorParams }
  * @param https whether to use HTTPS
  * @param blockingDuration amount of time to wait (block) for response
  */
-class SyncEmitter(host: String, port: Int = 80, https: Boolean = false, blockingDuration: Duration = 5.seconds) extends TEmitter {
+class SyncEmitter(host: String, port: Int = 80, https: Boolean = false, blockingDuration: Duration = 5.seconds, val callback: Option[TEmitter.Callback]) extends TEmitter {
 
-  private val collector = CollectorParams(host, port, https)
+  val collectorParams = CollectorParams(host, port, https)
 
   def input(event: Map[String, String]): Unit = {
-    val response = RequestUtils.sendAsync(global, collector, GetCollectorRequest(1, event))
-    Await.ready(response, blockingDuration).value match {
-      case None =>
-        System.err.println(s"Snowplow SyncEmitter failed to get response in $blockingDuration")
-      case Some(Failure(f)) =>
-        System.err.println(s"Snowplow SyncEmitter failed send event: ${f.getMessage}")
-      case _ => ()
+    val payload = GetCollectorRequest(1, event)
+    val response = sendAsync(global, collectorParams, payload)
+    val result =
+      Await.ready(response, blockingDuration)
+        .value
+        .map(TEmitter.httpToCollector)
+        .getOrElse(TEmitter.TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $blockingDuration")))
+
+    callback match {
+      case None => ()
+      case Some(cb) => cb(collectorParams, payload, result)
     }
   }
 }
