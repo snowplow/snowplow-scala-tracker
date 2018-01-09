@@ -200,7 +200,7 @@ object StressTest {
     files.foreach { file => write(file, cardinality) }
     println(s"Writing to files completed. ${files.mkString(", ")}")
 
-    val emitter = AsyncBatchEmitter.createAndStart(collector, port, bufferSize = 10)
+    val emitter = AsyncBatchEmitter.createAndStart(collector, Some(port), bufferSize = 10)
     val tracker = new Tracker(List(emitter), "test-tracker-ns", "test-app")
 
     files.map(file => new TrackerThread(file, tracker).getWorker)
