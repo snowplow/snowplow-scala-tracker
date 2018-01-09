@@ -29,7 +29,7 @@ guest$ sbt test
 
 ## Copyright and license
 
-The Snowplow Scala Tracker is copyright 2015-2017 Snowplow Analytics Ltd.
+The Snowplow Scala Tracker is copyright 2015-2018 Snowplow Analytics Ltd.
 
 Licensed under the **[Apache License, Version 2.0][license]** (the "License");
 you may not use this software except in compliance with the License.
@@ -46,7 +46,7 @@ limitations under the License.
 [license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
 
-[release-image]: http://img.shields.io/badge/release-0.4.0-blue.svg?style=flat
+[release-image]: http://img.shields.io/badge/release-0.5.0-blue.svg?style=flat
 [releases]: https://github.com/snowplow/snowplow-scala-tracker/releases
 
 [snowplow]: http://snowplowanalytics.com
