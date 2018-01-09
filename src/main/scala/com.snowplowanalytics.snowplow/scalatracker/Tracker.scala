@@ -17,7 +17,7 @@ import java.util.UUID
 import scala.concurrent.Promise
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
-import scala.util.{ Failure, Success }
+import scala.util.{ Failure, Success, Try }
 
 import org.json4s._
 import org.json4s.JsonDSL._
@@ -41,6 +41,8 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   private var subject: Subject = new Subject()
   private var attachEc2Context = false
   private val ec2Context = Promise[SelfDescribingJson]
+  private var attachGceContext = false
+  private val gceContext = Promise[SelfDescribingJson]
 
   /**
    * Send assembled payload to emitters or schedule it as callback of getting context
@@ -48,12 +50,11 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param payload constructed event map
    */
   private def track(payload: Payload): Unit = {
-    if (attachEc2Context) {
-      ec2Context.future.onComplete {
-        case Success(ctx) => send(addContexts(payload, Seq(ctx)))
-        case Failure(_)   => send(payload)
-      }
-    } else {
+    if (attachGceContext)
+      gceContext.future.onComplete(addEmbeddedContext(payload))
+    else if (attachEc2Context)
+      ec2Context.future.onComplete(addEmbeddedContext(payload))
+    else {
       send(payload)
     }
   }
@@ -401,13 +402,31 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
   /**
    * Adds EC2 context to each sent event
-   * This will also make tracker to wait for complete AWS EC2 request
-   * before send all events
+   * Blocks event queue until either context resolved or timed out
    */
   def enableEc2Context(): Unit = {
     attachEc2Context = true
     ec2Context.completeWith(Ec2Metadata.getInstanceContextFuture)
   }
+
+  /**
+    * Adds GCP context to each sent event
+    * Blocks event queue until either context resolved or timed out
+    */
+  def enableGceContext(): Unit = {
+    attachGceContext = true
+    gceContext.completeWith(GceMetadata.getInstanceContextFuture)
+  }
+
+  /** Callback for async-retrieved context. Block queue until either context available or failed */
+  private def addEmbeddedContext(payload: Payload)(result: Try[SelfDescribingJson]): Unit =
+    result match {
+      case Success(ctx) => send(addContexts(payload, Seq(ctx)))
+      case Failure(throwable) =>
+        val message = Option(throwable.getMessage).getOrElse(throwable.toString)
+        System.err.println(s"Failed to retrieve context: $message")
+        send(payload)
+    }
 }
 
 object Tracker {
