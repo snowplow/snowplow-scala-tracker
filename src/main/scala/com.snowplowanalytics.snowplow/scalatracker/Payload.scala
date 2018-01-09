@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -23,8 +23,9 @@ import emitters.TEmitter.EmitterPayload
 
 /**
  * Contains the map of key-value pairs making up an event
+ * Must be used within single function as **not thread-safe**
  */
-class Payload {
+private[scalatracker] class Payload {
 
   val Encoding = "UTF-8"
 
@@ -90,6 +91,5 @@ class Payload {
    *
    * @return Event map
    */
-  def get(): EmitterPayload = Map(nvPairs.toList: _*)
-
+  def get: EmitterPayload = Map(nvPairs.toList: _*)
 }
