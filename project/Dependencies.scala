@@ -18,6 +18,7 @@ object Dependencies {
     // Scala
     val scalajHttp = "2.3.0"
     val json4s     = "3.2.11"
+    val igluCore   = "0.2.0"
 
     // Java (test only)
     val mockito    = "1.9.5"
@@ -29,8 +30,10 @@ object Dependencies {
 
   object Libraries {
     // Scala
-    val scalajHttp    = "org.scalaj"        %% "scalaj-http"    % V.scalajHttp
-    val json4sJackson = "org.json4s"        %% "json4s-jackson" % V.json4s
+    val scalajHttp     = "org.scalaj"            %% "scalaj-http"      % V.scalajHttp
+    val json4sJackson  = "org.json4s"            %% "json4s-jackson"   % V.json4s
+    val igluCore       = "com.snowplowanalytics" %% "iglu-core"        % V.igluCore
+    val igluCoreJson4s = "com.snowplowanalytics" %% "iglu-core-json4s" % V.igluCore
 
     // Java (test only)
     val mockito       = "org.mockito"       %  "mockito-all"    % V.mockito       % "test"

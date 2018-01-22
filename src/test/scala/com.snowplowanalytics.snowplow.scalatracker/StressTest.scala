@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -22,7 +22,11 @@ import org.scalacheck.Gen
 
 import Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
 
+import com.snowplowanalytics.iglu.core.{ SelfDescribingData, SchemaKey, SchemaVer }
+import com.snowplowanalytics.iglu.core.json4s.implicits._
+
 import com.snowplowanalytics.snowplow.scalatracker.emitters.AsyncBatchEmitter
+import com.snowplowanalytics.snowplow.scalatracker.emitters.TEmitter._
 
 /**
   * Ad-hoc load testing
@@ -41,7 +45,7 @@ object StressTest {
   }
 
   implicit val sdJsonsRead = new Read[List[SelfDescribingJson]] {
-    def parseJson(json: JValue): SelfDescribingJson = {
+    def parseJson(json: JValue): SelfDescribingData[JValue] = {
       json match {
         case JObject(fields) =>
           val map = fields.toMap
@@ -99,13 +103,13 @@ object StressTest {
     latitude <- Gen.choose[Double](-90, 90)
     longitude <- Gen.choose[Double](-180, 180)
     data = JObject("latitude" -> JDouble(latitude), "longitude" -> JDouble(longitude))
-    sd = SelfDescribingJson("iglu:com.snowplowanalytics.snowplow/geolocation_context/jsonschema/1-1-0", data)
+    sd = SelfDescribingData[JValue](SchemaKey("com.snowplowanalytics.snowplow", "geolocation_context", "jsonschema", SchemaVer.Full(1,1,0)), data)
   } yield sd
 
   // Generate timestamp
   val timestampGen = for {
     tstType <- Gen.option(Gen.oneOf(List(TrueTimestamp.apply _, DeviceCreatedTimestamp.apply _)))
-    tstamp <- Gen.choose[Long](1508316432L - (2 * 365 * 86400), 1508316432L)
+    tstamp <- Gen.choose[Long](1508316432000L - (2 * 365 * 86400 * 1000L), 1508316432000L)
     result <- tstType.map { x => x(tstamp) }
   } yield result
 
@@ -118,8 +122,8 @@ object StressTest {
     tstamp <- timestampGen
   } yield PageView(url, title, referrer, ctx, tstamp)
 
-  def writeContext(sd: List[SelfDescribingJson]): String =
-    compact(JArray(sd.map(s => s.toJObject)))
+  def writeContext(sd: List[SelfDescribingData[JValue]]): String =
+    compact(JArray(sd.map(s => s.normalize)))
 
   def writeTimestamp(tstamp: Timestamp): String = tstamp match {
     case TrueTimestamp(tst) => s"ttm:$tst"
@@ -139,6 +143,7 @@ object StressTest {
       }
       i = i + 1
     }
+    fw.close()
   }
 
   /**
@@ -190,14 +195,14 @@ object StressTest {
     * @param threads amount of parallel threads
     * @return list of threads
     */
-  def testAsyncBatch(collector: String, port: Int, dir: String, cardinality: Int, threads: Int = 1) = {
+  def testAsyncBatch(collector: String, port: Int, dir: String, cardinality: Int, threads: Int = 1, callback: Option[Callback]) = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     val files = List.fill(threads)(dir).zipWithIndex.map { case (path, i) => s"$path/events-$i.tsv" }
     files.foreach { file => write(file, cardinality) }
     println(s"Writing to files completed. ${files.mkString(", ")}")
 
-    val emitter = AsyncBatchEmitter.createAndStart(collector, port, bufferSize = 10)
+    val emitter = AsyncBatchEmitter.createAndStart(collector, Some(port), bufferSize = 10)
     val tracker = new Tracker(List(emitter), "test-tracker-ns", "test-app")
 
     files.map(file => new TrackerThread(file, tracker).getWorker)

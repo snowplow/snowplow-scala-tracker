@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2016 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -13,12 +13,15 @@
 package com.snowplowanalytics.snowplow.scalatracker
 
 // json4s
+import org.json4s.JValue
 import org.json4s.JsonDSL._
 
 // Specs2
 import org.specs2.mutable.Specification
 
 import emitters.TEmitter
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData, SchemaVer}
 
 class TrackerSpec extends Specification {
 
@@ -31,17 +34,18 @@ class TrackerSpec extends Specification {
     }
   }
 
-  val unstructEventJson = SelfDescribingJson(
-    "iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0",
-    ("k1" -> "v1") ~ ("k2" -> "v2"))
+  val unstructEventJson =
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "myevent", "jsonschema", SchemaVer.Full(1,0,0)),
+      ("k1" -> "v1") ~ ("k2" -> "v2"))
 
   val contexts = List(
-    SelfDescribingJson(
-      "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1,0,0)),
       ("number" -> 20)),
-    SelfDescribingJson(
-    "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
-    ("letters" -> List("a", "b", "c"))))
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1,0,0)),
+      ("letters" -> List("a", "b", "c"))))
 
   "trackUnstructEvent" should {
 
@@ -162,4 +166,83 @@ class TrackerSpec extends Specification {
     }
 
   }
+
+  "trackAddToCart" should {
+
+    "add add_to_cart context to the event" in {
+      val emitter = new TestEmitter
+
+      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+
+      tracker.trackAddToCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
+
+      val event = emitter.lastInput
+
+      event("e") must_== "ue"
+      event("ue_pr") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0","data":{"sku":"aSku","name":"productName","category":"category","unitPrice":99.99,"quantity":1,"currency":"USD"}}}"""
+    }
+  }
+
+  "trackRemoveFromCart" should {
+
+    "add remove_from_cart context to the event" in {
+      val emitter = new TestEmitter
+
+      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+
+      tracker.trackRemoveFromCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
+
+      val event = emitter.lastInput
+
+      event("e") must_== "ue"
+      event("ue_pr") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/remove_from_cart/jsonschema/1-0-0","data":{"sku":"aSku","name":"productName","category":"category","unitPrice":99.99,"quantity":1.0,"currency":"USD"}}}"""
+    }
+  }
+
+  "trackTransaction" should {
+
+    "set the transaction parameters accordingly" in {
+      val emitter = new TestEmitter
+
+      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+
+      tracker.trackTransaction("orderId", Some("affiliation"), 99.99, Some(7.99), Some(5.99), Some("city"), Some("state"), Some("country"), Some("USD") )
+
+      val event = emitter.lastInput
+
+      event("e") must_== "tr"
+      event("tr_id") must_== "orderId"
+      event("tr_af") must_== "affiliation"
+      event("tr_tt") must_== "99.99"
+      event("tr_tx") must_== "7.99"
+      event("tr_sh") must_== "5.99"
+      event("tr_ci") must_== "city"
+      event("tr_st") must_== "state"
+      event("tr_co") must_== "country"
+      event("tr_cu") must_== "USD"
+    }
+  }
+
+  "trackTransactionItem" should {
+
+    "set the transaction item parameters accordingly" in {
+      val emitter = new TestEmitter
+
+      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+
+      tracker.trackTransactionItem("orderId", "sku", Some("name"), Some("category"), 19.99, 5, Some("USD"))
+
+      val event = emitter.lastInput
+
+      event("e") must_== "ti"
+      event("ti_id") must_== "orderId"
+      event("ti_sk") must_== "sku"
+      event("ti_nm") must_== "name"
+      event("ti_ca") must_== "category"
+      event("ti_pr") must_== "19.99"
+      event("ti_qu") must_== "5"
+      event("ti_cu") must_== "USD"
+    }
+  }
+
 }
