@@ -6,10 +6,9 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.specs2.specification.Scope
 
-class TrackerExceptionHandlerSpec extends Specification {
+class TrackerExceptionSpec extends Specification {
 
   trait DummyTracker extends Scope {
-
     val emitter = new TEmitter {
       var lastInput = Map[String, String]()
 
@@ -19,15 +18,14 @@ class TrackerExceptionHandlerSpec extends Specification {
     val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
   }
 
-  "TrackerExceptionHandler" should {
+  "Tracker" should {
 
-    import TrackerExceptionHandler._
     import DefaultReaders._
 
     "tracks an exception" in new DummyTracker {
 
       val error = new RuntimeException("boom!")
-      tracker.errorHandler(error)
+      tracker.trackError(error)
 
       val event = emitter.lastInput
 
@@ -51,7 +49,7 @@ class TrackerExceptionHandlerSpec extends Specification {
     "uses default message" >> {
       "when there is no error message" in new DummyTracker {
         val error = new RuntimeException()
-        tracker.errorHandler(error)
+        tracker.trackError(error)
 
         val event   = emitter.lastInput
         val payload = parse(event("ue_pr")) \ "data"
@@ -61,7 +59,7 @@ class TrackerExceptionHandlerSpec extends Specification {
 
       "when error messaga is empty" in new DummyTracker {
         val error = new RuntimeException("")
-        tracker.errorHandler(error)
+        tracker.trackError(error)
 
         val event   = emitter.lastInput
         val payload = parse(event("ue_pr")) \ "data"
