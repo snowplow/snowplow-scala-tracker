@@ -37,16 +37,17 @@ class TrackerSpec extends Specification {
 
   val unstructEventJson =
     SelfDescribingData[JValue](
-      SchemaKey("com.snowplowanalytics.snowplow", "myevent", "jsonschema", SchemaVer.Full(1,0,0)),
-      ("k1" -> "v1") ~ ("k2" -> "v2"))
+        SchemaKey("com.snowplowanalytics.snowplow", "myevent", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        ("k1" -> "v1") ~ ("k2" -> "v2"))
 
   val contexts = List(
-    SelfDescribingData[JValue](
-      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1,0,0)),
-      ("number" -> 20)),
-    SelfDescribingData[JValue](
-      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1,0,0)),
-      ("letters" -> List("a", "b", "c"))))
+      SelfDescribingData[JValue](
+          SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
+          ("number" -> 20)),
+      SelfDescribingData[JValue](
+          SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
+          ("letters" -> List("a", "b", "c")))
+  )
 
   "trackUnstructEvent" should {
 
@@ -77,7 +78,7 @@ class TrackerSpec extends Specification {
         .setPlatform(Mobile)
         .setUserId("sabnis")
         .setScreenResolution(200, 300)
-        .setViewport(50,100)
+        .setViewport(50, 100)
         .setColorDepth(24)
         .setTimezone("Europe London")
         .setLang("en")
@@ -118,12 +119,12 @@ class TrackerSpec extends Specification {
     }
 
     "implicitly (and without additional imports) assume device_timestamp when no data constructor specified for timestamp" in new DummyTracker {
-      tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(1459778142000L)) // Long
+      tracker.trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(1459778142000L)) // Long
 
       val event = emitter.lastInput
 
       (event("dtm") must_== "1459778142000").and(
-        event.get("ttm") must beNone
+          event.get("ttm") must beNone
       )
 
     }
@@ -131,12 +132,12 @@ class TrackerSpec extends Specification {
     "set true_timestamp when data constructor applied explicitly" in new DummyTracker {
       val timestamp = Tracker.TrueTimestamp(1459778542000L)
 
-      tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(timestamp))
+      tracker.trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(timestamp))
 
       val event = emitter.lastInput
 
       (event("ttm") must_== "1459778542000").and(
-        event.get("dtm") must beNone
+          event.get("dtm") must beNone
       )
 
     }
@@ -170,7 +171,15 @@ class TrackerSpec extends Specification {
   "trackTransaction" should {
 
     "set the transaction parameters accordingly" in new DummyTracker {
-      tracker.trackTransaction("orderId", Some("affiliation"), 99.99, Some(7.99), Some(5.99), Some("city"), Some("state"), Some("country"), Some("USD") )
+      tracker.trackTransaction("orderId",
+                               Some("affiliation"),
+                               99.99,
+                               Some(7.99),
+                               Some(5.99),
+                               Some("city"),
+                               Some("state"),
+                               Some("country"),
+                               Some("USD"))
 
       val event = emitter.lastInput
 
@@ -218,19 +227,19 @@ class TrackerSpec extends Specification {
 
       val envelope = parse(event("ue_pr"))
       (envelope \ "schema")
-        .as[String] mustEqual "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-0"
+        .as[String] mustEqual "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1"
 
       val payload = envelope \ "data"
 
       (payload \ "message").as[String] mustEqual "boom!"
       (payload \ "stackTrace").as[String] must contain("java.lang.RuntimeException: boom!")
       (payload \ "threadName").as[String] must not(beEmpty)
-      (payload \ "threadId").as[String] must not(beEmpty)
+      (payload \ "threadId").as[Int] must not(beNull)
       (payload \ "programmingLanguage").as[String] mustEqual "SCALA"
-      (payload \ "lineNumber").as[String].toInt must be greaterThan 0
+      (payload \ "lineNumber").as[Int] must be greaterThan 0
       (payload \ "className").as[String] must contain(this.getClass.getName)
       (payload \ "exceptionName").as[String] mustEqual "java.lang.RuntimeException"
-      (payload \ "isFatal").as[String] mustEqual "true"
+      (payload \ "isFatal").as[Boolean] must beTrue
     }
 
     "uses default message" >> {

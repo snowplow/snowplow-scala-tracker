@@ -183,7 +183,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     value: Option[Double] = None,
     contexts: Seq[SelfDescribingJson] = Nil,
     timestamp: Option[Timestamp] = None): Tracker = {
-      
+
     val payload = new Payload()
 
     payload.add("e", "se")
@@ -434,40 +434,38 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   /** 
    *  Sends a Snowplow Event when error is non fatal.
    *  
-   *  @param error The throwable
+   *  @param e The throwable
    */
-  def trackError(error: Throwable): Unit = error match {
-    case NonFatal(e) =>
-      val stackElement = headStackTrace(e)
+  def trackError(e: Throwable): Unit = {
+    val stackElement = headStackTrace(e)
 
-      val data =
-        ("message"               -> truncateString(e.getMessage, MaxMessageLength).getOrElse("Null or empty message found")) ~
-          ("stackTrace"          -> truncateString(stackTraceToString(e), MaxStackLength)) ~
-          ("threadName"          -> truncateString(Thread.currentThread.getName, MaxThreadNameLength)) ~
-          ("threadId"            -> Thread.currentThread.getId.toString) ~
-          ("programmingLanguage" -> "SCALA") ~
-          ("lineNumber"          -> stackElement.map(_.getLineNumber.toString)) ~
-          ("className"           -> stackElement.map(_.getClassName).flatMap(truncateString(_, MaxClassNameLength))) ~
-          ("exceptionName"       -> truncateString(e.getClass.getName, MaxExceptionNameLength)) ~
-          ("isFatal"             -> true.toString)
+    val data =
+      ("message"               -> truncateString(e.getMessage, MaxMessageLength).getOrElse("Null or empty message found")) ~
+        ("stackTrace"          -> truncateString(stackTraceToString(e), MaxStackLength)) ~
+        ("threadName"          -> truncateString(Thread.currentThread.getName, MaxThreadNameLength)) ~
+        ("threadId"            -> Thread.currentThread.getId) ~
+        ("programmingLanguage" -> "SCALA") ~
+        ("lineNumber"          -> stackElement.map(_.getLineNumber)) ~
+        ("className"           -> stackElement.map(_.getClassName).flatMap(truncateString(_, MaxClassNameLength))) ~
+        ("exceptionName"       -> truncateString(e.getClass.getName, MaxExceptionNameLength)) ~
+        ("isFatal"             -> true)
 
-      val envelope: SelfDescribingJson = SelfDescribingData(
-        schema = ApplicationErrorSchemaKey,
-        data = data
-      )
+    val envelope: SelfDescribingJson = SelfDescribingData(
+      schema = ApplicationErrorSchemaKey,
+      data = data
+    )
 
-      val payload = new Payload()
+    val payload = new Payload()
 
-      payload.addJson(
-        json = envelope.normalize,
-        encodeBase64 = encodeBase64,
-        typeWhenEncoded = "ue_px",
-        typeWhenNotEncoded = "ue_pr"
-      )
+    payload.addJson(
+      json = envelope.normalize,
+      encodeBase64 = encodeBase64,
+      typeWhenEncoded = "ue_px",
+      typeWhenNotEncoded = "ue_pr"
+    )
 
-      track(payload)
-    case _ =>
-  }  
+    track(payload)
+  }
 }
 
 object Tracker {
