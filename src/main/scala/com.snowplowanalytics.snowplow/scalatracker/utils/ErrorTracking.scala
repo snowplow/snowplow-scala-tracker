@@ -16,6 +16,9 @@ import java.io.{PrintWriter, StringWriter}
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
+/**
+  * Class to support util methods for tracking errors.
+  */
 object ErrorTracking {
 
   val MaxMessageLength       = 2048
