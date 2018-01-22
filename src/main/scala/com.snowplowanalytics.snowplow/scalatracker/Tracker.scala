@@ -152,19 +152,16 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   def trackSelfDescribingEvent(
     unstructEvent: SelfDescribingJson,
     contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker =
-    Try {
-      val payload = new Payload()
-      payload.add("e", "ue")
-      val envelope = SelfDescribingData(SelfDescribingEventSchemaKey, unstructEvent.normalize)
-      payload.addJson(envelope.normalize, encodeBase64, "ue_px", "ue_pr")
-      track(completePayload(payload, contexts, timestamp))
-    } match {
-      case Success(_) => this
-      case Failure(exception) =>
-        trackError(exception)
-        throw exception
-    }
+    timestamp: Option[Timestamp] = None): Tracker = {
+
+    val payload = new Payload()
+    payload.add("e", "ue")
+    val envelope = SelfDescribingData(SelfDescribingEventSchemaKey, unstructEvent.normalize)
+    payload.addJson(envelope.normalize, encodeBase64, "ue_px", "ue_pr")
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
 
   /**
    * Track a Snowplow structured event
@@ -185,24 +182,21 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     property: Option[String] = None,
     value: Option[Double] = None,
     contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = 
-    Try {
-      val payload = new Payload()
+    timestamp: Option[Timestamp] = None): Tracker = {
+      
+    val payload = new Payload()
 
-      payload.add("e", "se")
-      payload.add("se_ca", category)
-      payload.add("se_ac", action)
-      payload.add("se_la", label)
-      payload.add("se_pr", property)
-      payload.add("se_va", value.map(_.toString))
+    payload.add("e", "se")
+    payload.add("se_ca", category)
+    payload.add("se_ac", action)
+    payload.add("se_la", label)
+    payload.add("se_pr", property)
+    payload.add("se_va", value.map(_.toString))
 
-      track(completePayload(payload, contexts, timestamp))
-    } match {
-      case Success(_) => this
-      case Failure(exception) =>
-        trackError(exception)
-        throw exception
-    }    
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
 
   /**
    * Record view of web page
@@ -219,22 +213,19 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     pageTitle: Option[String] = None,
     referrer: Option[String] = None,
     contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker =
-    Try {
-      val payload = new Payload()
+    timestamp: Option[Timestamp] = None): Tracker = {
 
-      payload.add("e", "pv")
-      payload.add("url", pageUrl)
-      payload.add("page", pageTitle)
-      payload.add("refr", referrer)
+    val payload = new Payload()
 
-      track(completePayload(payload, contexts, timestamp))
-    } match {
-      case Success(_) => this
-      case Failure(exception) =>
-        trackError(exception)
-        throw exception
-    }      
+    payload.add("e", "pv")
+    payload.add("url", pageUrl)
+    payload.add("page", pageTitle)
+    payload.add("refr", referrer)
+
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
 
   /**
    * Record view of transaction
@@ -263,28 +254,25 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     country: Option[String] = None,
     currency: Option[String] = None,
     contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = 
-    Try {
-      val payload = new Payload()
+    timestamp: Option[Timestamp] = None): Tracker = {
 
-      payload.add("e", "tr")
-      payload.add("tr_id", orderId)
-      payload.add("tr_af", affiliation)
-      payload.add("tr_tt", total.toString)
-      payload.add("tr_tx", tax.map(_.toString))
-      payload.add("tr_sh", shipping.map(_.toString))
-      payload.add("tr_ci", city)
-      payload.add("tr_st", state)
-      payload.add("tr_co", country)
-      payload.add("tr_cu", currency)
+    val payload = new Payload()
 
-      track(completePayload(payload, contexts, timestamp))
-    } match {
-      case Success(_) => this
-      case Failure(exception) =>
-        trackError(exception)
-        throw exception
-    }    
+    payload.add("e", "tr")
+    payload.add("tr_id", orderId)
+    payload.add("tr_af", affiliation)
+    payload.add("tr_tt", total.toString)
+    payload.add("tr_tx", tax.map(_.toString))
+    payload.add("tr_sh", shipping.map(_.toString))
+    payload.add("tr_ci", city)
+    payload.add("tr_st", state)
+    payload.add("tr_co", country)
+    payload.add("tr_cu", currency)
+
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
 
   /**
    * @param orderId Order ID
@@ -307,26 +295,23 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     quantity: Int,
     currency: Option[String] = None,
     contexts: List[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = 
-    Try {
-      val payload = new Payload()
+    timestamp: Option[Timestamp] = None): Tracker = {
 
-      payload.add("e", "ti")
-      payload.add("ti_id", orderId)
-      payload.add("ti_sk", sku)
-      payload.add("ti_nm", name)
-      payload.add("ti_ca", category)
-      payload.add("ti_pr", price.toString)
-      payload.add("ti_qu", quantity.toString)
-      payload.add("ti_cu", currency)
+    val payload = new Payload()
 
-      track(completePayload(payload, contexts, timestamp))
-    } match {
-      case Success(_) => this
-      case Failure(exception) =>
-        trackError(exception)
-        throw exception
-    }    
+    payload.add("e", "ti")
+    payload.add("ti_id", orderId)
+    payload.add("ti_sk", sku)
+    payload.add("ti_nm", name)
+    payload.add("ti_ca", category)
+    payload.add("ti_pr", price.toString)
+    payload.add("ti_qu", quantity.toString)
+    payload.add("ti_cu", currency)
+
+    track(completePayload(payload, contexts, timestamp))
+
+    this
+  }
 
   /**
    * Track an add-to-cart event
@@ -445,9 +430,13 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
         System.err.println(s"Failed to retrieve context: $message")
         send(payload)
     }
-
-  /** Sends a Snowplow Event when error is non fatal and then re-throws. */
-  private[scalatracker] def trackError(error: Throwable): Unit = error match {
+ 
+  /** 
+   *  Sends a Snowplow Event when error is non fatal.
+   *  
+   *  @param error The throwable
+   */
+  def trackError(error: Throwable): Unit = error match {
     case NonFatal(e) =>
       val stackElement = headStackTrace(e)
 

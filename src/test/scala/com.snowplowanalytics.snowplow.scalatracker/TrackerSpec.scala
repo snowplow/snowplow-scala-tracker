@@ -12,11 +12,11 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-// json4s
-import org.json4s.JValue
+import org.json4s.{DefaultReaders, JValue}
 import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods.parse
+import org.specs2.specification.Scope
 
-// Specs2
 import org.specs2.mutable.Specification
 
 import emitters.TEmitter
@@ -25,13 +25,14 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData, SchemaVer
 
 class TrackerSpec extends Specification {
 
-  class TestEmitter extends TEmitter {
+  trait DummyTracker extends Scope {
+    val emitter = new TEmitter {
+      var lastInput = Map[String, String]()
 
-    var lastInput = Map[String, String]()
-
-    def input(event: Map[String, String]) {
-      lastInput = event
+      override def input(event: Map[String, String]): Unit = lastInput = event
     }
+
+    val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
   }
 
   val unstructEventJson =
@@ -49,12 +50,7 @@ class TrackerSpec extends Specification {
 
   "trackUnstructEvent" should {
 
-    "send an unstructured event to the emitter" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "send an unstructured event to the emitter" in new DummyTracker {
       tracker.trackUnstructEvent(unstructEventJson)
 
       val event = emitter.lastInput
@@ -76,12 +72,7 @@ class TrackerSpec extends Specification {
 
   "setSubject" should {
 
-    "add the Subject's data to all events" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "add the Subject's data to all events" in new DummyTracker {
       val subject = new Subject()
         .setPlatform(Mobile)
         .setUserId("sabnis")
@@ -117,12 +108,7 @@ class TrackerSpec extends Specification {
 
   "track" should {
 
-    "add custom contexts to the event" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "add custom contexts to the event" in new DummyTracker {
       tracker.trackUnstructEvent(unstructEventJson, contexts)
 
       val event = emitter.lastInput
@@ -131,12 +117,7 @@ class TrackerSpec extends Specification {
 
     }
 
-    "implicitly (and without additional imports) assume device_timestamp when no data constructor specified for timestamp" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "implicitly (and without additional imports) assume device_timestamp when no data constructor specified for timestamp" in new DummyTracker {
       tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(1459778142000L)) // Long
 
       val event = emitter.lastInput
@@ -147,12 +128,7 @@ class TrackerSpec extends Specification {
 
     }
 
-    "set true_timestamp when data constructor applied explicitly" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "set true_timestamp when data constructor applied explicitly" in new DummyTracker {
       val timestamp = Tracker.TrueTimestamp(1459778542000L)
 
       tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(timestamp))
@@ -169,11 +145,7 @@ class TrackerSpec extends Specification {
 
   "trackAddToCart" should {
 
-    "add add_to_cart context to the event" in {
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "add add_to_cart context to the event" in new DummyTracker {
       tracker.trackAddToCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
 
       val event = emitter.lastInput
@@ -185,11 +157,7 @@ class TrackerSpec extends Specification {
 
   "trackRemoveFromCart" should {
 
-    "add remove_from_cart context to the event" in {
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "add remove_from_cart context to the event" in new DummyTracker {
       tracker.trackRemoveFromCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
 
       val event = emitter.lastInput
@@ -201,11 +169,7 @@ class TrackerSpec extends Specification {
 
   "trackTransaction" should {
 
-    "set the transaction parameters accordingly" in {
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "set the transaction parameters accordingly" in new DummyTracker {
       tracker.trackTransaction("orderId", Some("affiliation"), 99.99, Some(7.99), Some(5.99), Some("city"), Some("state"), Some("country"), Some("USD") )
 
       val event = emitter.lastInput
@@ -225,11 +189,7 @@ class TrackerSpec extends Specification {
 
   "trackTransactionItem" should {
 
-    "set the transaction item parameters accordingly" in {
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "set the transaction item parameters accordingly" in new DummyTracker {
       tracker.trackTransactionItem("orderId", "sku", Some("name"), Some("category"), 19.99, 5, Some("USD"))
 
       val event = emitter.lastInput
@@ -245,4 +205,54 @@ class TrackerSpec extends Specification {
     }
   }
 
+  "trackError" should {
+
+    import DefaultReaders._
+
+    "tracks an exception" in new DummyTracker {
+
+      val error = new RuntimeException("boom!")
+      tracker.trackError(error)
+
+      val event = emitter.lastInput
+
+      val envelope = parse(event("ue_pr"))
+      (envelope \ "schema")
+        .as[String] mustEqual "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-0"
+
+      val payload = envelope \ "data"
+
+      (payload \ "message").as[String] mustEqual "boom!"
+      (payload \ "stackTrace").as[String] must contain("java.lang.RuntimeException: boom!")
+      (payload \ "threadName").as[String] must not(beEmpty)
+      (payload \ "threadId").as[String] must not(beEmpty)
+      (payload \ "programmingLanguage").as[String] mustEqual "SCALA"
+      (payload \ "lineNumber").as[String].toInt must be greaterThan 0
+      (payload \ "className").as[String] must contain(this.getClass.getName)
+      (payload \ "exceptionName").as[String] mustEqual "java.lang.RuntimeException"
+      (payload \ "isFatal").as[String] mustEqual "true"
+    }
+
+    "uses default message" >> {
+      "when there is no error message" in new DummyTracker {
+        val error = new RuntimeException()
+        tracker.trackError(error)
+
+        val event   = emitter.lastInput
+        val payload = parse(event("ue_pr")) \ "data"
+
+        (payload \ "message").as[String] mustEqual "Null or empty message found"
+      }
+
+      "when error messaga is empty" in new DummyTracker {
+        val error = new RuntimeException("")
+        tracker.trackError(error)
+
+        val event   = emitter.lastInput
+        val payload = parse(event("ue_pr")) \ "data"
+
+        (payload \ "message").as[String] mustEqual "Null or empty message found"
+      }
+    }
+  }
 }
