@@ -73,7 +73,7 @@ object TrackerExceptionHandler {
   }
 
   private def truncateString(s: String, maxLength: Int): Option[String] =
-    Option(s).map(_.substring(0, Math.min(s.length, maxLength)))
+    Option(s).filter(_.nonEmpty).map(_.substring(0, Math.min(s.length, maxLength)))
 
   private def stackTraceToString(e: Throwable): String = {
     val sw = new StringWriter
