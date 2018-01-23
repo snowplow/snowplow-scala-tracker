@@ -37,16 +37,16 @@ class TrackerSpec extends Specification {
 
   val unstructEventJson =
     SelfDescribingData[JValue](
-        SchemaKey("com.snowplowanalytics.snowplow", "myevent", "jsonschema", SchemaVer.Full(1, 0, 0)),
-        ("k1" -> "v1") ~ ("k2" -> "v2"))
+      SchemaKey("com.snowplowanalytics.snowplow", "myevent", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      ("k1" -> "v1") ~ ("k2" -> "v2"))
 
   val contexts = List(
-      SelfDescribingData[JValue](
-          SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
-          ("number" -> 20)),
-      SelfDescribingData[JValue](
-          SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
-          ("letters" -> List("a", "b", "c")))
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      ("number" -> 20)),
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      ("letters" -> List("a", "b", "c")))
   )
 
   "trackUnstructEvent" should {
@@ -123,10 +123,7 @@ class TrackerSpec extends Specification {
 
       val event = emitter.lastInput
 
-      (event("dtm") must_== "1459778142000").and(
-          event.get("ttm") must beNone
-      )
-
+      (event("dtm") must_== "1459778142000").and(event.get("ttm") must beNone)
     }
 
     "set true_timestamp when data constructor applied explicitly" in new DummyTracker {
@@ -136,10 +133,7 @@ class TrackerSpec extends Specification {
 
       val event = emitter.lastInput
 
-      (event("ttm") must_== "1459778542000").and(
-          event.get("dtm") must beNone
-      )
-
+      (event("ttm") must_== "1459778542000").and(event.get("dtm") must beNone)
     }
 
   }

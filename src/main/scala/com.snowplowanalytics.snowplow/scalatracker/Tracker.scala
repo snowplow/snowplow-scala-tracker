@@ -28,8 +28,6 @@ import com.snowplowanalytics.iglu.core.json4s.implicits._
 
 import emitters.TEmitter
 
-import scala.util.control.NonFatal
-
 /**
  * Tracker class
  *
