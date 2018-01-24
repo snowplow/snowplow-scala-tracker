@@ -13,7 +13,7 @@
 lazy val root = project.in(file("."))
   .settings(Seq[Setting[_]](
     organization       := "com.snowplowanalytics",
-    version            := "0.5.0-M2",
+    version            := "0.5.0-M3",
     description        := "Scala tracker for Snowplow",
     name               := "snowplow-scala-tracker",
     scalaVersion       := "2.11.12",
