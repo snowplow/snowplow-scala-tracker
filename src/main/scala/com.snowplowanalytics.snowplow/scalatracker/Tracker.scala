@@ -26,6 +26,7 @@ import com.snowplowanalytics.iglu.core.{ SelfDescribingData, SchemaKey, SchemaVe
 import com.snowplowanalytics.iglu.core.json4s.implicits._
 
 import emitters.TEmitter
+import utils.ErrorTracking
 
 /**
  * Tracker class
@@ -385,6 +386,21 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
         eventJson),
       contexts,
       timestamp)
+  }
+
+  /**
+    * Track application error
+    * NOTE: don't try to tracker `Emitter` failures with it
+    *
+    * @param error exception thrown by application code
+    * @param contexts Optional. Context relating to the event.
+    * @param timestamp optional user-provided timestamp (ms) for the event
+    * @return the tracker instance
+    */
+  def trackError(error: Throwable, contexts: List[SelfDescribingJson] = Nil, timestamp: Option[Timestamp] = None): Tracker = {
+    val payload = ErrorTracking.toData(error)
+    val event = SelfDescribingData(ErrorTracking.ApplicationErrorSchemaKey, payload)
+    trackSelfDescribingEvent(event, contexts, timestamp)
   }
 
   /**
