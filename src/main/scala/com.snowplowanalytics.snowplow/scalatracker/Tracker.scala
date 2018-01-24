@@ -23,6 +23,7 @@ import org.json4s._
 import org.json4s.JsonDSL._
 
 import com.snowplowanalytics.iglu.core.{ SelfDescribingData, SchemaKey, SchemaVer }
+import com.snowplowanalytics.snowplow.scalatracker.utils.ErrorTracking._
 import com.snowplowanalytics.iglu.core.json4s.implicits._
 
 import emitters.TEmitter
@@ -427,6 +428,42 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
         System.err.println(s"Failed to retrieve context: $message")
         send(payload)
     }
+ 
+  /** 
+   *  Sends a Snowplow Event when error is non fatal.
+   *  
+   *  @param e The throwable
+   */
+  def trackError(e: Throwable): Unit = {
+    val stackElement = headStackTrace(e)
+
+    val data =
+      ("message"               -> truncateString(e.getMessage, MaxMessageLength).getOrElse("Null or empty message found")) ~
+        ("stackTrace"          -> truncateString(stackTraceToString(e), MaxStackLength)) ~
+        ("threadName"          -> truncateString(Thread.currentThread.getName, MaxThreadNameLength)) ~
+        ("threadId"            -> Thread.currentThread.getId) ~
+        ("programmingLanguage" -> "SCALA") ~
+        ("lineNumber"          -> stackElement.map(_.getLineNumber)) ~
+        ("className"           -> stackElement.map(_.getClassName).flatMap(truncateString(_, MaxClassNameLength))) ~
+        ("exceptionName"       -> truncateString(e.getClass.getName, MaxExceptionNameLength)) ~
+        ("isFatal"             -> true)
+
+    val envelope: SelfDescribingJson = SelfDescribingData(
+      schema = ApplicationErrorSchemaKey,
+      data = data
+    )
+
+    val payload = new Payload()
+
+    payload.addJson(
+      json = envelope.normalize,
+      encodeBase64 = encodeBase64,
+      typeWhenEncoded = "ue_px",
+      typeWhenNotEncoded = "ue_pr"
+    )
+
+    track(payload)
+  }
 }
 
 object Tracker {
