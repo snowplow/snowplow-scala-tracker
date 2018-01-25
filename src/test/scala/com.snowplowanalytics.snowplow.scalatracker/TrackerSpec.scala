@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2016 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,45 +12,46 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-// json4s
+import org.json4s.{DefaultReaders, JValue}
 import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods.parse
+import org.specs2.specification.Scope
 
-// Specs2
 import org.specs2.mutable.Specification
 
 import emitters.TEmitter
 
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData, SchemaVer}
+
 class TrackerSpec extends Specification {
 
-  class TestEmitter extends TEmitter {
+  trait DummyTracker extends Scope {
+    val emitter = new TEmitter {
+      var lastInput = Map[String, String]()
 
-    var lastInput = Map[String, String]()
-
-    def input(event: Map[String, String]) {
-      lastInput = event
+      override def input(event: Map[String, String]): Unit = lastInput = event
     }
+
+    val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
   }
 
-  val unstructEventJson = SelfDescribingJson(
-    "iglu:com.snowplowanalytics.snowplow/myevent/jsonschema/1-0-0",
-    ("k1" -> "v1") ~ ("k2" -> "v2"))
+  val unstructEventJson =
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "myevent", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      ("k1" -> "v1") ~ ("k2" -> "v2"))
 
   val contexts = List(
-    SelfDescribingJson(
-      "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
       ("number" -> 20)),
-    SelfDescribingJson(
-    "iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0",
-    ("letters" -> List("a", "b", "c"))))
+    SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
+      ("letters" -> List("a", "b", "c")))
+  )
 
   "trackUnstructEvent" should {
 
-    "send an unstructured event to the emitter" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "send an unstructured event to the emitter" in new DummyTracker {
       tracker.trackUnstructEvent(unstructEventJson)
 
       val event = emitter.lastInput
@@ -72,17 +73,12 @@ class TrackerSpec extends Specification {
 
   "setSubject" should {
 
-    "add the Subject's data to all events" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "add the Subject's data to all events" in new DummyTracker {
       val subject = new Subject()
         .setPlatform(Mobile)
         .setUserId("sabnis")
         .setScreenResolution(200, 300)
-        .setViewport(50,100)
+        .setViewport(50, 100)
         .setColorDepth(24)
         .setTimezone("Europe London")
         .setLang("en")
@@ -113,12 +109,7 @@ class TrackerSpec extends Specification {
 
   "track" should {
 
-    "add custom contexts to the event" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "add custom contexts to the event" in new DummyTracker {
       tracker.trackUnstructEvent(unstructEventJson, contexts)
 
       val event = emitter.lastInput
@@ -127,39 +118,145 @@ class TrackerSpec extends Specification {
 
     }
 
-    "implicitly (and without additional imports) assume device_timestamp when no data constructor specified for timestamp" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
-      tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(1459778142000L)) // Long
+    "implicitly (and without additional imports) assume device_timestamp when no data constructor specified for timestamp" in new DummyTracker {
+      tracker.trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(1459778142000L)) // Long
 
       val event = emitter.lastInput
 
-      (event("dtm") must_== "1459778142000").and(
-        event.get("ttm") must beNone
-      )
-
+      (event("dtm") must_== "1459778142000").and(event.get("ttm") must beNone)
     }
 
-    "set true_timestamp when data constructor applied explicitly" in {
-
-      val emitter = new TestEmitter
-
-      val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
-
+    "set true_timestamp when data constructor applied explicitly" in new DummyTracker {
       val timestamp = Tracker.TrueTimestamp(1459778542000L)
 
-      tracker.trackStructEvent("e-commerce", "buy", property=Some("book"), timestamp=Some(timestamp))
+      tracker.trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(timestamp))
 
       val event = emitter.lastInput
 
-      (event("ttm") must_== "1459778542000").and(
-        event.get("dtm") must beNone
-      )
-
+      (event("ttm") must_== "1459778542000").and(event.get("dtm") must beNone)
     }
 
+  }
+
+  "trackAddToCart" should {
+
+    "add add_to_cart context to the event" in new DummyTracker {
+      tracker.trackAddToCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
+
+      val event = emitter.lastInput
+
+      event("e") must_== "ue"
+      event("ue_pr") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0","data":{"sku":"aSku","name":"productName","category":"category","unitPrice":99.99,"quantity":1,"currency":"USD"}}}"""
+    }
+  }
+
+  "trackRemoveFromCart" should {
+
+    "add remove_from_cart context to the event" in new DummyTracker {
+      tracker.trackRemoveFromCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
+
+      val event = emitter.lastInput
+
+      event("e") must_== "ue"
+      event("ue_pr") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/remove_from_cart/jsonschema/1-0-0","data":{"sku":"aSku","name":"productName","category":"category","unitPrice":99.99,"quantity":1.0,"currency":"USD"}}}"""
+    }
+  }
+
+  "trackTransaction" should {
+
+    "set the transaction parameters accordingly" in new DummyTracker {
+      tracker.trackTransaction("orderId",
+                               Some("affiliation"),
+                               99.99,
+                               Some(7.99),
+                               Some(5.99),
+                               Some("city"),
+                               Some("state"),
+                               Some("country"),
+                               Some("USD"))
+
+      val event = emitter.lastInput
+
+      event("e") must_== "tr"
+      event("tr_id") must_== "orderId"
+      event("tr_af") must_== "affiliation"
+      event("tr_tt") must_== "99.99"
+      event("tr_tx") must_== "7.99"
+      event("tr_sh") must_== "5.99"
+      event("tr_ci") must_== "city"
+      event("tr_st") must_== "state"
+      event("tr_co") must_== "country"
+      event("tr_cu") must_== "USD"
+    }
+  }
+
+  "trackTransactionItem" should {
+
+    "set the transaction item parameters accordingly" in new DummyTracker {
+      tracker.trackTransactionItem("orderId", "sku", Some("name"), Some("category"), 19.99, 5, Some("USD"))
+
+      val event = emitter.lastInput
+
+      event("e") must_== "ti"
+      event("ti_id") must_== "orderId"
+      event("ti_sk") must_== "sku"
+      event("ti_nm") must_== "name"
+      event("ti_ca") must_== "category"
+      event("ti_pr") must_== "19.99"
+      event("ti_qu") must_== "5"
+      event("ti_cu") must_== "USD"
+    }
+  }
+
+  "trackError" should {
+
+    import DefaultReaders._
+
+    "tracks an exception" in new DummyTracker {
+
+      val error = new RuntimeException("boom!")
+      tracker.trackError(error)
+
+      val event = emitter.lastInput
+
+      println(event)
+      val envelope = parse(event("ue_pr")) \ "data"
+
+      (envelope \ "schema").as[String] mustEqual "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1"
+
+      val payload = envelope \ "data"
+
+      (payload \ "message").as[String] mustEqual "boom!"
+      (payload \ "stackTrace").as[String] must contain("java.lang.RuntimeException: boom!")
+      (payload \ "threadName").as[String] must not(beEmpty)
+      (payload \ "threadId").as[Int] must not(beNull)
+      (payload \ "programmingLanguage").as[String] mustEqual "SCALA"
+      (payload \ "lineNumber").as[Int] must be greaterThan 0
+      (payload \ "className").as[String] must contain(this.getClass.getName)
+      (payload \ "exceptionName").as[String] mustEqual "java.lang.RuntimeException"
+      (payload \ "isFatal").as[Boolean] must beTrue
+    }
+
+    "uses default message" >> {
+      "when there is no error message" in new DummyTracker {
+        val error = new RuntimeException()
+        tracker.trackError(error)
+
+        val event   = emitter.lastInput
+        val payload = parse(event("ue_pr")) \ "data" \ "data"
+
+        (payload \ "message").as[String] mustEqual "Null or empty message found"
+      }
+
+      "when error message is empty" in new DummyTracker {
+        val error = new RuntimeException("")
+        tracker.trackError(error)
+
+        val event = emitter.lastInput
+        val payload = parse(event("ue_pr")) \ "data" \ "data"
+
+        (payload \ "message").as[String] mustEqual "Null or empty message found"
+      }
+    }
   }
 }

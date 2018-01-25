@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -24,22 +24,20 @@ import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData }
+
 /**
- * Trait with parsing EC2 meta data logic
- * http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
+ * Module with parsing EC2-metadata logic
+ * @see http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
  */
 object Ec2Metadata {
 
-  val instanceIdentitySchema = "iglu:com.amazon.aws.ec2/instance_identity_document/jsonschema/1-0-0"
-  val instanceIdentityUri = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
+  val InstanceIdentitySchema = SchemaKey("com.amazon.aws.ec2", "instance_identity_document", "jsonschema", SchemaVer.Full(1,0,0))
+  val InstanceIdentityUri = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 
   private var contextSlot: Option[SelfDescribingJson] = None
 
-  /**
-   * Get context stored in mutable variable
-   *
-   * @return some context or None in case of any error or not completed request
-   */
+  /** Retrieve some context if available or nothing in case of any error */
   def context: Option[SelfDescribingJson] = contextSlot
 
   /**
@@ -47,7 +45,7 @@ object Ec2Metadata {
    */
   def initializeContextRequest(): Unit = {
     getInstanceContextFuture.onComplete {
-      case Success(json: SelfDescribingJson) => contextSlot = Some(json)
+      case Success(json) => contextSlot = Some(json)
       case Failure(error) => System.err.println(s"Unable to retrieve EC2 context. ${error.getMessage}")
     }
   }
@@ -73,7 +71,7 @@ object Ec2Metadata {
    * @return future JSON with identity data
    */
   def getInstanceContextFuture: Future[SelfDescribingJson] =
-    getInstanceIdentity.map(SelfDescribingJson(instanceIdentitySchema, _))
+    getInstanceIdentity.map(SelfDescribingData(InstanceIdentitySchema, _))
 
   /**
    * Tries to GET instance identity document for EC2 instance
@@ -81,7 +79,7 @@ object Ec2Metadata {
    * @return future JSON object with identity data
    */
   def getInstanceIdentity: Future[JObject] = {
-    val instanceIdentityDocument = getContent(instanceIdentityUri)
+    val instanceIdentityDocument = getContent(InstanceIdentityUri)
     instanceIdentityDocument.map { (resp: String) =>
       parseOpt(resp) match {
         case Some(jsonObject: JObject) =>

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -17,7 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue
 
 import scala.concurrent.ExecutionContext
 
-import RequestUtils.{CollectorParams, CollectorRequest, GetCollectorRequest}
+import TEmitter._
 
 object AsyncEmitter {
   // Avoid starting thread in constructor
@@ -31,8 +31,9 @@ object AsyncEmitter {
    * @param https should this use the https scheme
    * @return emitter
    */
-  def createAndStart(host: String, port: Int = 80, https: Boolean = false)(implicit ec: ExecutionContext): AsyncEmitter = {
-    val emitter = new AsyncEmitter(ec, host, port, https)
+  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback])(implicit ec: ExecutionContext): AsyncEmitter = {
+    val collector = CollectorParams.construct(host, port, https)
+    val emitter = new AsyncEmitter(ec, collector, callback)
     emitter.startWorker()
     emitter
   }
@@ -41,21 +42,20 @@ object AsyncEmitter {
 /**
  * Asynchronous emitter using LinkedBlockingQueue
  *
- * @param host collector host
- * @param port collector port
- * @param https should this use the https scheme
+ * @param ec thread pool for async event sending
+ * @param collector collector preferences
+ * @param callback optional callback executed after each sent event
  */
-class AsyncEmitter private(ec: ExecutionContext, host: String, port: Int, https: Boolean) extends TEmitter {
+class AsyncEmitter private(ec: ExecutionContext, collector: CollectorParams, callback: Option[Callback]) extends TEmitter {
 
+  /** Queue of HTTP requests */
   val queue = new LinkedBlockingQueue[CollectorRequest]()
-
-  private val collector = CollectorParams(host, port, https)
 
   val worker = new Thread {
     override def run() {
       while (true) {
         val event = queue.take()
-        RequestUtils.send(queue, ec, collector, event)
+        submit(queue, ec, callback, collector, event)
       }
     }
   }
@@ -68,7 +68,7 @@ class AsyncEmitter private(ec: ExecutionContext, host: String, port: Int, https:
    *
    * @param event Fully assembled event
    */
-  def input(event: Map[String, String]): Unit = {
+  def input(event: EmitterPayload): Unit = {
     queue.put(GetCollectorRequest(1, event))
   }
 
