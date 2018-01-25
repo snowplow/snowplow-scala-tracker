@@ -66,6 +66,11 @@ class Subject {
     this
   }
 
+  def setPageUrl(url: String): Subject = {
+    standardNvPairs += ("url" -> url)
+    this
+  }
+
   def setUseragent(useragent: String): Subject = {
     standardNvPairs += ("ua" -> useragent)
     this
