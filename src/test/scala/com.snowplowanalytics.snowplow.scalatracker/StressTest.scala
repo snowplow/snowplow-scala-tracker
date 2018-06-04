@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import java.io.FileWriter
 
-import org.json4s.{JArray, JObject, JString, JValue}
+import org.json4s.{JArray, JObject, JString, JValue, JNothing}
 import org.json4s.jackson.JsonMethods.{compact, parseOpt}
 import org.json4s.JsonAST.JDouble
 
@@ -34,8 +34,9 @@ import com.snowplowanalytics.snowplow.scalatracker.emitters.TEmitter._
 object StressTest {
 
   /** ADT for all possible event types Tracker can accept */
-  sealed trait EventArguments
+  sealed trait EventArguments extends Product with Serializable
   case class PageView(url: String, title: Option[String], referrer: Option[String], contexts: Option[List[SelfDescribingJson]], timestamp: Option[Timestamp]) extends EventArguments
+  case class UnstructEvent(event: SelfDescribingJson, contexts: Option[List[SelfDescribingJson]], timestamp: Option[Timestamp]) extends EventArguments
 
   // Parser typeclass. Useless so far
   trait Read[A] { def reads(line: String): A }
@@ -80,6 +81,11 @@ object StressTest {
           val ctx: Option[List[SelfDescribingJson]] = cols(4).map(sdJsonsRead.reads)
           val timestamp = cols(5).flatMap(tstmpRead.reads)
           PageView(url, cols(2), cols(3), ctx, timestamp)
+        case (Some("ue"), Some(event)) =>
+          val ue: SelfDescribingJson = sdJsonsRead.parseJson(parseOpt(event).get)
+          val ctx: Option[List[SelfDescribingJson]] = cols(2).map(sdJsonsRead.reads)
+          val timestamp = cols(3).flatMap(tstmpRead.reads)
+          UnstructEvent(ue, ctx, timestamp)
       }
     }
   }
@@ -122,6 +128,37 @@ object StressTest {
     tstamp <- timestampGen
   } yield PageView(url, title, referrer, ctx, tstamp)
 
+  // Generate whole unstructured event
+  val optStringGen = Gen.oneOf(Gen.alphaStr.suchThat(_.length < 1024).map(x => Some(x)), Gen.const(None))
+  val adjustInstallGen = for {
+    appId <- Gen.alphaNumStr.suchThat(_.length < 1024)
+    appName <- optStringGen
+    data = JObject("app_id" -> JString(appId), "app_name" -> appName.map(JString(_)).getOrElse(JNothing))
+    sd = SelfDescribingData[JValue](SchemaKey("com.adjust", "install", "jsonschema", SchemaVer.Full(1,0,0)), data)
+  } yield sd
+
+  val s3NotificationGen = for {
+    eventName <- Gen.alphaNumStr
+    data = JObject("eventName" -> JString(eventName))
+    sd = SelfDescribingData[JValue](SchemaKey("com.amazon.aws.lambda", "s3_notification_event", "jsonschema", SchemaVer.Full(1,0,0)), data)
+  } yield sd
+
+  val callCompleteGen = for {
+    id <- Gen.alphaNumStr
+    datetime <- Gen.calendar.map(_.toInstant)
+    data = JObject("id" -> JString(id), "datetime" -> JString(datetime.toString))
+    addition <- Gen.oneOf(1,2,3)
+    sd = SelfDescribingData[JValue](SchemaKey("com.callrail", "call_complete", "jsonschema", SchemaVer.Full(1,0,addition)), data)
+  } yield sd
+
+  val unstructEvent = for {
+    event <- Gen.oneOf(adjustInstallGen, s3NotificationGen, callCompleteGen)
+    ctx <- Gen.option(geoLocationGen.map(x => List(x)))
+    tstamp <- timestampGen
+  } yield UnstructEvent(event, ctx, tstamp)
+
+  val eventGen = Gen.oneOf(unstructEvent, pageViewGen)
+
   def writeContext(sd: List[SelfDescribingData[JValue]]): String =
     compact(JArray(sd.map(s => s.normalize)))
 
@@ -130,20 +167,31 @@ object StressTest {
     case DeviceCreatedTimestamp(tst) => s"dtm:$tst"
   }
 
-  def writeEvent(event: PageView) =
-    s"pv\t${event.url}\t${event.title.getOrElse("")}\t${event.referrer.getOrElse("")}\t${event.contexts.map(writeContext).getOrElse("")}\t${event.timestamp.map(writeTimestamp).getOrElse("")}"
+  def writeEvent(event: EventArguments) = event match {
+    case event: PageView =>
+      s"pv\t${event.url}\t${event.title.getOrElse("")}\t${event.referrer.getOrElse("")}\t${event.contexts.map(writeContext).getOrElse("")}\t${event.timestamp.map(writeTimestamp).getOrElse("")}"
+    case event: UnstructEvent =>
+      s"ue\t${compact(event.event.normalize)}\t${event.contexts.map(writeContext).getOrElse("")}\t${event.timestamp.map(writeTimestamp).getOrElse("")}"
+  }
 
   def write(path: String, cardinality: Int): Unit = {
     var i = 0
     val fw = new FileWriter(path)
     while (i < cardinality) {
-      pageViewGen.sample.map(writeEvent) match {
+      eventGen.sample.map(writeEvent) match {
         case Some(line) => fw.write(line + "\n")
         case None => ()
       }
       i = i + 1
     }
     fw.close()
+  }
+
+  def defaultCallback(params: CollectorParams, req: CollectorRequest, res: CollectorResponse) = res match {
+    case CollectorFailure(status) => println(s"Collector failure: ${status}")
+    case TrackerFailure(e) => println(s"Tracker failure: ${e.getMessage}")
+    case RetriesExceeded(_) => println("FUBR")
+    case CollectorSuccess(_) => print("+")
   }
 
   /**
@@ -164,9 +212,9 @@ object StressTest {
             case PageView(url, title, referrer, contexts, timestamp) =>
               tracker.trackPageView(url, title, referrer, contexts.getOrElse(Nil), timestamp)
               i = i + 1
-              if (i % 1000 == 0) {
-                println(s"One more 1000 from $path")
-              }
+            case UnstructEvent(event, contexts, timestamp) =>
+              tracker.trackSelfDescribingEvent(event, contexts.getOrElse(Nil), timestamp)
+              i = i + 1
           }
           println(s"TrackerThread for $path sent $i events")
           i = 0
