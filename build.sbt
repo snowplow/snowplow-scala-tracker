@@ -17,8 +17,8 @@ lazy val root = project
     version := "0.5.0",
     description := "Scala tracker for Snowplow",
     name := "snowplow-scala-tracker",
-    scalaVersion := "2.11.12",
-    crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.3"),
+    scalaVersion := "2.12.6",
+    crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.6"),
     scalacOptions := Seq("-deprecation", "-encoding", "utf8"),
     javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
   ))
