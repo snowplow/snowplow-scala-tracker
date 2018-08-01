@@ -22,20 +22,25 @@ import org.scalacheck.Gen
 
 import Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
 
-import com.snowplowanalytics.iglu.core.{ SelfDescribingData, SchemaKey, SchemaVer }
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.json4s.implicits._
 
 import com.snowplowanalytics.snowplow.scalatracker.emitters.AsyncBatchEmitter
 import com.snowplowanalytics.snowplow.scalatracker.emitters.TEmitter._
 
 /**
-  * Ad-hoc load testing
-  */
+ * Ad-hoc load testing
+ */
 object StressTest {
 
   /** ADT for all possible event types Tracker can accept */
   sealed trait EventArguments
-  case class PageView(url: String, title: Option[String], referrer: Option[String], contexts: Option[List[SelfDescribingJson]], timestamp: Option[Timestamp]) extends EventArguments
+  case class PageView(url: String,
+                      title: Option[String],
+                      referrer: Option[String],
+                      contexts: Option[List[SelfDescribingJson]],
+                      timestamp: Option[Timestamp])
+      extends EventArguments
 
   // Parser typeclass. Useless so far
   trait Read[A] { def reads(line: String): A }
@@ -45,7 +50,7 @@ object StressTest {
   }
 
   implicit val sdJsonsRead = new Read[List[SelfDescribingJson]] {
-    def parseJson(json: JValue): SelfDescribingData[JValue] = {
+    def parseJson(json: JValue): SelfDescribingData[JValue] =
       json match {
         case JObject(fields) =>
           val map = fields.toMap
@@ -53,23 +58,21 @@ object StressTest {
             case Some(JString(schema)) => SelfDescribingJson(schema, map("data"))
           }
       }
-    }
 
     def reads(line: String): List[SelfDescribingJson] =
       parseOpt(line) match {
         case Some(JArray(list)) => list.map(parseJson)
-        case None => Nil
+        case None               => Nil
       }
   }
 
   implicit val tstmpRead = new Read[Option[Timestamp]] {
-    def reads(line: String): Option[Timestamp] = {
+    def reads(line: String): Option[Timestamp] =
       line.split(":").toList match {
         case List("ttm", tstamp) => Some(TrueTimestamp(tstamp.toLong))
         case List("dtm", tstamp) => Some(DeviceCreatedTimestamp(tstamp.toLong))
-        case _ => None
+        case _                   => None
       }
-    }
   }
 
   implicit val eventRead = new Read[EventArguments] {
@@ -78,7 +81,7 @@ object StressTest {
       (cols(0), cols(1)) match {
         case (Some("pv"), Some(url)) =>
           val ctx: Option[List[SelfDescribingJson]] = cols(4).map(sdJsonsRead.reads)
-          val timestamp = cols(5).flatMap(tstmpRead.reads)
+          val timestamp                             = cols(5).flatMap(tstmpRead.reads)
           PageView(url, cols(2), cols(3), ctx, timestamp)
       }
     }
@@ -87,59 +90,65 @@ object StressTest {
   // Generate valid pseudo-URL
   val urlGen = for {
     protocol <- Gen.oneOf(List("http://", "https://"))
-    port <- Gen.oneOf(List("", ":80", ":8080", ":443", ":10505"))
+    port     <- Gen.oneOf(List("", ":80", ":8080", ":443", ":10505"))
 
     lengthDomain <- Gen.choose(1, 3)
-    topDomain <- Gen.oneOf(List("com", "ru", "co.uk", "org", "mobi", "by"))
-    domainList <- Gen.containerOfN[List, String](lengthDomain, Gen.alphaLowerStr)
+    topDomain    <- Gen.oneOf(List("com", "ru", "co.uk", "org", "mobi", "by"))
+    domainList   <- Gen.containerOfN[List, String](lengthDomain, Gen.alphaLowerStr)
 
     lengthUrl <- Gen.choose(0, 5)
-    urlList <- Gen.containerOfN[List, String](lengthUrl, Gen.alphaNumStr)
+    urlList   <- Gen.containerOfN[List, String](lengthUrl, Gen.alphaNumStr)
     url = new java.net.URL(protocol + domainList.mkString(".") + s".$topDomain" + port + "/" + urlList.mkString("/"))
   } yield url
 
   // Generate geolocation context
   val geoLocationGen = for {
-    latitude <- Gen.choose[Double](-90, 90)
+    latitude  <- Gen.choose[Double](-90, 90)
     longitude <- Gen.choose[Double](-180, 180)
     data = JObject("latitude" -> JDouble(latitude), "longitude" -> JDouble(longitude))
-    sd = SelfDescribingData[JValue](SchemaKey("com.snowplowanalytics.snowplow", "geolocation_context", "jsonschema", SchemaVer.Full(1,1,0)), data)
+    sd = SelfDescribingData[JValue](
+      SchemaKey("com.snowplowanalytics.snowplow", "geolocation_context", "jsonschema", SchemaVer.Full(1, 1, 0)),
+      data)
   } yield sd
 
   // Generate timestamp
   val timestampGen = for {
     tstType <- Gen.option(Gen.oneOf(List(TrueTimestamp.apply _, DeviceCreatedTimestamp.apply _)))
-    tstamp <- Gen.choose[Long](1508316432000L - (2 * 365 * 86400 * 1000L), 1508316432000L)
-    result <- tstType.map { x => x(tstamp) }
+    tstamp  <- Gen.choose[Long](1508316432000L - (2 * 365 * 86400 * 1000L), 1508316432000L)
+    result <- tstType.map { x =>
+      x(tstamp)
+    }
   } yield result
 
   // Generate whole pageview event
   val pageViewGen = for {
-    url <- urlGen.map(_.toString)
-    title <- Gen.option(Gen.alphaNumStr)
+    url      <- urlGen.map(_.toString)
+    title    <- Gen.option(Gen.alphaNumStr)
     referrer <- Gen.option(urlGen.map(_.toString))
-    ctx <- Gen.option(geoLocationGen.map(x => List(x)))
-    tstamp <- timestampGen
+    ctx      <- Gen.option(geoLocationGen.map(x => List(x)))
+    tstamp   <- timestampGen
   } yield PageView(url, title, referrer, ctx, tstamp)
 
   def writeContext(sd: List[SelfDescribingData[JValue]]): String =
     compact(JArray(sd.map(s => s.normalize)))
 
   def writeTimestamp(tstamp: Timestamp): String = tstamp match {
-    case TrueTimestamp(tst) => s"ttm:$tst"
+    case TrueTimestamp(tst)          => s"ttm:$tst"
     case DeviceCreatedTimestamp(tst) => s"dtm:$tst"
   }
 
   def writeEvent(event: PageView) =
-    s"pv\t${event.url}\t${event.title.getOrElse("")}\t${event.referrer.getOrElse("")}\t${event.contexts.map(writeContext).getOrElse("")}\t${event.timestamp.map(writeTimestamp).getOrElse("")}"
+    s"pv\t${event.url}\t${event.title.getOrElse("")}\t${event.referrer.getOrElse("")}\t${event.contexts
+      .map(writeContext)
+      .getOrElse("")}\t${event.timestamp.map(writeTimestamp).getOrElse("")}"
 
   def write(path: String, cardinality: Int): Unit = {
-    var i = 0
+    var i  = 0
     val fw = new FileWriter(path)
     while (i < cardinality) {
       pageViewGen.sample.map(writeEvent) match {
         case Some(line) => fw.write(line + "\n")
-        case None => ()
+        case None       => ()
       }
       i = i + 1
     }
@@ -147,9 +156,9 @@ object StressTest {
   }
 
   /**
-    * Thread imitating application's work thread that has access to tracker
-    * Constructor blocks until events are not loaded into memory
-    */
+   * Thread imitating application's work thread that has access to tracker
+   * Constructor blocks until events are not loaded into memory
+   */
   class TrackerThread(path: String, tracker: Tracker) {
     // It can take some time
     val events = scala.io.Source.fromFile(path).getLines().map(Read[EventArguments].reads).toList
@@ -178,28 +187,35 @@ object StressTest {
   }
 
   /**
-    * Main method. Starts specified amount of separate threads sharing a tracker,
-    * each reading its own file and sending events via the same tracker.
-    * All threads should be prepared (parse events and store them in memory) during
-    * construction. When function returns - its ready to be started by foreach(_.run())
-    * ```
-    * println(System.currentTimeMillis)
-    * res0.foreach(_.run())
-    * res0.foreach(_.join())
-    * println(System.currentTimeMillis)
-    * ```
-    *
-    * @param collector single collector for all threads
-    * @param dir directory with temporary event TSVs
-    * @param cardinality amount of events in each TSV
-    * @param threads amount of parallel threads
-    * @return list of threads
-    */
-  def testAsyncBatch(collector: String, port: Int, dir: String, cardinality: Int, threads: Int = 1, callback: Option[Callback]) = {
+   * Main method. Starts specified amount of separate threads sharing a tracker,
+   * each reading its own file and sending events via the same tracker.
+   * All threads should be prepared (parse events and store them in memory) during
+   * construction. When function returns - its ready to be started by foreach(_.run())
+   * ```
+   * println(System.currentTimeMillis)
+   * res0.foreach(_.run())
+   * res0.foreach(_.join())
+   * println(System.currentTimeMillis)
+   * ```
+   *
+   * @param collector single collector for all threads
+   * @param dir directory with temporary event TSVs
+   * @param cardinality amount of events in each TSV
+   * @param threads amount of parallel threads
+   * @return list of threads
+   */
+  def testAsyncBatch(collector: String,
+                     port: Int,
+                     dir: String,
+                     cardinality: Int,
+                     threads: Int = 1,
+                     callback: Option[Callback]) = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     val files = List.fill(threads)(dir).zipWithIndex.map { case (path, i) => s"$path/events-$i.tsv" }
-    files.foreach { file => write(file, cardinality) }
+    files.foreach { file =>
+      write(file, cardinality)
+    }
     println(s"Writing to files completed. ${files.mkString(", ")}")
 
     val emitter = AsyncBatchEmitter.createAndStart(collector, Some(port), bufferSize = 10)
@@ -208,4 +224,3 @@ object StressTest {
     files.map(file => new TrackerThread(file, tracker).getWorker)
   }
 }
-

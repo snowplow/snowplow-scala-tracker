@@ -33,9 +33,13 @@ object AsyncBatchEmitter {
    * @param ec thread pool to send HTTP requests to collector
    * @return emitter
    */
-  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, bufferSize: Int = 50, callback: Option[Callback] = None)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
+  def createAndStart(host: String,
+                     port: Option[Int]          = None,
+                     https: Boolean             = false,
+                     bufferSize: Int            = 50,
+                     callback: Option[Callback] = None)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
     val collector = CollectorParams.construct(host, port, https)
-    val emitter = new AsyncBatchEmitter(ec, collector, bufferSize, callback)
+    val emitter   = new AsyncBatchEmitter(ec, collector, bufferSize, callback)
     emitter.startWorker()
     emitter
   }
@@ -51,7 +55,11 @@ object AsyncBatchEmitter {
  * @param collector collector preferences
  * @param bufferSize quantity of events in a batch request
  */
-class AsyncBatchEmitter private(ec: ExecutionContext, collector: CollectorParams, bufferSize: Int, callback: Option[Callback]) extends TEmitter {
+class AsyncBatchEmitter private (ec: ExecutionContext,
+                                 collector: CollectorParams,
+                                 bufferSize: Int,
+                                 callback: Option[Callback])
+    extends TEmitter {
 
   private var buffer = ListBuffer[Map[String, String]]()
 
@@ -76,7 +84,7 @@ class AsyncBatchEmitter private(ec: ExecutionContext, collector: CollectorParams
    *
    * @param event Fully assembled event
    */
-  def input(event: EmitterPayload): Unit = {
+  def input(event: EmitterPayload): Unit =
     // Multiple threads can input via same tracker and override buffer
     buffer.synchronized {
       buffer.append(event)
@@ -85,9 +93,7 @@ class AsyncBatchEmitter private(ec: ExecutionContext, collector: CollectorParams
         buffer = ListBuffer[Map[String, String]]()
       }
     }
-  }
 
-  private def startWorker(): Unit = {
+  private def startWorker(): Unit =
     worker.start()
-  }
 }

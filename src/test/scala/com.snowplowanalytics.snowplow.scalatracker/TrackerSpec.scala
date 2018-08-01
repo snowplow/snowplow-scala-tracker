@@ -21,7 +21,7 @@ import org.specs2.mutable.Specification
 
 import emitters.TEmitter
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData, SchemaVer}
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 class TrackerSpec extends Specification {
 
@@ -222,7 +222,8 @@ class TrackerSpec extends Specification {
       println(event)
       val envelope = parse(event("ue_pr")) \ "data"
 
-      (envelope \ "schema").as[String] mustEqual "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1"
+      (envelope \ "schema")
+        .as[String] mustEqual "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1"
 
       val payload = envelope \ "data"
 
@@ -252,7 +253,7 @@ class TrackerSpec extends Specification {
         val error = new RuntimeException("")
         tracker.trackError(error)
 
-        val event = emitter.lastInput
+        val event   = emitter.lastInput
         val payload = parse(event("ue_pr")) \ "data" \ "data"
 
         (payload \ "message").as[String] mustEqual "Null or empty message found"

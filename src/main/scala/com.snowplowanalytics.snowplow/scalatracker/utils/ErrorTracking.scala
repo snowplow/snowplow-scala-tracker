@@ -23,10 +23,10 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 object ErrorTracking {
 
   // Constants from iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1
-  private val MaxMessageLength = 2048
-  private val MaxStackLength = 8192
-  private val MaxThreadNameLength = 1024
-  private val MaxClassNameLength = 1024
+  private val MaxMessageLength       = 2048
+  private val MaxStackLength         = 8192
+  private val MaxThreadNameLength    = 1024
+  private val MaxClassNameLength     = 1024
   private val MaxExceptionNameLength = 1024
 
   val ApplicationErrorSchemaKey =
@@ -36,15 +36,15 @@ object ErrorTracking {
   def toData(error: Throwable): JValue = {
     val stackElement = headStackTrace(error)
 
-    ("message" -> truncateString(error.getMessage, MaxMessageLength).getOrElse("Null or empty message found")) ~
-      ("stackTrace" -> truncateString(stackTraceToString(error), MaxStackLength)) ~
-      ("threadName" -> truncateString(Thread.currentThread.getName, MaxThreadNameLength)) ~
-      ("threadId" -> Thread.currentThread.getId) ~
+    ("message"               -> truncateString(error.getMessage, MaxMessageLength).getOrElse("Null or empty message found")) ~
+      ("stackTrace"          -> truncateString(stackTraceToString(error), MaxStackLength)) ~
+      ("threadName"          -> truncateString(Thread.currentThread.getName, MaxThreadNameLength)) ~
+      ("threadId"            -> Thread.currentThread.getId) ~
       ("programmingLanguage" -> "SCALA") ~
-      ("lineNumber" -> stackElement.map(_.getLineNumber)) ~
-      ("className" -> stackElement.map(_.getClassName).flatMap(truncateString(_, MaxClassNameLength))) ~
-      ("exceptionName" -> truncateString(error.getClass.getName, MaxExceptionNameLength)) ~
-      ("isFatal" -> true)
+      ("lineNumber"          -> stackElement.map(_.getLineNumber)) ~
+      ("className"           -> stackElement.map(_.getClassName).flatMap(truncateString(_, MaxClassNameLength))) ~
+      ("exceptionName"       -> truncateString(error.getClass.getName, MaxExceptionNameLength)) ~
+      ("isFatal"             -> true)
   }
 
   private def truncateString(s: String, maxLength: Int): Option[String] =

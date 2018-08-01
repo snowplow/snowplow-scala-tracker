@@ -12,11 +12,11 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import scala.concurrent.{ Await, Future }
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
-import scala.util.{ Success, Failure }
+import scala.util.{Failure, Success}
 
 import scalaj.http._
 
@@ -24,7 +24,7 @@ import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData }
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
 /**
  * Module with parsing EC2-metadata logic
@@ -32,7 +32,8 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
  */
 object Ec2Metadata {
 
-  val InstanceIdentitySchema = SchemaKey("com.amazon.aws.ec2", "instance_identity_document", "jsonschema", SchemaVer.Full(1,0,0))
+  val InstanceIdentitySchema =
+    SchemaKey("com.amazon.aws.ec2", "instance_identity_document", "jsonschema", SchemaVer.Full(1, 0, 0))
   val InstanceIdentityUri = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 
   private var contextSlot: Option[SelfDescribingJson] = None
@@ -43,12 +44,11 @@ object Ec2Metadata {
   /**
    * Set callback on successful instance identity GET request
    */
-  def initializeContextRequest(): Unit = {
+  def initializeContextRequest(): Unit =
     getInstanceContextFuture.onComplete {
-      case Success(json) => contextSlot = Some(json)
+      case Success(json)  => contextSlot = Some(json)
       case Failure(error) => System.err.println(s"Unable to retrieve EC2 context. ${error.getMessage}")
     }
-  }
 
   /**
    * Tries to make blocking request to EC2 instance identity document
@@ -59,8 +59,7 @@ object Ec2Metadata {
   def getInstanceContextBlocking: Option[SelfDescribingJson] =
     try {
       Some(Await.result(getInstanceContextFuture, 3.seconds))
-    }
-    catch {
+    } catch {
       case NonFatal(_) => None
     }
 
@@ -84,8 +83,9 @@ object Ec2Metadata {
       parseOpt(resp) match {
         case Some(jsonObject: JObject) =>
           val prepared = prepareEc2Context(jsonObject)
-          if (prepared.values.keySet.isEmpty) { throw new RuntimeException("Document contains no known keys") }
-          else { prepared }
+          if (prepared.values.keySet.isEmpty) { throw new RuntimeException("Document contains no known keys") } else {
+            prepared
+          }
         case _ =>
           throw new RuntimeException("Document can not be parsed")
       }
@@ -101,11 +101,17 @@ object Ec2Metadata {
   def getMetadata(url: String): Future[JObject] = {
     val key = url.split("/").last
     if (!url.endsWith("/")) { // Leaf
-      getContent(url).map { value => key -> JString(value) }
-    } else {                  // Node
+      getContent(url).map { value =>
+        key -> JString(value)
+      }
+    } else { // Node
       val sublinks = getContents(url)
       val subnodes: Future[List[JObject]] = sublinks.flatMap { links =>
-        Future.sequence { links.map { link => getMetadata(url + link) } }
+        Future.sequence {
+          links.map { link =>
+            getMetadata(url + link)
+          }
+        }
       }
       val mergedObject = subnodes.map { _.fold(JObject(Nil))(_.merge(_)) }
       mergedObject.map(key -> _)
@@ -148,9 +154,21 @@ object Ec2Metadata {
 
   // all keys of current instance identity schema
   private val instanceIdentityKeys = Set(
-    "architecture", "accountId", "availabilityZone", "billingProducts",
-    "devpayProductCodes", "imageId", "instanceId", "instanceType", "kernelId",
-    "pendingTime", "privateIp", "ramdiskId", "region", "version")
+    "architecture",
+    "accountId",
+    "availabilityZone",
+    "billingProducts",
+    "devpayProductCodes",
+    "imageId",
+    "instanceId",
+    "instanceType",
+    "kernelId",
+    "pendingTime",
+    "privateIp",
+    "ramdiskId",
+    "region",
+    "version"
+  )
 
   /**
    * Make sure EC2 context contains only keys known

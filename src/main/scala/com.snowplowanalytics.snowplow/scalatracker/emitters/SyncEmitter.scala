@@ -33,32 +33,38 @@ import TEmitter._
 class SyncEmitter(collector: CollectorParams, blockingDuration: Duration, callback: Option[Callback]) extends TEmitter {
 
   def input(event: Map[String, String]): Unit = {
-    val payload = GetCollectorRequest(1, event)
+    val payload  = GetCollectorRequest(1, event)
     val response = sendAsync(global, collector, payload)
     val result =
-      Await.ready(response, blockingDuration)
+      Await
+        .ready(response, blockingDuration)
         .value
         .map(httpToCollector)
         .getOrElse(TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $blockingDuration")))
 
     callback match {
-      case None => ()
+      case None     => ()
       case Some(cb) => cb(collector, payload, result)
     }
   }
 }
 
 object SyncEmitter {
+
   /**
-    * Aux constructor for sync emitter
-    *
-    * @param host collector host name
-    * @param port collector port number, default 80 for http and 443 for https
-    * @param https should this use the https scheme
-    * @param callback optional callback executed after each sent event
-    * @return emitter
-    */
-  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback] = None, blockingDuration: Duration = 5.seconds): SyncEmitter = {
+   * Aux constructor for sync emitter
+   *
+   * @param host collector host name
+   * @param port collector port number, default 80 for http and 443 for https
+   * @param https should this use the https scheme
+   * @param callback optional callback executed after each sent event
+   * @return emitter
+   */
+  def createAndStart(host: String,
+                     port: Option[Int]          = None,
+                     https: Boolean             = false,
+                     callback: Option[Callback] = None,
+                     blockingDuration: Duration = 5.seconds): SyncEmitter = {
     val collector = CollectorParams.construct(host, port, https)
     new SyncEmitter(collector, blockingDuration, callback)
   }
