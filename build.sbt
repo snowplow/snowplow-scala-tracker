@@ -10,20 +10,24 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-lazy val root = project.in(file("."))
+lazy val root = project
+  .in(file("."))
   .settings(Seq[Setting[_]](
-    organization       := "com.snowplowanalytics",
-    version            := "0.5.0",
-    description        := "Scala tracker for Snowplow",
-    name               := "snowplow-scala-tracker",
-    scalaVersion       := "2.11.12",
+    organization := "com.snowplowanalytics",
+    version := "0.5.0",
+    description := "Scala tracker for Snowplow",
+    name := "snowplow-scala-tracker",
+    scalaVersion := "2.11.12",
     crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.3"),
-    scalacOptions      := Seq("-deprecation", "-encoding", "utf8"),
-    javacOptions       ++= Seq("-source", "1.8", "-target", "1.8")
+    scalacOptions := Seq("-deprecation", "-encoding", "utf8"),
+    javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
   ))
   .settings(BuildSettings.buildSettings)
+  .settings(BuildSettings.formattingSettings)
   .settings(Seq(
-    shellPrompt := { _ => name.value + " > " }
+    shellPrompt := { _ =>
+      name.value + " > "
+    }
   ))
   .settings(
     libraryDependencies := Seq(
@@ -33,5 +37,6 @@ lazy val root = project.in(file("."))
       Dependencies.Libraries.igluCoreJson4s,
       Dependencies.Libraries.mockito,
       Dependencies.Libraries.specs2,
-      Dependencies.Libraries.scalaCheck)
+      Dependencies.Libraries.scalaCheck
+    )
   )

@@ -31,9 +31,10 @@ object AsyncEmitter {
    * @param https should this use the https scheme
    * @return emitter
    */
-  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback])(implicit ec: ExecutionContext): AsyncEmitter = {
+  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback])(
+    implicit ec: ExecutionContext): AsyncEmitter = {
     val collector = CollectorParams.construct(host, port, https)
-    val emitter = new AsyncEmitter(ec, collector, callback)
+    val emitter   = new AsyncEmitter(ec, collector, callback)
     emitter.startWorker()
     emitter
   }
@@ -46,7 +47,8 @@ object AsyncEmitter {
  * @param collector collector preferences
  * @param callback optional callback executed after each sent event
  */
-class AsyncEmitter private(ec: ExecutionContext, collector: CollectorParams, callback: Option[Callback]) extends TEmitter {
+class AsyncEmitter private (ec: ExecutionContext, collector: CollectorParams, callback: Option[Callback])
+    extends TEmitter {
 
   /** Queue of HTTP requests */
   val queue = new LinkedBlockingQueue[CollectorRequest]()
@@ -68,12 +70,9 @@ class AsyncEmitter private(ec: ExecutionContext, collector: CollectorParams, cal
    *
    * @param event Fully assembled event
    */
-  def input(event: EmitterPayload): Unit = {
+  def input(event: EmitterPayload): Unit =
     queue.put(GetCollectorRequest(1, event))
-  }
 
-  private def startWorker(): Unit = {
+  private def startWorker(): Unit =
     worker.start()
-  }
 }
-
