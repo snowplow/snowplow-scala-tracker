@@ -17,12 +17,12 @@ import java.util.UUID
 import scala.concurrent.Promise
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 import org.json4s._
 import org.json4s.JsonDSL._
 
-import com.snowplowanalytics.iglu.core.{ SelfDescribingData, SchemaKey, SchemaVer }
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.json4s.implicits._
 
 import emitters.TEmitter
@@ -41,16 +41,16 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
 
   private var subject: Subject = new Subject()
   private var attachEc2Context = false
-  private val ec2Context = Promise[SelfDescribingJson]
+  private val ec2Context       = Promise[SelfDescribingJson]
   private var attachGceContext = false
-  private val gceContext = Promise[SelfDescribingJson]
+  private val gceContext       = Promise[SelfDescribingJson]
 
   /**
    * Send assembled payload to emitters or schedule it as callback of getting context
    *
    * @param payload constructed event map
    */
-  private def track(payload: Payload): Unit = {
+  private def track(payload: Payload): Unit =
     if (attachGceContext)
       gceContext.future.onComplete(addEmbeddedContext(payload))
     else if (attachEc2Context)
@@ -58,7 +58,6 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     else {
       send(payload)
     }
-  }
 
   /**
    * Pass the assembled payload to every emitter
@@ -67,8 +66,8 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    */
   private def send(payload: Payload): Unit = {
     val event = payload.get
-    emitters foreach {
-      e => e.input(event)
+    emitters foreach { e =>
+      e.input(event)
     }
   }
 
@@ -80,18 +79,17 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param timestamp optional user-provided timestamp (ms) for the event
    * @return payload with additional data
    */
-  private def completePayload(
-    payload: Payload,
-    contexts: Seq[SelfDescribingJson],
-    timestamp: Option[Timestamp]): Payload = {
+  private def completePayload(payload: Payload,
+                              contexts: Seq[SelfDescribingJson],
+                              timestamp: Option[Timestamp]): Payload = {
 
     payload.add("eid", UUID.randomUUID().toString)
 
     if (!payload.nvPairs.contains("dtm")) {
       timestamp match {
         case Some(DeviceCreatedTimestamp(dtm)) => payload.add("dtm", dtm.toString)
-        case Some(TrueTimestamp(ttm)) => payload.add("ttm", ttm.toString)
-        case None => payload.add("dtm", System.currentTimeMillis().toString)
+        case Some(TrueTimestamp(ttm))          => payload.add("ttm", ttm.toString)
+        case None                              => payload.add("dtm", System.currentTimeMillis().toString)
       }
     }
 
@@ -111,7 +109,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param contexts list of additional contexts
    * @return payload with contexts
    */
-  private def addContexts(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload = {
+  private def addContexts(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload =
     if (contexts.nonEmpty) {
       val contextsEnvelope: SelfDescribingJson =
         SelfDescribingData(ContextsSchemaKey, JArray(contexts.toList.map(_.normalize)))
@@ -121,7 +119,6 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     } else {
       payload
     }
-  }
 
   /**
    * Track a Snowplow unstructured event
@@ -133,10 +130,9 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @return The tracker instance
    */
   @deprecated("Use Tracker#trackSelfDescribingEvent instead", "0.4.0")
-  def trackUnstructEvent(
-    unstructEvent: SelfDescribingJson,
-    contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker =
+  def trackUnstructEvent(unstructEvent: SelfDescribingJson,
+                         contexts: Seq[SelfDescribingJson] = Nil,
+                         timestamp: Option[Timestamp]      = None): Tracker =
     trackSelfDescribingEvent(unstructEvent, contexts, timestamp)
 
   /**
@@ -147,10 +143,9 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param timestamp optional user-provided timestamp (ms) for the event
    * @return The tracker instance
    */
-  def trackSelfDescribingEvent(
-    unstructEvent: SelfDescribingJson,
-    contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = {
+  def trackSelfDescribingEvent(unstructEvent: SelfDescribingJson,
+                               contexts: Seq[SelfDescribingJson] = Nil,
+                               timestamp: Option[Timestamp]      = None): Tracker = {
 
     val payload = new Payload()
     payload.add("e", "ue")
@@ -173,14 +168,13 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param timestamp optional user-provided timestamp (ms) for the event
    * @return the tracker instance
    */
-  def trackStructEvent(
-    category: String,
-    action: String,
-    label: Option[String] = None,
-    property: Option[String] = None,
-    value: Option[Double] = None,
-    contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = {
+  def trackStructEvent(category: String,
+                       action: String,
+                       label: Option[String]             = None,
+                       property: Option[String]          = None,
+                       value: Option[Double]             = None,
+                       contexts: Seq[SelfDescribingJson] = Nil,
+                       timestamp: Option[Timestamp]      = None): Tracker = {
 
     val payload = new Payload()
 
@@ -206,12 +200,11 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param timestamp optional user-provided timestamp (ms) for the event
    * @return the tracker instance
    */
-  def trackPageView(
-    pageUrl: String,
-    pageTitle: Option[String] = None,
-    referrer: Option[String] = None,
-    contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = {
+  def trackPageView(pageUrl: String,
+                    pageTitle: Option[String]         = None,
+                    referrer: Option[String]          = None,
+                    contexts: Seq[SelfDescribingJson] = Nil,
+                    timestamp: Option[Timestamp]      = None): Tracker = {
 
     val payload = new Payload()
 
@@ -241,18 +234,17 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param timestamp optional user-provided timestamp (ms) for the event
    * @return the tracker instance
    */
-  def trackTransaction(
-    orderId: String,
-    affiliation: Option[String] = None,
-    total: Double,
-    tax: Option[Double] = None,
-    shipping: Option[Double] = None,
-    city: Option[String] = None,
-    state: Option[String] = None,
-    country: Option[String] = None,
-    currency: Option[String] = None,
-    contexts: Seq[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = {
+  def trackTransaction(orderId: String,
+                       affiliation: Option[String] = None,
+                       total: Double,
+                       tax: Option[Double]               = None,
+                       shipping: Option[Double]          = None,
+                       city: Option[String]              = None,
+                       state: Option[String]             = None,
+                       country: Option[String]           = None,
+                       currency: Option[String]          = None,
+                       contexts: Seq[SelfDescribingJson] = Nil,
+                       timestamp: Option[Timestamp]      = None): Tracker = {
 
     val payload = new Payload()
 
@@ -284,16 +276,15 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param timestamp optional user-provided timestamp (ms) for the event
    * @return the tracker instance
    */
-  def trackTransactionItem(
-    orderId: String,
-    sku: String,
-    name: Option[String] = None,
-    category: Option[String] = None,
-    price: Double,
-    quantity: Int,
-    currency: Option[String] = None,
-    contexts: List[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = {
+  def trackTransactionItem(orderId: String,
+                           sku: String,
+                           name: Option[String]     = None,
+                           category: Option[String] = None,
+                           price: Double,
+                           quantity: Int,
+                           currency: Option[String]           = None,
+                           contexts: List[SelfDescribingJson] = Nil,
+                           timestamp: Option[Timestamp]       = None): Tracker = {
 
     val payload = new Payload()
 
@@ -324,27 +315,27 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param timestamp optional user-provided timestamp (ms) for the event
    * @return the tracker instance
    */
-  def trackAddToCart(
-    sku: String,
-    name: Option[String] = None,
-    category: Option[String] = None,
-    unitPrice: Option[Double] = None,
-    quantity: Int,
-    currency: Option[String] = None,
-    contexts: List[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = {
+  def trackAddToCart(sku: String,
+                     name: Option[String]      = None,
+                     category: Option[String]  = None,
+                     unitPrice: Option[Double] = None,
+                     quantity: Int,
+                     currency: Option[String]           = None,
+                     contexts: List[SelfDescribingJson] = Nil,
+                     timestamp: Option[Timestamp]       = None): Tracker = {
 
     val eventJson =
-      ("sku" -> sku) ~
-        ("name" -> name) ~
-        ("category" -> category) ~
+      ("sku"         -> sku) ~
+        ("name"      -> name) ~
+        ("category"  -> category) ~
         ("unitPrice" -> unitPrice) ~
-        ("quantity" -> quantity) ~
-        ("currency" -> currency)
+        ("quantity"  -> quantity) ~
+        ("currency"  -> currency)
 
     trackSelfDescribingEvent(
       SelfDescribingData(
-        SchemaKey("com.snowplowanalytics.snowplow", "add_to_cart", "jsonschema", SchemaVer.Full(1,0,0)), eventJson),
+        SchemaKey("com.snowplowanalytics.snowplow", "add_to_cart", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        eventJson),
       contexts,
       timestamp)
   }
@@ -362,44 +353,45 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * @param timestamp optional user-provided timestamp (ms) for the event
    * @return the tracker instance
    */
-  def trackRemoveFromCart(
-    sku: String,
-    name: Option[String] = None,
-    category: Option[String] = None,
-    unitPrice: Option[Double] = None,
-    quantity: Double,
-    currency: Option[String] = None,
-    contexts: List[SelfDescribingJson] = Nil,
-    timestamp: Option[Timestamp] = None): Tracker = {
+  def trackRemoveFromCart(sku: String,
+                          name: Option[String]      = None,
+                          category: Option[String]  = None,
+                          unitPrice: Option[Double] = None,
+                          quantity: Double,
+                          currency: Option[String]           = None,
+                          contexts: List[SelfDescribingJson] = Nil,
+                          timestamp: Option[Timestamp]       = None): Tracker = {
 
     val eventJson =
-      ("sku" -> sku) ~
-        ("name" -> name) ~
-        ("category" -> category) ~
+      ("sku"         -> sku) ~
+        ("name"      -> name) ~
+        ("category"  -> category) ~
         ("unitPrice" -> unitPrice) ~
-        ("quantity" -> quantity) ~
-        ("currency" -> currency)
+        ("quantity"  -> quantity) ~
+        ("currency"  -> currency)
 
     trackSelfDescribingEvent(
       SelfDescribingData(
-        SchemaKey("com.snowplowanalytics.snowplow", "remove_from_cart", "jsonschema", SchemaVer.Full(1,0,0)),
+        SchemaKey("com.snowplowanalytics.snowplow", "remove_from_cart", "jsonschema", SchemaVer.Full(1, 0, 0)),
         eventJson),
       contexts,
       timestamp)
   }
 
   /**
-    * Track application error
-    * NOTE: don't try to tracker `Emitter` failures with it
-    *
-    * @param error exception thrown by application code
-    * @param contexts Optional. Context relating to the event.
-    * @param timestamp optional user-provided timestamp (ms) for the event
-    * @return the tracker instance
-    */
-  def trackError(error: Throwable, contexts: List[SelfDescribingJson] = Nil, timestamp: Option[Timestamp] = None): Tracker = {
+   * Track application error
+   * NOTE: don't try to tracker `Emitter` failures with it
+   *
+   * @param error exception thrown by application code
+   * @param contexts Optional. Context relating to the event.
+   * @param timestamp optional user-provided timestamp (ms) for the event
+   * @return the tracker instance
+   */
+  def trackError(error: Throwable,
+                 contexts: List[SelfDescribingJson] = Nil,
+                 timestamp: Option[Timestamp]       = None): Tracker = {
     val payload = ErrorTracking.toData(error)
-    val event = SelfDescribingData(ErrorTracking.ApplicationErrorSchemaKey, payload)
+    val event   = SelfDescribingData(ErrorTracking.ApplicationErrorSchemaKey, payload)
     trackSelfDescribingEvent(event, contexts, timestamp)
   }
 
@@ -415,7 +407,6 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
     this
   }
 
-
   /**
    * Adds EC2 context to each sent event
    * Blocks event queue until either context resolved or timed out
@@ -426,9 +417,9 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   }
 
   /**
-    * Adds GCP context to each sent event
-    * Blocks event queue until either context resolved or timed out
-    */
+   * Adds GCP context to each sent event
+   * Blocks event queue until either context resolved or timed out
+   */
   def enableGceContext(): Unit = {
     attachGceContext = true
     gceContext.completeWith(GceMetadata.getInstanceContextFuture)
@@ -452,16 +443,15 @@ object Tracker {
 
   /** Contexts wrapper */
   val ContextsSchemaKey: SchemaKey =
-    SchemaKey("com.snowplowanalytics.snowplow", "contexts", "jsonschema", SchemaVer.Full(1,0,1))
+    SchemaKey("com.snowplowanalytics.snowplow", "contexts", "jsonschema", SchemaVer.Full(1, 0, 1))
 
   /** Unstruct event wrapper */
   val SelfDescribingEventSchemaKey: SchemaKey =
-    SchemaKey("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", SchemaVer.Full(1,0,0))
+    SchemaKey("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", SchemaVer.Full(1, 0, 0))
 
   /** POST-payload wrapper */
   val PayloadDataSchemaKey: SchemaKey =
-    SchemaKey("com.snowplowanalytics.snowplow", "payload_data", "jsonschema", SchemaVer.Full(1,0,4))
-
+    SchemaKey("com.snowplowanalytics.snowplow", "payload_data", "jsonschema", SchemaVer.Full(1, 0, 4))
 
   /**
    * Tag-type for timestamp, allowing to set ttm/dtm
@@ -476,4 +466,3 @@ object Tracker {
   implicit def longToTimestamp(value: Long): Timestamp =
     DeviceCreatedTimestamp(value)
 }
-

@@ -16,6 +16,9 @@ import bintray.BintrayKeys._
 import sbt._
 import Keys._
 
+// Scalafmt plugin
+import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin.autoImport._
+
 object BuildSettings {
 
   // Makes our SBT settings available in runtime
@@ -58,4 +61,9 @@ object BuildSettings {
   )
 
   lazy val buildSettings = scalifySettings ++ publishSettings ++ mavenCentralExtras
+
+  lazy val formattingSettings = Seq(
+    scalafmtOnCompile := true,
+    scalafmtTestOnCompile := true
+  )
 }

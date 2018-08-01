@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow
 
 import org.json4s.JValue
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData }
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
 
 package object scalatracker {
 
@@ -25,6 +25,11 @@ package object scalatracker {
   object SelfDescribingJson {
     @deprecated("Use com.snowplowanalytics.iglu.core.SchemaKey instead", "0.5.0")
     def apply(key: String, data: JValue): SelfDescribingJson =
-      SelfDescribingData[JValue](SchemaKey.fromUri(key).getOrElse(throw new RuntimeException(s"Invalid SchemaKey $key. Use com.snowplowanalytics.iglu.core.SchemaKey")), data)
+      SelfDescribingData[JValue](
+        SchemaKey
+          .fromUri(key)
+          .getOrElse(
+            throw new RuntimeException(s"Invalid SchemaKey $key. Use com.snowplowanalytics.iglu.core.SchemaKey")),
+        data)
   }
 }
