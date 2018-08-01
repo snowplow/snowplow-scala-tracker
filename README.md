@@ -8,18 +8,6 @@
 
 Add analytics to your Scala, Akka and Play apps and servers using the **[Snowplow][snowplow]** event tracker for **[Scala][scala]**.
 
-## Quickstart
-
-Assuming git, **[Vagrant][vagrant-install]** and **[VirtualBox][virtualbox-install]** installed:
-
-```bash
- host$ git clone https://github.com/snowplow/snowplow-scala-tracker.git
- host$ cd snowplow-scala-tracker
- host$ vagrant up && vagrant ssh
-guest$ cd /vagrant
-guest$ sbt test
-```
-
 ## Find out more
 
 | Technical Docs                 | Setup Guide              | Roadmap                | Contributing                     |
@@ -51,9 +39,6 @@ limitations under the License.
 
 [snowplow]: http://snowplowanalytics.com
 [scala]: http://www.scala-lang.org/
-
-[vagrant-install]: http://docs.vagrantup.com/v2/installation/index.html
-[virtualbox-install]: https://www.virtualbox.org/wiki/Downloads
 
 [techdocs-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/techdocs.png
 [setup-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/setup.png
