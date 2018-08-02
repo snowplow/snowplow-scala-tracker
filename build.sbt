@@ -30,7 +30,7 @@ lazy val root = project
     }
   ))
   .settings(
-    libraryDependencies := Seq(
+    libraryDependencies ++= Seq(
       Dependencies.Libraries.scalajHttp,
       Dependencies.Libraries.json4sJackson,
       Dependencies.Libraries.igluCore,
