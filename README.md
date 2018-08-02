@@ -2,6 +2,7 @@
 
 [![Build Status][travis-image]][travis]
 [![Maven Central][maven-badge]][maven]
+[![codecov][codecov-badge]][codecov]
 [![License][license-image]][license]
 [![Join the chat at https://gitter.im/snowplow/snowplow-scala-tracker][gitter-image]][gitter]
 
@@ -37,6 +38,9 @@ limitations under the License.
 
 [maven-badge]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker_2.12/badge.svg
 [maven]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker_2.12
+
+[codecov-badge]: https://codecov.io/gh/snowplow/snowplow-scala-tracker/branch/master/graph/badge.svg
+[codecov]: https://codecov.io/gh/snowplow/snowplow-scala-tracker
 
 [snowplow]: http://snowplowanalytics.com
 [scala]: http://www.scala-lang.org/
