@@ -24,7 +24,7 @@ object Dependencies {
     val mockito    = "1.9.5"
 
     // Scala (test only)
-    val specs2     = "3.9.5"
+    val specs2     = "4.3.2"
     val scalaCheck = "1.13.4"
   }
 
