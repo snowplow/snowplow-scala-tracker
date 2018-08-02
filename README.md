@@ -1,7 +1,7 @@
 # Snowplow Scala Tracker
 
 [![Build Status][travis-image]][travis]
-[![Release][release-image]][releases] 
+[![Maven Central][maven-badge]][maven]
 [![License][license-image]][license]
 [![Join the chat at https://gitter.im/snowplow/snowplow-scala-tracker][gitter-image]][gitter]
 
@@ -35,8 +35,8 @@ limitations under the License.
 [license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
 
-[release-image]: http://img.shields.io/badge/release-0.5.0-blue.svg?style=flat
-[releases]: https://github.com/snowplow/snowplow-scala-tracker/releases
+[maven-badge]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker_2.12/badge.svg
+[maven]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker_2.12
 
 [snowplow]: http://snowplowanalytics.com
 [scala]: http://www.scala-lang.org/
