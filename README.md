@@ -3,6 +3,7 @@
 [![Build Status][travis-image]][travis]
 [![Release][release-image]][releases] 
 [![License][license-image]][license]
+[![Join the chat at https://gitter.im/snowplow/snowplow-scala-tracker][gitter-image]][gitter]
 
 ## Overview
 
@@ -49,3 +50,6 @@ limitations under the License.
 [setup]: https://github.com/snowplow/snowplow/wiki/Scala-Tracker-Setup
 [roadmap]: https://github.com/snowplow/snowplow/wiki/Scala-Tracker-Roadmap
 [contributing]: https://github.com/snowplow/snowplow/wiki/Scala-Tracker-Contributing
+
+[gitter-image]: https://badges.gitter.im/snowplow/snowplow-scala-tracker.svg
+[gitter]: https://gitter.im/snowplow/snowplow-scala-tracker?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
