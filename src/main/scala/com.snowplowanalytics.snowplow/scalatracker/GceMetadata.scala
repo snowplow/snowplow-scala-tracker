@@ -17,11 +17,13 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
 
-import scalaj.http._
+import cats.syntax.either._
 
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
+import io.circe.Json
+import io.circe.parser.parse
+import io.circe.syntax._
+
+import scalaj.http._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
@@ -31,7 +33,7 @@ import scala.util.{Failure, Success}
  * Module with parsing GCE-metadata logic
  * @see https://cloud.google.com/compute/docs/storing-retrieving-metadata
  *
- * Unlike EC2 instance document, GCE does not provide an excerpt, but instad
+ * Unlike EC2 instance document, GCE does not provide an excerpt, but instead
  * this module collect only meaningful properties
  */
 object GceMetadata {
@@ -75,28 +77,29 @@ object GceMetadata {
     getMetadata.map(SelfDescribingData(InstanceMetadataSchema, _))
 
   /** Construct metadata context */
-  def getMetadata: Future[JObject] =
-    getString("cpu-platform")
-      .zip(getString("hostname"))
-      .zip(getString("id"))
-      .zip(getString("image"))
-      .zip(getString("machine-type"))
-      .zip(getString("name"))
-      .zip(getJson("tags"))
-      .zip(getString("zone"))
-      .zip(getDir("attributes/"))
-      .map {
-        case ((((((((cpuPlatform, hostname), id), image), machineType), name), tags), zone), attributes) =>
-          ("cpuPlatform", cpuPlatform) ~
-            ("hostname", hostname) ~
-            ("id", id) ~
-            ("image", image) ~
-            ("machineType", machineType) ~
-            ("name", name) ~
-            ("tags", tags) ~
-            ("zone", zone) ~
-            ("attributes", attributes)
-      }
+  def getMetadata: Future[Json] =
+    for {
+      cpuPlatform <- getString("cpu-platform")
+      hostname    <- getString("hostname")
+      id          <- getString("id")
+      image       <- getString("image")
+      machineType <- getString("machine-type")
+      name        <- getString("name")
+      tags        <- getJson("tags")
+      zone        <- getString("zone")
+      attributes  <- getDir("attributes/")
+    } yield
+      Json.obj(
+        "cpuPlatform" := cpuPlatform,
+        "hostname" := hostname,
+        "id" := id,
+        "image" := image,
+        "machineType" := machineType,
+        "name" := name,
+        "tags" := tags,
+        "zone" := zone,
+        "attributes" := attributes
+      )
 
   def request(path: String) =
     Http(InstanceMetadataUri + path).header("Metadata-Flavor", "Google")
@@ -104,16 +107,23 @@ object GceMetadata {
   private def getString(path: String): Future[String] =
     Future(request(path).asString.body)
 
-  private def getJson(path: String): Future[JValue] =
-    Future(parse(request(path).asString.body)).map {
-      case JObject(Nil) => JNull
-      case JArray(Nil)  => JNull
-      case other        => other
-    }
+  private def getJson(path: String): Future[Json] =
+    Future.fromTry(
+      parse(request(path).asString.body)
+        .map(
+          json =>
+            json.arrayOrObject(
+              json,
+              array => if (array.isEmpty) Json.Null else json,
+              obj   => if (obj.isEmpty) Json.Null else json
+          ))
+        .toTry
+    )
 
-  private def getDir(path: String): Future[JValue] =
-    Future(parse(request(path + "?recursive=true").asString.body)).map {
-      case JObject(Nil) => JNull
-      case other        => other
-    }
+  private def getDir(path: String): Future[Json] =
+    Future.fromTry(
+      parse(request(path + "?recursive=true").asString.body)
+        .map(json => json.withObject(obj => if (obj.isEmpty) Json.Null else json))
+        .toTry
+    )
 }

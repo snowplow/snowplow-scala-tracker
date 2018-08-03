@@ -18,11 +18,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
-import scalaj.http._
+import cats.syntax.either._
 
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
+import io.circe.{Json, JsonObject}
+import io.circe.parser.parse
+import io.circe.syntax._
+
+import scalaj.http._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 
@@ -77,16 +79,18 @@ object Ec2Metadata {
    *
    * @return future JSON object with identity data
    */
-  def getInstanceIdentity: Future[JObject] = {
+  def getInstanceIdentity: Future[Json] = {
     val instanceIdentityDocument = getContent(InstanceIdentityUri)
-    instanceIdentityDocument.map { (resp: String) =>
-      parseOpt(resp) match {
-        case Some(jsonObject: JObject) =>
+    instanceIdentityDocument.map { resp: String =>
+      parse(resp).toOption.flatMap(_.asObject) match {
+        case Some(jsonObject) =>
           val prepared = prepareEc2Context(jsonObject)
-          if (prepared.values.keySet.isEmpty) { throw new RuntimeException("Document contains no known keys") } else {
-            prepared
+          if (prepared.isEmpty) {
+            throw new RuntimeException("Document contains no known keys")
+          } else {
+            prepared.asJson
           }
-        case _ =>
+        case None =>
           throw new RuntimeException("Document can not be parsed")
       }
     }
@@ -98,23 +102,22 @@ object Ec2Metadata {
    * @param url full url to the endpoint (usually http://169.254.169.254/latest/meta-data/)
    * @return future JSON object with metadata
    */
-  def getMetadata(url: String): Future[JObject] = {
+  def getMetadata(url: String): Future[JsonObject] = {
     val key = url.split("/").last
     if (!url.endsWith("/")) { // Leaf
-      getContent(url).map { value =>
-        key -> JString(value)
-      }
+      getContent(url).map(value => JsonObject(key := value))
     } else { // Node
       val sublinks = getContents(url)
-      val subnodes: Future[List[JObject]] = sublinks.flatMap { links =>
+      val subnodes = sublinks.flatMap { links =>
         Future.sequence {
           links.map { link =>
             getMetadata(url + link)
           }
         }
       }
-      val mergedObject = subnodes.map { _.fold(JObject(Nil))(_.merge(_)) }
-      mergedObject.map(key -> _)
+      val mergedObject =
+        subnodes.map(_.fold(JsonObject.empty)((obj1, obj2) => JsonObject.fromMap(obj1.toMap ++ obj2.toMap)))
+      mergedObject.map(obj => JsonObject(key := obj))
     }
   }
 
@@ -177,8 +180,6 @@ object Ec2Metadata {
    * @param context JSON object with EC2 context
    * @return true if object is context
    */
-  private def prepareEc2Context(context: JObject): JObject =
-    context.filterField {
-      case (key, _) => instanceIdentityKeys.contains(key)
-    }
+  private def prepareEc2Context(context: JsonObject): JsonObject =
+    context.filterKeys(key => instanceIdentityKeys.contains(key))
 }

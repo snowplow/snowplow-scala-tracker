@@ -54,12 +54,11 @@ class AsyncEmitter private (ec: ExecutionContext, collector: CollectorParams, ca
   val queue = new LinkedBlockingQueue[CollectorRequest]()
 
   val worker = new Thread {
-    override def run() {
+    override def run(): Unit =
       while (true) {
         val event = queue.take()
         submit(queue, ec, callback, collector, event)
       }
-    }
   }
 
   worker.setDaemon(true)

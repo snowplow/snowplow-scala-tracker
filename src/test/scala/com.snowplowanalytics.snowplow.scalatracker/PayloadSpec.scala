@@ -12,10 +12,9 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-// json4s
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
+// circe
+import io.circe.Json
+import io.circe.syntax._
 
 // Specs2
 import org.specs2.mutable.Specification
@@ -53,7 +52,7 @@ class PayloadSpec extends Specification {
 
       val payload = new Payload()
 
-      payload.addJson(("k" -> "v"), false, "enc", "plain")
+      payload.addJson(Json.obj("k" := "v"), false, "enc", "plain")
 
       payload.get must_== Map("plain" -> """{"k":"v"}""")
     }
@@ -62,7 +61,7 @@ class PayloadSpec extends Specification {
 
       val payload = new Payload()
 
-      payload.addJson(("k" -> "v"), true, "enc", "plain")
+      payload.addJson(Json.obj("k" := "v"), true, "enc", "plain")
 
       payload.get must_== Map("enc" -> "eyJrIjoidiJ9")
     }
