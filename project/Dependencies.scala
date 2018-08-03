@@ -17,8 +17,8 @@ object Dependencies {
   object V {
     // Scala
     val scalajHttp = "2.3.0"
-    val json4s     = "3.2.11"
     val igluCore   = "0.2.0"
+    val circe      = "0.9.3"
 
     // Java (test only)
     val mockito    = "1.9.5"
@@ -31,15 +31,16 @@ object Dependencies {
   object Libraries {
     // Scala
     val scalajHttp     = "org.scalaj"            %% "scalaj-http"      % V.scalajHttp
-    val json4sJackson  = "org.json4s"            %% "json4s-jackson"   % V.json4s
     val igluCore       = "com.snowplowanalytics" %% "iglu-core"        % V.igluCore
-    val igluCoreJson4s = "com.snowplowanalytics" %% "iglu-core-json4s" % V.igluCore
+    val igluCoreCirce  = "com.snowplowanalytics" %% "iglu-core-circe"  % V.igluCore
+    val circe          = "io.circe"              %% "circe-parser"     % V.circe
 
     // Java (test only)
-    val mockito       = "org.mockito"       %  "mockito-all"    % V.mockito       % "test"
+    val mockito       = "org.mockito"             % "mockito-all"    % V.mockito       % "test"
 
     // Scala (test only)
-    val specs2        = "org.specs2"         %% "specs2-core"    % V.specs2        % "test"
-    val scalaCheck    = "org.scalacheck"     %% "scalacheck"     % V.scalaCheck    % "test"
+    val specs2        = "org.specs2"             %% "specs2-core"    % V.specs2        % "test"
+    val scalaCheck    = "org.scalacheck"         %% "scalacheck"     % V.scalaCheck    % "test"
+    val circeOptics   = "io.circe"               %% "circe-optics"   % V.circe         % "test"
   }
 }

@@ -14,16 +14,18 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import java.io.FileWriter
 
-import org.json4s.{JArray, JObject, JString, JValue}
-import org.json4s.jackson.JsonMethods.{compact, parseOpt}
-import org.json4s.JsonAST.JDouble
+import cats.implicits._
+
+import io.circe.Json
+import io.circe.parser.parse
+import io.circe.syntax._
 
 import org.scalacheck.Gen
 
 import Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.json4s.implicits._
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.scalatracker.emitters.AsyncBatchEmitter
 import com.snowplowanalytics.snowplow.scalatracker.emitters.TEmitter._
@@ -50,20 +52,21 @@ object StressTest {
   }
 
   implicit val sdJsonsRead = new Read[List[SelfDescribingJson]] {
-    def parseJson(json: JValue): SelfDescribingData[JValue] =
-      json match {
-        case JObject(fields) =>
-          val map = fields.toMap
-          map.get("schema") match {
-            case Some(JString(schema)) => SelfDescribingJson(schema, map("data"))
-          }
-      }
+    def parseJson(json: Json): SelfDescribingData[Json] =
+      json.asObject
+        .flatMap { obj =>
+          val schemaKeyOpt = obj.toMap.get("schema").flatMap(_.asString).flatMap(SchemaKey.fromUri)
+          val dataOpt      = obj.toMap.get("data")
 
-    def reads(line: String): List[SelfDescribingJson] =
-      parseOpt(line) match {
-        case Some(JArray(list)) => list.map(parseJson)
-        case None               => Nil
-      }
+          (schemaKeyOpt, dataOpt).mapN((key, data) => SelfDescribingData(key, data))
+        }
+        .getOrElse(throw new RuntimeException("Failed the test while parsing JSON"))
+
+    def reads(line: String): List[SelfDescribingJson] = parse(line).toOption match {
+      case Some(json) => json.asArray.getOrElse(Vector.empty).map(parseJson).toList
+      case None       => Nil
+    }
+
   }
 
   implicit val tstmpRead = new Read[Option[Timestamp]] {
@@ -83,6 +86,7 @@ object StressTest {
           val ctx: Option[List[SelfDescribingJson]] = cols(4).map(sdJsonsRead.reads)
           val timestamp                             = cols(5).flatMap(tstmpRead.reads)
           PageView(url, cols(2), cols(3), ctx, timestamp)
+        case _ => throw new RuntimeException("Failed the test while reading the arguments")
       }
     }
   }
@@ -105,8 +109,8 @@ object StressTest {
   val geoLocationGen = for {
     latitude  <- Gen.choose[Double](-90, 90)
     longitude <- Gen.choose[Double](-180, 180)
-    data = JObject("latitude" -> JDouble(latitude), "longitude" -> JDouble(longitude))
-    sd = SelfDescribingData[JValue](
+    data = Json.obj("latitude" := latitude, "longitude" := longitude)
+    sd = SelfDescribingData[Json](
       SchemaKey("com.snowplowanalytics.snowplow", "geolocation_context", "jsonschema", SchemaVer.Full(1, 1, 0)),
       data)
   } yield sd
@@ -129,8 +133,8 @@ object StressTest {
     tstamp   <- timestampGen
   } yield PageView(url, title, referrer, ctx, tstamp)
 
-  def writeContext(sd: List[SelfDescribingData[JValue]]): String =
-    compact(JArray(sd.map(s => s.normalize)))
+  def writeContext(sd: List[SelfDescribingData[Json]]): String =
+    Json.fromValues(sd.map(s => s.normalize)).noSpaces
 
   def writeTimestamp(tstamp: Timestamp): String = tstamp match {
     case TrueTimestamp(tst)          => s"ttm:$tst"
@@ -168,7 +172,7 @@ object StressTest {
     def getWorker: Thread = {
       val worker = new Thread {
         private var i = 0
-        override def run() {
+        override def run(): Unit = {
           events.foreach {
             case PageView(url, title, referrer, contexts, timestamp) =>
               tracker.trackPageView(url, title, referrer, contexts.getOrElse(Nil), timestamp)

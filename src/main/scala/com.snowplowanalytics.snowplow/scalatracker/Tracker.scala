@@ -19,14 +19,14 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 import scala.util.{Failure, Success, Try}
 
-import org.json4s._
-import org.json4s.JsonDSL._
+import io.circe.Json
+import io.circe.syntax._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.json4s.implicits._
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
+import utils.{ErrorTracking, JsonUtils}
 import emitters.TEmitter
-import utils.ErrorTracking
 
 /**
  * Tracker class
@@ -112,7 +112,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
   private def addContexts(payload: Payload, contexts: Seq[SelfDescribingJson]): Payload =
     if (contexts.nonEmpty) {
       val contextsEnvelope: SelfDescribingJson =
-        SelfDescribingData(ContextsSchemaKey, JArray(contexts.toList.map(_.normalize)))
+        SelfDescribingData(ContextsSchemaKey, Json.fromValues(contexts.toIterable.map(_.normalize)))
 
       payload.addJson(contextsEnvelope.normalize, encodeBase64, "cx", "co")
       payload
@@ -309,13 +309,14 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
                      contexts: List[SelfDescribingJson] = Nil,
                      timestamp: Option[Timestamp]       = None): Tracker = {
 
-    val eventJson =
-      ("sku"         -> sku) ~
-        ("name"      -> name) ~
-        ("category"  -> category) ~
-        ("unitPrice" -> unitPrice) ~
-        ("quantity"  -> quantity) ~
-        ("currency"  -> currency)
+    val eventJson = JsonUtils.jsonObjectWithoutNulls(
+      "sku" := sku,
+      "name" := name,
+      "category" := category,
+      "unitPrice" := unitPrice,
+      "quantity" := quantity,
+      "currency" := currency
+    )
 
     trackSelfDescribingEvent(
       SelfDescribingData(
@@ -347,13 +348,14 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
                           contexts: List[SelfDescribingJson] = Nil,
                           timestamp: Option[Timestamp]       = None): Tracker = {
 
-    val eventJson =
-      ("sku"         -> sku) ~
-        ("name"      -> name) ~
-        ("category"  -> category) ~
-        ("unitPrice" -> unitPrice) ~
-        ("quantity"  -> quantity) ~
-        ("currency"  -> currency)
+    val eventJson = JsonUtils.jsonObjectWithoutNulls(
+      "sku" := sku,
+      "name" := name,
+      "category" := category,
+      "unitPrice" := unitPrice,
+      "quantity" := quantity,
+      "currency" := currency
+    )
 
     trackSelfDescribingEvent(
       SelfDescribingData(

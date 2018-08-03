@@ -14,8 +14,8 @@ package com.snowplowanalytics.snowplow.scalatracker.utils
 
 import java.io.{PrintWriter, StringWriter}
 
-import org.json4s._
-import org.json4s.JsonDSL._
+import io.circe.Json
+import io.circe.syntax._
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
@@ -33,18 +33,27 @@ object ErrorTracking {
     SchemaKey("com.snowplowanalytics.snowplow", "application_error", "jsonschema", SchemaVer(1, 0, 1))
 
   /** Transform `Throwable` to `application_error`-compatible payload */
-  def toData(error: Throwable): JValue = {
+  def toData(error: Throwable): Json = {
     val stackElement = headStackTrace(error)
 
-    ("message"               -> truncateString(error.getMessage, MaxMessageLength).getOrElse("Null or empty message found")) ~
-      ("stackTrace"          -> truncateString(stackTraceToString(error), MaxStackLength)) ~
-      ("threadName"          -> truncateString(Thread.currentThread.getName, MaxThreadNameLength)) ~
-      ("threadId"            -> Thread.currentThread.getId) ~
-      ("programmingLanguage" -> "SCALA") ~
-      ("lineNumber"          -> stackElement.map(_.getLineNumber)) ~
-      ("className"           -> stackElement.map(_.getClassName).flatMap(truncateString(_, MaxClassNameLength))) ~
-      ("exceptionName"       -> truncateString(error.getClass.getName, MaxExceptionNameLength)) ~
-      ("isFatal"             -> true)
+    val requiredElements = List(
+      "message" := truncateString(error.getMessage, MaxMessageLength).getOrElse("Null or empty message found"),
+      "threadId" := Thread.currentThread.getId,
+      "threadId" := Thread.currentThread.getId,
+      "programmingLanguage" := "SCALA",
+      "isFatal" := true
+    )
+
+    val jsonFromOptional = JsonUtils.jsonObjectWithoutNulls(
+      "exceptionName" := stackElement.map(_.getLineNumber),
+      "lineNumber" := stackElement.map(_.getLineNumber),
+      "className" := stackElement.map(_.getClassName).flatMap(truncateString(_, MaxClassNameLength)),
+      "exceptionName" := truncateString(error.getClass.getName, MaxExceptionNameLength),
+      "threadName" := truncateString(Thread.currentThread.getName, MaxThreadNameLength),
+      "stackTrace" := truncateString(stackTraceToString(error), MaxStackLength)
+    )
+
+    jsonFromOptional.deepMerge(Json.fromFields(requiredElements))
   }
 
   private def truncateString(s: String, maxLength: Int): Option[String] =

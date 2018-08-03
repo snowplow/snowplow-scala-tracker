@@ -12,16 +12,19 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import org.json4s.{DefaultReaders, JValue}
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods.parse
-import org.specs2.specification.Scope
+import cats.syntax.either._
 
+import io.circe.Json
+import io.circe.syntax._
+import io.circe.parser.parse
+import io.circe.optics.JsonPath._
+
+import org.specs2.specification.Scope
 import org.specs2.mutable.Specification
 
-import emitters.TEmitter
-
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+
+import emitters.TEmitter
 
 class TrackerSpec extends Specification {
 
@@ -36,17 +39,17 @@ class TrackerSpec extends Specification {
   }
 
   val unstructEventJson =
-    SelfDescribingData[JValue](
+    SelfDescribingData[Json](
       SchemaKey("com.snowplowanalytics.snowplow", "myevent", "jsonschema", SchemaVer.Full(1, 0, 0)),
-      ("k1" -> "v1") ~ ("k2" -> "v2"))
+      Json.obj("k1" := "v1", "k2" := "v2"))
 
   val contexts = List(
-    SelfDescribingData[JValue](
+    SelfDescribingData[Json](
       SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
-      ("number" -> 20)),
-    SelfDescribingData[JValue](
+      Json.obj("number" := 20)),
+    SelfDescribingData[Json](
       SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
-      ("letters" -> List("a", "b", "c")))
+      Json.obj("letters" := List("a", "b", "c")))
   )
 
   "trackUnstructEvent" should {
@@ -89,7 +92,7 @@ class TrackerSpec extends Specification {
 
       tracker.setSubject(subject)
 
-      tracker.trackUnstructEvent(unstructEventJson)
+      tracker.trackSelfDescribingEvent(unstructEventJson)
 
       val event = emitter.lastInput
 
@@ -110,7 +113,7 @@ class TrackerSpec extends Specification {
   "track" should {
 
     "add custom contexts to the event" in new DummyTracker {
-      tracker.trackUnstructEvent(unstructEventJson, contexts)
+      tracker.trackSelfDescribingEvent(unstructEventJson, contexts)
 
       val event = emitter.lastInput
 
@@ -210,8 +213,6 @@ class TrackerSpec extends Specification {
 
   "trackError" should {
 
-    import DefaultReaders._
-
     "tracks an exception" in new DummyTracker {
 
       val error = new RuntimeException("boom!")
@@ -219,23 +220,22 @@ class TrackerSpec extends Specification {
 
       val event = emitter.lastInput
 
-      println(event)
-      val envelope = parse(event("ue_pr")) \ "data"
+      val json = parse(event("ue_pr")).right.get
 
-      (envelope \ "schema")
-        .as[String] mustEqual "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1"
+      val data = root.data.data
 
-      val payload = envelope \ "data"
+      root.data.schema.string.getOption(json) must beSome(
+        "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1")
+      data.message.string.getOption(json) must beSome("boom!")
+      data.stackTrace.string.getOption(json) must beSome.which(_.contains("java.lang.RuntimeException: boom!"))
+      data.threadName.string.getOption(json) must not(beSome.which(_.isEmpty))
+      data.threadId.json.getOption(json) must beSome.which(!_.isNull)
+      data.programmingLanguage.string.getOption(json) must beSome("SCALA")
+      data.lineNumber.int.getOption(json) must beSome.which(_ > 0)
+      data.className.string.getOption(json) must beSome.which(_.contains(this.getClass.getName))
+      data.exceptionName.string.getOption(json) must beSome("java.lang.RuntimeException")
+      data.isFatal.boolean.getOption(json) must beSome(true)
 
-      (payload \ "message").as[String] mustEqual "boom!"
-      (payload \ "stackTrace").as[String] must contain("java.lang.RuntimeException: boom!")
-      (payload \ "threadName").as[String] must not(beEmpty)
-      (payload \ "threadId").as[Int] must not(beNull)
-      (payload \ "programmingLanguage").as[String] mustEqual "SCALA"
-      (payload \ "lineNumber").as[Int] must be greaterThan 0
-      (payload \ "className").as[String] must contain(this.getClass.getName)
-      (payload \ "exceptionName").as[String] mustEqual "java.lang.RuntimeException"
-      (payload \ "isFatal").as[Boolean] must beTrue
     }
 
     "uses default message" >> {
@@ -243,20 +243,20 @@ class TrackerSpec extends Specification {
         val error = new RuntimeException()
         tracker.trackError(error)
 
-        val event   = emitter.lastInput
-        val payload = parse(event("ue_pr")) \ "data" \ "data"
+        val event = emitter.lastInput
+        val json  = parse(event("ue_pr")).toOption
 
-        (payload \ "message").as[String] mustEqual "Null or empty message found"
+        json.flatMap(root.data.data.message.string.getOption(_)) must beSome("Null or empty message found")
       }
 
       "when error message is empty" in new DummyTracker {
         val error = new RuntimeException("")
         tracker.trackError(error)
 
-        val event   = emitter.lastInput
-        val payload = parse(event("ue_pr")) \ "data" \ "data"
+        val event = emitter.lastInput
+        val json  = parse(event("ue_pr")).toOption
 
-        (payload \ "message").as[String] mustEqual "Null or empty message found"
+        json.flatMap(root.data.data.message.string.getOption(_)) must beSome("Null or empty message found")
       }
     }
   }
