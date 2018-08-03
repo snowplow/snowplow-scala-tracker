@@ -32,11 +32,12 @@ lazy val root = project
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.Libraries.scalajHttp,
-      Dependencies.Libraries.json4sJackson,
       Dependencies.Libraries.igluCore,
-      Dependencies.Libraries.igluCoreJson4s,
+      Dependencies.Libraries.circe,
+      Dependencies.Libraries.igluCoreCirce,
       Dependencies.Libraries.mockito,
       Dependencies.Libraries.specs2,
-      Dependencies.Libraries.scalaCheck
+      Dependencies.Libraries.scalaCheck,
+      Dependencies.Libraries.circeOptics
     )
   )

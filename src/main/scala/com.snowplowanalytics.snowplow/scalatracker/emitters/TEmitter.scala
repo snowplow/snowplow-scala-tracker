@@ -19,11 +19,10 @@ import java.util.{Timer, TimerTask}
 import scala.util.{Failure, Random, Success, Try}
 import scala.concurrent.{ExecutionContext, Future}
 
-import scalaj.http._
+import io.circe._
+import io.circe.syntax._
 
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
+import scalaj.http._
 
 /**
  * Emitters are entities in charge of transforming events sent from tracker
@@ -121,7 +120,8 @@ object TEmitter {
   }
 
   // JSON object with Iglu URI to Schema for payload
-  private val payloadBatchStub: JObject = ("schema", Tracker.PayloadDataSchemaKey.toSchemaUri)
+  private val payloadBatchStub: JsonObject =
+    JsonObject("schema" := Tracker.PayloadDataSchemaKey.toSchemaUri)
 
   /**
    * Transform List of Map[String, String] to JSON array of objects
@@ -130,7 +130,7 @@ object TEmitter {
    * @return JSON array represented as String
    */
   private def postPayload(payload: Seq[Map[String, String]]): String =
-    compact(payloadBatchStub ~ ("data", payload))
+    payloadBatchStub.add("data", payload.asJson).asJson.noSpaces
 
   /**
    * Construct POST request with batch event payload
@@ -194,11 +194,10 @@ object TEmitter {
     result: CollectorResponse): Unit =
     callback match {
       case Some(cb) =>
-        Future(cb(collector, payload, result))(ec).onFailure {
-          case throwable =>
-            val error   = Option(throwable.getMessage).getOrElse(throwable.toString)
-            val message = s"Snowplow Tracker bounded to ${collector.getUri} failed to execute callback: $error"
-            System.err.println(message)
+        Future(cb(collector, payload, result))(ec).failed.foreach { throwable =>
+          val error   = Option(throwable.getMessage).getOrElse(throwable.toString)
+          val message = s"Snowplow Tracker bounded to ${collector.getUri} failed to execute callback: $error"
+          System.err.println(message)
         }(ec)
       case None => ()
     }

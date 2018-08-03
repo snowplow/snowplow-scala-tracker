@@ -14,10 +14,9 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import java.util.Base64
 
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
-
 import scala.collection.mutable.{Map => MMap}
+
+import io.circe.Json
 
 import emitters.TEmitter.EmitterPayload
 
@@ -68,9 +67,9 @@ private[scalatracker] class Payload {
    * @param typeWhenEncoded Key to use if encodeBase64 is true
    * @param typeWhenNotEncoded Key to use if encodeBase64 is false
    */
-  def addJson(json: JValue, encodeBase64: Boolean, typeWhenEncoded: String, typeWhenNotEncoded: String): Unit = {
+  def addJson(json: Json, encodeBase64: Boolean, typeWhenEncoded: String, typeWhenNotEncoded: String): Unit = {
 
-    val jsonString = compact(render(json))
+    val jsonString = json.noSpaces
 
     if (encodeBase64) {
       add(typeWhenEncoded, new String(Base64.getEncoder.encode(jsonString.getBytes(Encoding)), Encoding))

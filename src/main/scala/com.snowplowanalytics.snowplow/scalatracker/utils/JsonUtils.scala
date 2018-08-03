@@ -10,25 +10,13 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow
+package com.snowplowanalytics.snowplow.scalatracker.utils
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
 import io.circe.Json
 
-package object scalatracker {
+object JsonUtils {
 
-  /** Tracker-specific self-describing JSON */
-  type SelfDescribingJson = SelfDescribingData[Json]
+  def jsonObjectWithoutNulls(fields: (String, Json)*): Json =
+    Json.fromFields(fields.filter { case (_, json) => !json.isNull })
 
-  /** Backward-compatibility */
-  object SelfDescribingJson {
-    @deprecated("Use com.snowplowanalytics.iglu.core.SchemaKey instead", "0.5.0")
-    def apply(key: String, data: Json): SelfDescribingJson =
-      SelfDescribingData[Json](
-        SchemaKey
-          .fromUri(key)
-          .getOrElse(
-            throw new RuntimeException(s"Invalid SchemaKey $key. Use com.snowplowanalytics.iglu.core.SchemaKey")),
-        data)
-  }
 }

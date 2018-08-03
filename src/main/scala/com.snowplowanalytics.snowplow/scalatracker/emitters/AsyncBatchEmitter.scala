@@ -68,12 +68,11 @@ class AsyncBatchEmitter private (ec: ExecutionContext,
 
   // Start consumer thread synchronously trying to send events to collector
   val worker = new Thread {
-    override def run() {
+    override def run(): Unit =
       while (true) {
         val batch = queue.take()
         submit(queue, ec, callback, collector, batch)
       }
-    }
   }
 
   worker.setDaemon(true)
