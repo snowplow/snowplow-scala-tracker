@@ -52,7 +52,7 @@ class TrackerSpec extends Specification {
   "trackUnstructEvent" should {
 
     "send an unstructured event to the emitter" in new DummyTracker {
-      tracker.trackUnstructEvent(unstructEventJson)
+      tracker.trackSelfDescribingEvent(unstructEventJson)
 
       val event = emitter.lastInput
 
