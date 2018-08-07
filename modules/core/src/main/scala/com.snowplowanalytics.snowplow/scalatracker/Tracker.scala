@@ -14,19 +14,14 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import java.util.UUID
 
-import scala.concurrent.Promise
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
-import scala.util.{Failure, Success, Try}
-
+import cats._
+import cats.implicits._
 import io.circe.Json
 import io.circe.syntax._
-
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
-
 import utils.{ErrorTracking, JsonUtils}
-import emitters.TEmitter
 
 /**
  * Tracker class
@@ -35,40 +30,37 @@ import emitters.TEmitter
  * @param namespace Tracker namespace
  * @param appId ID of the application
  * @param encodeBase64 Whether to encode JSONs
+ * @param metadata optionally a json containing the metadata context for the running instance
  */
-class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeBase64: Boolean = true) {
+final case class Tracker[F[_]: Applicative](emitters: List[Emitter[F]],
+                                            namespace: String,
+                                            appId: String,
+                                            subject: Subject                     = Subject(),
+                                            encodeBase64: Boolean                = true,
+                                            metadata: Option[SelfDescribingJson] = None) {
   import Tracker._
-
-  private var subject: Subject = new Subject()
-  private var attachEc2Context = false
-  private val ec2Context       = Promise[SelfDescribingJson]
-  private var attachGceContext = false
-  private val gceContext       = Promise[SelfDescribingJson]
 
   /**
    * Send assembled payload to emitters or schedule it as callback of getting context
    *
    * @param payload constructed event map
    */
-  private def track(payload: Payload): Unit =
-    if (attachGceContext)
-      gceContext.future.onComplete(addEmbeddedContext(payload))
-    else if (attachEc2Context)
-      ec2Context.future.onComplete(addEmbeddedContext(payload))
-    else {
-      send(payload)
-    }
+  private def track(payload: Payload): F[Unit] = {
+    val payloadToSend = metadata
+      .map(context => addContexts(payload, List(context)))
+      .getOrElse(payload)
+
+    send(payloadToSend)
+  }
 
   /**
    * Pass the assembled payload to every emitter
    *
    * @param payload constructed event map
    */
-  private def send(payload: Payload): Unit = {
+  private def send(payload: Payload): F[Unit] = {
     val event = payload.get
-    emitters foreach { e =>
-      e.input(event)
-    }
+    emitters.traverse(e => e.send(event)).map(x => ())
   }
 
   /**
@@ -83,23 +75,24 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
                               contexts: Seq[SelfDescribingJson],
                               timestamp: Option[Timestamp]): Payload = {
 
-    payload.add("eid", UUID.randomUUID().toString)
+    val newPayload = payload
+      .add("eid", UUID.randomUUID().toString)
+      .add("tv", Version)
+      .add("tna", namespace)
+      .add("aid", appId)
+      .addDict(subject.subjectInformation)
 
-    if (!payload.nvPairs.contains("dtm")) {
+    val payloadWithTimestamp = if (!newPayload.get.contains("dtm")) {
       timestamp match {
-        case Some(DeviceCreatedTimestamp(dtm)) => payload.add("dtm", dtm.toString)
-        case Some(TrueTimestamp(ttm))          => payload.add("ttm", ttm.toString)
-        case None                              => payload.add("dtm", System.currentTimeMillis().toString)
+        case Some(DeviceCreatedTimestamp(dtm)) => newPayload.add("dtm", dtm.toString)
+        case Some(TrueTimestamp(ttm))          => newPayload.add("ttm", ttm.toString)
+        case None                              => newPayload.add("dtm", System.currentTimeMillis().toString)
       }
+    } else {
+      newPayload
     }
 
-    payload.add("tv", Version)
-    payload.add("tna", namespace)
-    payload.add("aid", appId)
-
-    payload.addDict(subject.getSubjectInformation())
-
-    addContexts(payload, contexts)
+    addContexts(payloadWithTimestamp, contexts)
   }
 
   /**
@@ -115,7 +108,6 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
         SelfDescribingData(ContextsSchemaKey, Json.fromValues(contexts.toIterable.map(_.normalize)))
 
       payload.addJson(contextsEnvelope.normalize, encodeBase64, "cx", "co")
-      payload
     } else {
       payload
     }
@@ -130,15 +122,14 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    */
   def trackSelfDescribingEvent(unstructEvent: SelfDescribingJson,
                                contexts: Seq[SelfDescribingJson] = Nil,
-                               timestamp: Option[Timestamp]      = None): Tracker = {
+                               timestamp: Option[Timestamp]      = None): F[Unit] = {
 
-    val payload = new Payload()
-    payload.add("e", "ue")
     val envelope = SelfDescribingData(SelfDescribingEventSchemaKey, unstructEvent.normalize)
-    payload.addJson(envelope.normalize, encodeBase64, "ue_px", "ue_pr")
-    track(completePayload(payload, contexts, timestamp))
+    val payload = Payload()
+      .add("e", "ue")
+      .addJson(envelope.normalize, encodeBase64, "ue_px", "ue_pr")
 
-    this
+    track(completePayload(payload, contexts, timestamp))
   }
 
   /**
@@ -159,20 +150,17 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
                        property: Option[String]          = None,
                        value: Option[Double]             = None,
                        contexts: Seq[SelfDescribingJson] = Nil,
-                       timestamp: Option[Timestamp]      = None): Tracker = {
+                       timestamp: Option[Timestamp]      = None): F[Unit] = {
 
-    val payload = new Payload()
-
-    payload.add("e", "se")
-    payload.add("se_ca", category)
-    payload.add("se_ac", action)
-    payload.add("se_la", label)
-    payload.add("se_pr", property)
-    payload.add("se_va", value.map(_.toString))
+    val payload = Payload()
+      .add("e", "se")
+      .add("se_ca", category)
+      .add("se_ac", action)
+      .add("se_la", label)
+      .add("se_pr", property)
+      .add("se_va", value.map(_.toString))
 
     track(completePayload(payload, contexts, timestamp))
-
-    this
   }
 
   /**
@@ -189,18 +177,15 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
                     pageTitle: Option[String]         = None,
                     referrer: Option[String]          = None,
                     contexts: Seq[SelfDescribingJson] = Nil,
-                    timestamp: Option[Timestamp]      = None): Tracker = {
+                    timestamp: Option[Timestamp]      = None): F[Unit] = {
 
-    val payload = new Payload()
-
-    payload.add("e", "pv")
-    payload.add("url", pageUrl)
-    payload.add("page", pageTitle)
-    payload.add("refr", referrer)
+    val payload = Payload()
+      .add("e", "pv")
+      .add("url", pageUrl)
+      .add("page", pageTitle)
+      .add("refr", referrer)
 
     track(completePayload(payload, contexts, timestamp))
-
-    this
   }
 
   /**
@@ -229,24 +214,21 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
                        country: Option[String]           = None,
                        currency: Option[String]          = None,
                        contexts: Seq[SelfDescribingJson] = Nil,
-                       timestamp: Option[Timestamp]      = None): Tracker = {
+                       timestamp: Option[Timestamp]      = None): F[Unit] = {
 
-    val payload = new Payload()
-
-    payload.add("e", "tr")
-    payload.add("tr_id", orderId)
-    payload.add("tr_af", affiliation)
-    payload.add("tr_tt", total.toString)
-    payload.add("tr_tx", tax.map(_.toString))
-    payload.add("tr_sh", shipping.map(_.toString))
-    payload.add("tr_ci", city)
-    payload.add("tr_st", state)
-    payload.add("tr_co", country)
-    payload.add("tr_cu", currency)
+    val payload = Payload()
+      .add("e", "tr")
+      .add("tr_id", orderId)
+      .add("tr_af", affiliation)
+      .add("tr_tt", total.toString)
+      .add("tr_tx", tax.map(_.toString))
+      .add("tr_sh", shipping.map(_.toString))
+      .add("tr_ci", city)
+      .add("tr_st", state)
+      .add("tr_co", country)
+      .add("tr_cu", currency)
 
     track(completePayload(payload, contexts, timestamp))
-
-    this
   }
 
   /**
@@ -269,22 +251,19 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
                            quantity: Int,
                            currency: Option[String]           = None,
                            contexts: List[SelfDescribingJson] = Nil,
-                           timestamp: Option[Timestamp]       = None): Tracker = {
+                           timestamp: Option[Timestamp]       = None): F[Unit] = {
 
-    val payload = new Payload()
-
-    payload.add("e", "ti")
-    payload.add("ti_id", orderId)
-    payload.add("ti_sk", sku)
-    payload.add("ti_nm", name)
-    payload.add("ti_ca", category)
-    payload.add("ti_pr", price.toString)
-    payload.add("ti_qu", quantity.toString)
-    payload.add("ti_cu", currency)
+    val payload = Payload()
+      .add("e", "ti")
+      .add("ti_id", orderId)
+      .add("ti_sk", sku)
+      .add("ti_nm", name)
+      .add("ti_ca", category)
+      .add("ti_pr", price.toString)
+      .add("ti_qu", quantity.toString)
+      .add("ti_cu", currency)
 
     track(completePayload(payload, contexts, timestamp))
-
-    this
   }
 
   /**
@@ -307,7 +286,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
                      quantity: Int,
                      currency: Option[String]           = None,
                      contexts: List[SelfDescribingJson] = Nil,
-                     timestamp: Option[Timestamp]       = None): Tracker = {
+                     timestamp: Option[Timestamp]       = None): F[Unit] = {
 
     val eventJson = JsonUtils.jsonObjectWithoutNulls(
       "sku" := sku,
@@ -346,7 +325,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
                           quantity: Double,
                           currency: Option[String]           = None,
                           contexts: List[SelfDescribingJson] = Nil,
-                          timestamp: Option[Timestamp]       = None): Tracker = {
+                          timestamp: Option[Timestamp]       = None): F[Unit] = {
 
     val eventJson = JsonUtils.jsonObjectWithoutNulls(
       "sku" := sku,
@@ -376,7 +355,7 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    */
   def trackError(error: Throwable,
                  contexts: List[SelfDescribingJson] = Nil,
-                 timestamp: Option[Timestamp]       = None): Tracker = {
+                 timestamp: Option[Timestamp]       = None): F[Unit] = {
     val payload = ErrorTracking.toData(error)
     val event   = SelfDescribingData(ErrorTracking.ApplicationErrorSchemaKey, payload)
     trackSelfDescribingEvent(event, contexts, timestamp)
@@ -386,41 +365,11 @@ class Tracker(emitters: Seq[TEmitter], namespace: String, appId: String, encodeB
    * Set the Subject for the tracker
    * The subject's configuration will be attached to every event
    *
-   * @param subject user which the Tracker will track
+   * @param newSubject user which the Tracker will track
    * @return The tracker instance
    */
-  def setSubject(subject: Subject): Tracker = {
-    this.subject = subject
-    this
-  }
-
-  /**
-   * Adds EC2 context to each sent event
-   * Blocks event queue until either context resolved or timed out
-   */
-  def enableEc2Context(): Unit = {
-    attachEc2Context = true
-    ec2Context.completeWith(Ec2Metadata.getInstanceContextFuture)
-  }
-
-  /**
-   * Adds GCP context to each sent event
-   * Blocks event queue until either context resolved or timed out
-   */
-  def enableGceContext(): Unit = {
-    attachGceContext = true
-    gceContext.completeWith(GceMetadata.getInstanceContextFuture)
-  }
-
-  /** Callback for async-retrieved context. Block queue until either context available or failed */
-  private def addEmbeddedContext(payload: Payload)(result: Try[SelfDescribingJson]): Unit =
-    result match {
-      case Success(ctx) => send(addContexts(payload, Seq(ctx)))
-      case Failure(throwable) =>
-        val message = Option(throwable.getMessage).getOrElse(throwable.toString)
-        System.err.println(s"Failed to retrieve context: $message")
-        send(payload)
-    }
+  def setSubject(newSubject: Subject): Tracker[F] =
+    new Tracker[F](emitters, namespace, appId, newSubject, encodeBase64, metadata)
 }
 
 object Tracker {
