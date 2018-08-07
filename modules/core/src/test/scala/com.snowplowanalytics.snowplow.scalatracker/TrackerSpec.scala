@@ -12,30 +12,27 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
+import cats.Id
 import cats.syntax.either._
-
 import io.circe.Json
 import io.circe.syntax._
 import io.circe.parser.parse
 import io.circe.optics.JsonPath._
-
 import org.specs2.specification.Scope
 import org.specs2.mutable.Specification
-
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-
-import emitters.TEmitter
+import com.snowplowanalytics.snowplow.scalatracker.Emitter
 
 class TrackerSpec extends Specification {
 
   trait DummyTracker extends Scope {
-    val emitter = new TEmitter {
+    val emitter = new Emitter[Id] {
       var lastInput = Map[String, String]()
 
-      override def input(event: Map[String, String]): Unit = lastInput = event
+      override def send(event: Map[String, String]): Unit = lastInput = event
     }
 
-    val tracker = new Tracker(List(emitter), "mytracker", "myapp", false)
+    val tracker = new Tracker(List(emitter), "mytracker", "myapp", encodeBase64 = false)
   }
 
   val unstructEventJson =
@@ -77,7 +74,7 @@ class TrackerSpec extends Specification {
   "setSubject" should {
 
     "add the Subject's data to all events" in new DummyTracker {
-      val subject = new Subject()
+      val subject = Subject()
         .setPlatform(Mobile)
         .setUserId("sabnis")
         .setScreenResolution(200, 300)
@@ -90,9 +87,9 @@ class TrackerSpec extends Specification {
         .setUseragent("Mozilla/5.0 (Windows NT 5.1; rv:24.0) Gecko/20100101 Firefox/24.0")
         .setNetworkUserId("id")
 
-      tracker.setSubject(subject)
-
-      tracker.trackSelfDescribingEvent(unstructEventJson)
+      tracker
+        .setSubject(subject)
+        .trackSelfDescribingEvent(unstructEventJson)
 
       val event = emitter.lastInput
 
