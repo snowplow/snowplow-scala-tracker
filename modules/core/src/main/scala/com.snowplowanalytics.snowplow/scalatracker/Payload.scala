@@ -14,21 +14,17 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import java.util.Base64
 
-import scala.collection.mutable.{Map => MMap}
-
 import io.circe.Json
 
-import emitters.TEmitter.EmitterPayload
+import Emitter.EmitterPayload
 
 /**
  * Contains the map of key-value pairs making up an event
  * Must be used within single function as **not thread-safe**
  */
-private[scalatracker] class Payload {
+private[scalatracker] final case class Payload(private val nvPairs: Map[String, String] = Map.empty) {
 
   val Encoding = "UTF-8"
-
-  val nvPairs = MMap[String, String]()
 
   /**
    * Add a key-value pair
@@ -36,10 +32,8 @@ private[scalatracker] class Payload {
    * @param name parameter name
    * @param value parameter value
    */
-  def add(name: String, value: String): Unit =
-    if (!name.isEmpty && name != null && !value.isEmpty && value != null) {
-      nvPairs += (name -> value)
-    }
+  def add(name: String, value: String): Payload =
+    addDict(Map(name -> value))
 
   /**
    * Overloaded add function for Option. Don't modify payload for None
@@ -47,17 +41,17 @@ private[scalatracker] class Payload {
    * @param name parameter name
    * @param value optional parameter value
    */
-  def add(name: String, value: Option[String]): Unit =
+  def add(name: String, value: Option[String]): Payload =
     value match {
       case Some(v) => add(name, v)
-      case None    =>
+      case None    => this
     }
 
   /** Add a map of key-value pairs one by one */
-  def addDict(dict: Map[String, String]): Unit =
-    dict foreach {
-      case (k, v) => add(k, v)
-    }
+  def addDict(dict: Map[String, String]): Payload = {
+    val filtered = dict.filter { case (key, value) => key != null && value != null && !key.isEmpty && !value.isEmpty }
+    Payload(nvPairs ++ filtered)
+  }
 
   /**
    * Stringify a JSON and add it
@@ -67,8 +61,7 @@ private[scalatracker] class Payload {
    * @param typeWhenEncoded Key to use if encodeBase64 is true
    * @param typeWhenNotEncoded Key to use if encodeBase64 is false
    */
-  def addJson(json: Json, encodeBase64: Boolean, typeWhenEncoded: String, typeWhenNotEncoded: String): Unit = {
-
+  def addJson(json: Json, encodeBase64: Boolean, typeWhenEncoded: String, typeWhenNotEncoded: String): Payload = {
     val jsonString = json.noSpaces
 
     if (encodeBase64) {
@@ -83,5 +76,5 @@ private[scalatracker] class Payload {
    *
    * @return Event map
    */
-  def get: EmitterPayload = Map(nvPairs.toList: _*)
+  def get: EmitterPayload = nvPairs
 }
