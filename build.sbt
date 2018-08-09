@@ -40,11 +40,11 @@ lazy val core = project
     )
   ))
 
-lazy val simpleEmitter = project
-  .in(file("modules/simple-emitter"))
+lazy val idEmitter = project
+  .in(file("modules/id-emitter"))
   .settings(commonSettings)
   .settings(Seq(
-    name := "snowplow-scala-tracker-emitter-simple",
+    name := "snowplow-scala-tracker-emitter-id",
     libraryDependencies ++= Seq(
       Dependencies.Libraries.scalajHttp,
     )

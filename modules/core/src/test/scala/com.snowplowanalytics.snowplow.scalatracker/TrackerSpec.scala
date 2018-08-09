@@ -12,16 +12,20 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
+import java.util.UUID
+
 import cats.Id
 import cats.syntax.either._
+import cats.data.NonEmptyList
+
 import io.circe.Json
 import io.circe.syntax._
 import io.circe.parser.parse
 import io.circe.optics.JsonPath._
+
 import org.specs2.specification.Scope
 import org.specs2.mutable.Specification
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.snowplow.scalatracker.Emitter
 
 class TrackerSpec extends Specification {
 
@@ -30,9 +34,13 @@ class TrackerSpec extends Specification {
       var lastInput = Map[String, String]()
 
       override def send(event: Map[String, String]): Unit = lastInput = event
+
+      override def getCurrentMilliseconds: Id[Long] = System.currentTimeMillis()
+
+      override def generateUUID: Id[UUID] = UUID.randomUUID()
     }
 
-    val tracker = new Tracker(List(emitter), "mytracker", "myapp", encodeBase64 = false)
+    val tracker = new Tracker(NonEmptyList.one(emitter), "mytracker", "myapp", encodeBase64 = false)
   }
 
   val unstructEventJson =

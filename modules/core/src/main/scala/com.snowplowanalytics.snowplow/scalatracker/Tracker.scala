@@ -12,15 +12,16 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import java.util.UUID
-
-import scala.language.implicitConversions
 import cats._
+import cats.data.NonEmptyList
 import cats.implicits._
+
 import io.circe.Json
 import io.circe.syntax._
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
+
 import utils.{ErrorTracking, JsonUtils}
 
 /**
@@ -32,12 +33,12 @@ import utils.{ErrorTracking, JsonUtils}
  * @param encodeBase64 Whether to encode JSONs
  * @param metadata optionally a json containing the metadata context for the running instance
  */
-final case class Tracker[F[_]: Applicative](emitters: List[Emitter[F]],
-                                            namespace: String,
-                                            appId: String,
-                                            subject: Subject                     = Subject(),
-                                            encodeBase64: Boolean                = true,
-                                            metadata: Option[SelfDescribingJson] = None) {
+final case class Tracker[F[_]: Monad](emitters: NonEmptyList[Emitter[F]],
+                                      namespace: String,
+                                      appId: String,
+                                      subject: Subject                     = Subject(),
+                                      encodeBase64: Boolean                = true,
+                                      metadata: Option[SelfDescribingJson] = None) {
   import Tracker._
 
   /**
@@ -73,27 +74,30 @@ final case class Tracker[F[_]: Applicative](emitters: List[Emitter[F]],
    */
   private def completePayload(payload: Payload,
                               contexts: Seq[SelfDescribingJson],
-                              timestamp: Option[Timestamp]): Payload = {
+                              timestamp: Option[Timestamp]): F[Payload] =
+    for {
+      uuid   <- emitters.head.generateUUID
+      millis <- emitters.head.getCurrentMilliseconds
+    } yield {
+      val newPayload = payload
+        .add("eid", uuid.toString)
+        .add("tv", Version)
+        .add("tna", namespace)
+        .add("aid", appId)
+        .addDict(subject.subjectInformation)
 
-    val newPayload = payload
-      .add("eid", UUID.randomUUID().toString)
-      .add("tv", Version)
-      .add("tna", namespace)
-      .add("aid", appId)
-      .addDict(subject.subjectInformation)
-
-    val payloadWithTimestamp = if (!newPayload.get.contains("dtm")) {
-      timestamp match {
-        case Some(DeviceCreatedTimestamp(dtm)) => newPayload.add("dtm", dtm.toString)
-        case Some(TrueTimestamp(ttm))          => newPayload.add("ttm", ttm.toString)
-        case None                              => newPayload.add("dtm", System.currentTimeMillis().toString)
+      val payloadWithTimestamp = if (!newPayload.get.contains("dtm")) {
+        timestamp match {
+          case Some(DeviceCreatedTimestamp(dtm)) => newPayload.add("dtm", dtm.toString)
+          case Some(TrueTimestamp(ttm))          => newPayload.add("ttm", ttm.toString)
+          case None                              => newPayload.add("dtm", millis.toString)
+        }
+      } else {
+        newPayload
       }
-    } else {
-      newPayload
-    }
 
-    addContexts(payloadWithTimestamp, contexts)
-  }
+      addContexts(payloadWithTimestamp, contexts)
+    }
 
   /**
    * Add contexts to the payload or return same payload
@@ -129,7 +133,8 @@ final case class Tracker[F[_]: Applicative](emitters: List[Emitter[F]],
       .add("e", "ue")
       .addJson(envelope.normalize, encodeBase64, "ue_px", "ue_pr")
 
-    track(completePayload(payload, contexts, timestamp))
+    completePayload(payload, contexts, timestamp)
+      .flatMap(track)
   }
 
   /**
@@ -160,7 +165,8 @@ final case class Tracker[F[_]: Applicative](emitters: List[Emitter[F]],
       .add("se_pr", property)
       .add("se_va", value.map(_.toString))
 
-    track(completePayload(payload, contexts, timestamp))
+    completePayload(payload, contexts, timestamp)
+      .flatMap(track)
   }
 
   /**
@@ -185,7 +191,8 @@ final case class Tracker[F[_]: Applicative](emitters: List[Emitter[F]],
       .add("page", pageTitle)
       .add("refr", referrer)
 
-    track(completePayload(payload, contexts, timestamp))
+    completePayload(payload, contexts, timestamp)
+      .flatMap(track)
   }
 
   /**
@@ -228,7 +235,8 @@ final case class Tracker[F[_]: Applicative](emitters: List[Emitter[F]],
       .add("tr_co", country)
       .add("tr_cu", currency)
 
-    track(completePayload(payload, contexts, timestamp))
+    completePayload(payload, contexts, timestamp)
+      .flatMap(track)
   }
 
   /**
@@ -263,7 +271,8 @@ final case class Tracker[F[_]: Applicative](emitters: List[Emitter[F]],
       .add("ti_qu", quantity.toString)
       .add("ti_cu", currency)
 
-    track(completePayload(payload, contexts, timestamp))
+    completePayload(payload, contexts, timestamp)
+      .flatMap(track)
   }
 
   /**
@@ -373,6 +382,9 @@ final case class Tracker[F[_]: Applicative](emitters: List[Emitter[F]],
 }
 
 object Tracker {
+
+  def apply[F[_]: Monad](emitter: Emitter[F], namespace: String, appId: String): Tracker[F] =
+    Tracker(NonEmptyList.one(emitter), namespace, appId)
 
   /** Tracker's version */
   val Version = s"scala-${generated.ProjectSettings.version}"
