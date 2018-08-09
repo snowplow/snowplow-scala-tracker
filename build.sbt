@@ -10,34 +10,55 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-lazy val root = project
-  .in(file("."))
-  .settings(Seq[Setting[_]](
-    organization := "com.snowplowanalytics",
-    version := "0.5.0",
-    description := "Scala tracker for Snowplow",
-    name := "snowplow-scala-tracker",
-    scalaVersion := "2.12.6",
-    crossScalaVersions := Seq("2.11.12", "2.12.6"),
-    scalacOptions := BuildSettings.compilerOptions,
-    javacOptions ++= BuildSettings.javaCompilerOptions
-  ))
-  .settings(BuildSettings.buildSettings)
-  .settings(BuildSettings.formattingSettings)
+
+lazy val commonSettings = Seq(
+  organization := "com.snowplowanalytics",
+  version := "0.5.0",
+  scalaVersion := "2.12.6",
+  crossScalaVersions := Seq("2.11.12", "2.12.6"),
+  scalacOptions := BuildSettings.compilerOptions,
+  javacOptions ++= BuildSettings.javaCompilerOptions,
+  libraryDependencies ++= Seq(
+    Dependencies.Libraries.specs2,
+    Dependencies.Libraries.specs2Mock,
+    Dependencies.Libraries.scalaCheck,
+    Dependencies.Libraries.circeOptics
+  )
+) ++ BuildSettings.buildSettings ++ BuildSettings.formattingSettings
+
+
+lazy val core = project
+  .in(file("modules/core"))
+  .settings(commonSettings)
   .settings(Seq(
-    shellPrompt := { _ =>
-      name.value + " > "
-    }
-  ))
-  .settings(
+    description := "Scala tracker for Snowplow",
+    name := "snowplow-scala-tracker-core",
     libraryDependencies ++= Seq(
-      Dependencies.Libraries.scalajHttp,
       Dependencies.Libraries.igluCore,
       Dependencies.Libraries.circe,
       Dependencies.Libraries.igluCoreCirce,
-      Dependencies.Libraries.mockito,
-      Dependencies.Libraries.specs2,
-      Dependencies.Libraries.scalaCheck,
-      Dependencies.Libraries.circeOptics
     )
-  )
+  ))
+
+lazy val simpleEmitter = project
+  .in(file("modules/simple-emitter"))
+  .settings(commonSettings)
+  .settings(Seq(
+    name := "snowplow-scala-tracker-emitter-simple",
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.scalajHttp,
+    )
+  ))
+  .dependsOn(core)
+
+lazy val metadata = project
+  .in(file("modules/metadata"))
+  .settings(commonSettings)
+  .settings(Seq(
+    name := "snowplow-scala-tracker-metadata",
+    libraryDependencies ++= Seq(
+      Dependencies.Libraries.scalajHttp,
+      Dependencies.Libraries.catsEffect
+    )
+  ))
+  .dependsOn(core)
