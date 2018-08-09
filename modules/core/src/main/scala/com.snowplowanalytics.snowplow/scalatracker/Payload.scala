@@ -22,9 +22,7 @@ import Emitter.EmitterPayload
  * Contains the map of key-value pairs making up an event
  * Must be used within single function as **not thread-safe**
  */
-private[scalatracker] final case class Payload(private val nvPairs: Map[String, String] = Map.empty) {
-
-  val Encoding = "UTF-8"
+private[scalatracker] final case class Payload(private val nvPairs: Map[String, String] = Map.empty) extends AnyVal {
 
   /**
    * Add a key-value pair
@@ -65,7 +63,7 @@ private[scalatracker] final case class Payload(private val nvPairs: Map[String, 
     val jsonString = json.noSpaces
 
     if (encodeBase64) {
-      add(typeWhenEncoded, new String(Base64.getEncoder.encode(jsonString.getBytes(Encoding)), Encoding))
+      add(typeWhenEncoded, new String(Base64.getEncoder.encode(jsonString.getBytes("UTF-8")), "UTF-8"))
     } else {
       add(typeWhenNotEncoded, jsonString)
     }
