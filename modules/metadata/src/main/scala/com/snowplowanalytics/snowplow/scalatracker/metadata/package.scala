@@ -25,8 +25,7 @@ package object metadata {
      * Blocks event queue until either context resolved or timed out
      */
     def enableEc2Context[G[_]: Sync](implicit F: Monad[F]): G[Tracker[F]] =
-      Ec2Metadata
-        .getInstanceContext[G]
+      new Ec2Metadata[G]().getInstanceContext
         .map(metadata => tracker.copy(metadata = Some(metadata)))
 
     /**
@@ -34,8 +33,7 @@ package object metadata {
      * Blocks event queue until either context resolved or timed out
      */
     def enableGceContext[G[_]: Sync](implicit F: Monad[F]): G[Tracker[F]] =
-      GceMetadata
-        .getInstanceContext[G]
+      new GceMetadata[G]().getInstanceContext
         .map(metadata => tracker.copy(metadata = Some(metadata)))
 
   }

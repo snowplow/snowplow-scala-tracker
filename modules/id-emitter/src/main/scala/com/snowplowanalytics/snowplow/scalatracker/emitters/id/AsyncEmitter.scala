@@ -18,7 +18,7 @@ import scala.concurrent.ExecutionContext
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
-import RequestUtils._
+import RequestProcessor._
 
 object AsyncEmitter {
   // Avoid starting thread in constructor
@@ -48,7 +48,10 @@ object AsyncEmitter {
  * @param collector collector preferences
  * @param callback optional callback executed after each sent event
  */
-class AsyncEmitter private (ec: ExecutionContext, collector: CollectorParams, callback: Option[Callback])
+class AsyncEmitter private (ec: ExecutionContext,
+                            collector: CollectorParams,
+                            callback: Option[Callback],
+                            private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
   /** Queue of HTTP requests */
@@ -58,7 +61,7 @@ class AsyncEmitter private (ec: ExecutionContext, collector: CollectorParams, ca
     override def run(): Unit =
       while (true) {
         val event = queue.take()
-        submit(queue, ec, callback, collector, event)
+        processor.submit(queue, ec, callback, collector, event)
       }
   }
 

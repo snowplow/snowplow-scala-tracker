@@ -35,7 +35,7 @@ import scalaj.http.{Http, HttpRequest}
  * Unlike EC2 instance document, GCE does not provide an excerpt, but instead
  * this module collect only meaningful properties
  */
-object GceMetadata {
+class GceMetadata[F[_]: Sync] {
 
   val InstanceMetadataSchema =
     SchemaKey("com.google.cloud.gce", "instance_metadata", "jsonschema", SchemaVer.Full(1, 0, 0))
@@ -46,7 +46,7 @@ object GceMetadata {
    *
    * @return some context or None in case of any error including 3 sec timeout
    */
-  def getInstanceContextBlocking[F[_]: Concurrent]: F[Option[SelfDescribingJson]] = {
+  def getInstanceContextBlocking(implicit F: Concurrent[F]): F[Option[SelfDescribingJson]] = {
     implicit val timer: Timer[F] = Timer.derive[F]
     Concurrent.timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
   }
@@ -57,11 +57,11 @@ object GceMetadata {
    *
    * @return future JSON with identity data
    */
-  def getInstanceContext[F[_]: Sync]: F[SelfDescribingJson] =
+  def getInstanceContext: F[SelfDescribingJson] =
     getMetadata.map(SelfDescribingData(InstanceMetadataSchema, _))
 
   /** Construct metadata context */
-  def getMetadata[F[_]: Sync]: F[Json] =
+  def getMetadata: F[Json] =
     for {
       cpuPlatform <- getString("cpu-platform")
       hostname    <- getString("hostname")
@@ -88,10 +88,10 @@ object GceMetadata {
   private def request(path: String): HttpRequest =
     Http(InstanceMetadataUri + path).header("Metadata-Flavor", "Google")
 
-  private def getString[F[_]: Sync](path: String): F[String] =
+  private[metadata] def getString(path: String): F[String] =
     Sync[F].delay(request(path).asString.body)
 
-  private def getJson[F[_]: Sync](path: String): F[Json] =
+  private def getJson(path: String): F[Json] =
     getString(path)
       .flatMap { string =>
         Sync[F].fromEither(parse(string).map { json =>
@@ -101,7 +101,7 @@ object GceMetadata {
         })
       }
 
-  private def getDir[F[_]: Sync](path: String): F[Json] =
+  private def getDir(path: String): F[Json] =
     getString(path + "?recursive=true")
       .flatMap { string =>
         Sync[F]
