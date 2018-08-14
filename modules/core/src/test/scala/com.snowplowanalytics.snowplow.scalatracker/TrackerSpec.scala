@@ -35,8 +35,13 @@ class TrackerSpec extends Specification {
 
       override def send(event: Map[String, String]): Unit = lastInput = event
 
-      override def getCurrentMilliseconds: Id[Long] = System.currentTimeMillis()
+    }
 
+    implicit val clock: ClockProvider[Id] = new ClockProvider[Id] {
+      override def getCurrentMilliseconds: Id[Long] = System.currentTimeMillis()
+    }
+
+    implicit val uuid: UUIDProvider[Id] = new UUIDProvider[Id] {
       override def generateUUID: Id[UUID] = UUID.randomUUID()
     }
 
