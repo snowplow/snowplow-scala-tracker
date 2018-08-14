@@ -15,7 +15,8 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 import java.util.concurrent.BlockingQueue
 import java.util.{Timer, TimerTask}
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException}
+import scala.concurrent.duration.Duration
 import scala.util.{Failure, Random, Success, Try}
 
 import io.circe._
@@ -149,6 +150,25 @@ class RequestProcessor {
    */
   def sendAsync(ec: ExecutionContext, collector: CollectorParams, payload: CollectorRequest): Future[HttpResponse[_]] =
     Future(constructRequest(collector, payload.updateStm).asBytes)(ec)
+
+  def sendSync(ec: ExecutionContext,
+               duration: Duration,
+               collector: CollectorParams,
+               payload: CollectorRequest,
+               callback: Option[Callback]): Unit = {
+    val response = sendAsync(ec, collector, payload)
+    val result =
+      Await
+        .ready(response, duration)
+        .value
+        .map(httpToCollector)
+        .getOrElse(TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $duration")))
+
+    callback match {
+      case None     => ()
+      case Some(cb) => cb(collector, payload, result)
+    }
+  }
 
   /** Transform implementation-specific response into tracker-specific */
   def httpToCollector(httpResponse: Try[HttpResponse[_]]): CollectorResponse = httpResponse match {
