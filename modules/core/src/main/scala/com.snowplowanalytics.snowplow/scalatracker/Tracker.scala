@@ -33,12 +33,12 @@ import utils.{ErrorTracking, JsonUtils}
  * @param encodeBase64 Whether to encode JSONs
  * @param metadata optionally a json containing the metadata context for the running instance
  */
-final case class Tracker[F[_]: Monad](emitters: NonEmptyList[Emitter[F]],
-                                      namespace: String,
-                                      appId: String,
-                                      subject: Subject                     = Subject(),
-                                      encodeBase64: Boolean                = true,
-                                      metadata: Option[SelfDescribingJson] = None) {
+final case class Tracker[F[_]: Monad: ClockProvider: UUIDProvider](emitters: NonEmptyList[Emitter[F]],
+                                                                   namespace: String,
+                                                                   appId: String,
+                                                                   subject: Subject                     = Subject(),
+                                                                   encodeBase64: Boolean                = true,
+                                                                   metadata: Option[SelfDescribingJson] = None) {
   import Tracker._
 
   /**
@@ -76,8 +76,8 @@ final case class Tracker[F[_]: Monad](emitters: NonEmptyList[Emitter[F]],
                               contexts: Seq[SelfDescribingJson],
                               timestamp: Option[Timestamp]): F[Payload] =
     for {
-      uuid   <- emitters.head.generateUUID
-      millis <- emitters.head.getCurrentMilliseconds
+      uuid   <- implicitly[UUIDProvider[F]].generateUUID
+      millis <- implicitly[ClockProvider[F]].getCurrentMilliseconds
     } yield {
       val newPayload = payload
         .add("eid", uuid.toString)
@@ -383,7 +383,9 @@ final case class Tracker[F[_]: Monad](emitters: NonEmptyList[Emitter[F]],
 
 object Tracker {
 
-  def apply[F[_]: Monad](emitter: Emitter[F], namespace: String, appId: String): Tracker[F] =
+  def apply[F[_]: Monad: ClockProvider: UUIDProvider](emitter: Emitter[F],
+                                                      namespace: String,
+                                                      appId: String): Tracker[F] =
     Tracker(NonEmptyList.one(emitter), namespace, appId)
 
   /** Tracker's version */
