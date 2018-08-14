@@ -17,12 +17,12 @@ import java.util.UUID
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import cats.Id
 
+import cats.Id
 import cats.data.NonEmptyList
 import cats.effect.IO
 
-import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Tracker}
+import com.snowplowanalytics.snowplow.scalatracker.{ClockProvider, Emitter, Tracker, UUIDProvider}
 import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
 
 import org.specs2.Specification
@@ -69,9 +69,13 @@ class MetadataSpec extends Specification with Mockito {
 
   val emitter: Emitter[Id] = new Emitter[Id] {
     override def send(event: EmitterPayload): Id[Unit] = ()
+  }
 
+  implicit val clock: ClockProvider[Id] = new ClockProvider[Id] {
     override def getCurrentMilliseconds: Id[Long] = System.currentTimeMillis()
+  }
 
+  implicit val uuid: UUIDProvider[Id] = new UUIDProvider[Id] {
     override def generateUUID: Id[UUID] = UUID.randomUUID()
   }
 
