@@ -19,7 +19,7 @@ import scala.concurrent.ExecutionContext
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
-import RequestUtils._
+import RequestProcessor._
 
 object AsyncBatchEmitter {
   // Avoid starting thread in constructor
@@ -56,10 +56,11 @@ object AsyncBatchEmitter {
  * @param collector collector preferences
  * @param bufferSize quantity of events in a batch request
  */
-class AsyncBatchEmitter private (ec: ExecutionContext,
-                                 collector: CollectorParams,
-                                 bufferSize: Int,
-                                 callback: Option[Callback])
+class AsyncBatchEmitter private[id] (ec: ExecutionContext,
+                                     collector: CollectorParams,
+                                     bufferSize: Int,
+                                     callback: Option[Callback],
+                                     private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
   private var buffer = ListBuffer[Map[String, String]]()
@@ -72,7 +73,7 @@ class AsyncBatchEmitter private (ec: ExecutionContext,
     override def run(): Unit =
       while (true) {
         val batch = queue.take()
-        submit(queue, ec, callback, collector, batch)
+        processor.submit(queue, ec, callback, collector, batch)
       }
   }
 
@@ -94,6 +95,6 @@ class AsyncBatchEmitter private (ec: ExecutionContext,
       }
     }
 
-  private def startWorker(): Unit =
+  private[id] def startWorker(): Unit =
     worker.start()
 }
