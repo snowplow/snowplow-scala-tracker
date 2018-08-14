@@ -12,9 +12,6 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
-import java.util.concurrent.TimeoutException
-
-import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
@@ -38,19 +35,8 @@ class SyncEmitter(collector: CollectorParams,
     extends BaseEmitter {
 
   def send(event: EmitterPayload): Unit = {
-    val payload  = GetCollectorRequest(1, event)
-    val response = processor.sendAsync(global, collector, payload)
-    val result =
-      Await
-        .ready(response, blockingDuration)
-        .value
-        .map(processor.httpToCollector)
-        .getOrElse(TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $blockingDuration")))
-
-    callback match {
-      case None     => ()
-      case Some(cb) => cb(collector, payload, result)
-    }
+    val payload = GetCollectorRequest(1, event)
+    processor.sendSync(global, blockingDuration, collector, payload, callback)
   }
 }
 
