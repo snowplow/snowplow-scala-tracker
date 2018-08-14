@@ -20,7 +20,7 @@ import scala.concurrent.duration._
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
-import RequestUtils._
+import RequestProcessor._
 
 /**
  * Blocking emitter.
@@ -31,17 +31,20 @@ import RequestUtils._
  * @param callback optional callback executed after each sent event
  *
  */
-class SyncEmitter(collector: CollectorParams, blockingDuration: Duration, callback: Option[Callback])
+class SyncEmitter(collector: CollectorParams,
+                  blockingDuration: Duration,
+                  callback: Option[Callback],
+                  private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
   def send(event: EmitterPayload): Unit = {
     val payload  = GetCollectorRequest(1, event)
-    val response = sendAsync(global, collector, payload)
+    val response = processor.sendAsync(global, collector, payload)
     val result =
       Await
         .ready(response, blockingDuration)
         .value
-        .map(httpToCollector)
+        .map(processor.httpToCollector)
         .getOrElse(TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $blockingDuration")))
 
     callback match {

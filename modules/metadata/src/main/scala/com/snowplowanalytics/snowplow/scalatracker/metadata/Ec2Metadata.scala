@@ -32,7 +32,7 @@ import scalaj.http.Http
  *
  * @see http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
  */
-object Ec2Metadata {
+class Ec2Metadata[F[_]: Sync] {
 
   val InstanceIdentitySchema =
     SchemaKey("com.amazon.aws.ec2", "instance_identity_document", "jsonschema", SchemaVer.Full(1, 0, 0))
@@ -44,18 +44,18 @@ object Ec2Metadata {
    *
    * @return some context or None in case of any error including 3 sec timeout
    */
-  def getInstanceContextBlocking[F[_]: Concurrent]: F[Option[SelfDescribingJson]] = {
+  def getInstanceContextBlocking(implicit F: Concurrent[F]): F[Option[SelfDescribingJson]] = {
     implicit val timer: Timer[F] = Timer.derive[F]
     Concurrent.timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
   }
 
-  /*
+  /**
    * Tries to GET self-describing JSON with instance identity
    * or timeout after 10 seconds
    *
    * @return future JSON with identity data
    */
-  def getInstanceContext[F[_]: Sync]: F[SelfDescribingJson] =
+  def getInstanceContext: F[SelfDescribingJson] =
     getInstanceIdentity.map(SelfDescribingData(InstanceIdentitySchema, _))
 
   /**
@@ -63,7 +63,7 @@ object Ec2Metadata {
    *
    * @return future JSON object with identity data
    */
-  def getInstanceIdentity[F[_]: Sync]: F[Json] = {
+  def getInstanceIdentity: F[Json] = {
     val instanceIdentityDocument = getContent(InstanceIdentityUri)
     instanceIdentityDocument.flatMap { resp: String =>
       parse(resp).toOption
@@ -73,7 +73,7 @@ object Ec2Metadata {
     }
   }
 
-  private def prepareOrThrow[F[_]: Sync](jsonObject: JsonObject): F[Json] = {
+  private def prepareOrThrow(jsonObject: JsonObject): F[Json] = {
     val prepared = prepareEc2Context(jsonObject)
     if (prepared.isEmpty) {
       Sync[F].raiseError(new RuntimeException("Document contains no known keys"))
@@ -88,7 +88,7 @@ object Ec2Metadata {
    * @param url full url to the endpoint (usually http://169.254.169.254/latest/meta-data/)
    * @return future JSON object with metadata
    */
-  def getMetadata[F[_]: Sync](url: String): F[JsonObject] = {
+  def getMetadata(url: String): F[JsonObject] = {
     val key = url.split("/").last
     if (!url.endsWith("/")) { // Leaf
       getContent(url).map(value => JsonObject(key := value))
@@ -123,18 +123,18 @@ object Ec2Metadata {
    * Get string body of URL
    *
    * @param url leaf URL (without slash at the end)
-   * @return future value
+   * @return value wrapped delayed inside F
    */
-  private def getContent[F[_]: Sync](url: String): F[String] =
+  private[metadata] def getContent(url: String): F[String] =
     Sync[F].delay(Http(url).asString.body)
 
   /**
    * Get content of node-link
    *
    * @param url node url (with slash at the end)
-   * @return future list of sublinks
+   * @return list of sublinks delayed inside F
    */
-  private def getContents[F[_]: Sync](url: String): F[List[String]] =
+  private def getContents(url: String): F[List[String]] =
     getContent(url).map(_.split('\n').toList)
 
   // all keys of current instance identity schema

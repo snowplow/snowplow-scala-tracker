@@ -27,7 +27,7 @@ import com.snowplowanalytics.iglu.core.circe.instances._
 import com.snowplowanalytics.snowplow.scalatracker.Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
 import com.snowplowanalytics.snowplow.scalatracker.{SelfDescribingJson, Tracker}
 
-import RequestUtils._
+import RequestProcessor._
 
 import org.scalacheck.Gen
 
