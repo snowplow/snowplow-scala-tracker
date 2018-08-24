@@ -17,7 +17,7 @@ object Dependencies {
   object V {
     // Scala
     val scalajHttp = "2.3.0"
-    val igluCore   = "0.2.0"
+    val igluCore   = "0.3.0"
     val circe      = "0.9.3"
     val catsEffect = "1.0.0-RC2"
 
