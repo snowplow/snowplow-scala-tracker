@@ -30,7 +30,7 @@ object ErrorTracking {
   private val MaxExceptionNameLength = 1024
 
   val ApplicationErrorSchemaKey =
-    SchemaKey("com.snowplowanalytics.snowplow", "application_error", "jsonschema", SchemaVer(1, 0, 1))
+    SchemaKey("com.snowplowanalytics.snowplow", "application_error", "jsonschema", SchemaVer.Full(1, 0, 1))
 
   /** Transform `Throwable` to `application_error`-compatible payload */
   def toData(error: Throwable): Json = {
