@@ -23,16 +23,16 @@ import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
 import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor._
 
 /**
-  * Synchronous batch emitter
-  * Store events in buffer and send them with POST request when buffer exceeds `bufferSize`.
-  * The underlying buffer is thread-safe.
-  * The actual sending of events blocks the current thread, up to @blockingDuration
-  *
-  * @param collector collector preferences
-  * @param blockingDuration amount of time to wait (block) for response
-  * @param bufferSize quantity of events in a batch request
-  * @param callback optional callback executed after each sent event
-  */
+ * Synchronous batch emitter
+ * Store events in buffer and send them with POST request when buffer exceeds `bufferSize`.
+ * The underlying buffer is thread-safe.
+ * The actual sending of events blocks the current thread, up to @blockingDuration
+ *
+ * @param collector collector preferences
+ * @param blockingDuration amount of time to wait (block) for response
+ * @param bufferSize quantity of events in a batch request
+ * @param callback optional callback executed after each sent event
+ */
 class SyncBatchEmitter(collector: CollectorParams,
                        blockingDuration: Duration,
                        bufferSize: Int,
