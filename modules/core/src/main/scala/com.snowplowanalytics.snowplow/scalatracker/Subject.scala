@@ -51,6 +51,9 @@ final case class Subject(subjectInformation: Map[String, String] = Map("p" -> Se
   def setNetworkUserId(nuid: String): Subject =
     Subject(subjectInformation + ("tnuid" -> nuid))
 
+  def setPageUrl(url: String): Subject =
+    Subject(subjectInformation + ("url" -> url))
+
   /**
    * Retrieve the configured information as an immutable map
    *

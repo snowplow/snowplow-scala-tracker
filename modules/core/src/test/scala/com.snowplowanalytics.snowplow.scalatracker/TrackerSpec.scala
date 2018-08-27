@@ -99,6 +99,7 @@ class TrackerSpec extends Specification {
         .setIpAddress("255.255.255.255")
         .setUseragent("Mozilla/5.0 (Windows NT 5.1; rv:24.0) Gecko/20100101 Firefox/24.0")
         .setNetworkUserId("id")
+        .setPageUrl("some-url")
 
       tracker
         .setSubject(subject)
@@ -117,6 +118,7 @@ class TrackerSpec extends Specification {
       event("ip") must_== "255.255.255.255"
       event("ua") must_== "Mozilla/5.0 (Windows NT 5.1; rv:24.0) Gecko/20100101 Firefox/24.0"
       event("tnuid") must_== "id"
+      event("url") must_== "some-url"
     }
   }
 
