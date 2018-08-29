@@ -13,7 +13,7 @@
 
 lazy val commonSettings = Seq(
   organization := "com.snowplowanalytics",
-  version := "0.5.0",
+  version := "0.6.0",
   scalaVersion := "2.12.6",
   crossScalaVersions := Seq("2.11.12", "2.12.6"),
   scalacOptions := BuildSettings.compilerOptions,
@@ -26,6 +26,12 @@ lazy val commonSettings = Seq(
   )
 ) ++ BuildSettings.buildSettings ++ BuildSettings.formattingSettings
 
+lazy val root = project
+  .in(file("."))
+  .aggregate(core, idEmitter, metadata)
+  .settings(Seq(
+    skip in publish := true
+  ))
 
 lazy val core = project
   .in(file("modules/core"))
