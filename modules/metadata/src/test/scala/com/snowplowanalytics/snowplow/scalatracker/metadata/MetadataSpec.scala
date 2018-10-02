@@ -15,20 +15,20 @@ package com.snowplowanalytics.snowplow.scalatracker.metadata
 import java.net.{SocketTimeoutException, UnknownHostException}
 import java.util.UUID
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-
 import cats.Id
 import cats.data.NonEmptyList
-import cats.effect.IO
-
+import cats.effect.internals.IOContextShift
+import cats.effect.{ContextShift, IO}
 import com.snowplowanalytics.snowplow.scalatracker.{ClockProvider, Emitter, Tracker, UUIDProvider}
 import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
-
 import org.specs2.Specification
 import org.specs2.mock.Mockito
 
 class MetadataSpec extends Specification with Mockito {
+
+  implicit def contextShift: ContextShift[IO] = IOContextShift.global
+  implicit val timer                          = IO.timer(scala.concurrent.ExecutionContext.Implicits.global)
 
   val ec2Response = IO.pure("""
       |{
