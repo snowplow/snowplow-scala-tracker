@@ -12,11 +12,18 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
-import scala.concurrent.duration._
+import java.util.concurrent.BlockingQueue
 
-import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor.CollectorParams
+import scala.concurrent.duration._
+import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor.{
+  Callback,
+  CollectorParams,
+  CollectorRequest
+}
 import org.specs2.Specification
 import org.specs2.mock.Mockito
+
+import scala.concurrent.ExecutionContext
 
 class BatchEmitterSpec extends Specification with Mockito {
 
@@ -33,7 +40,15 @@ class BatchEmitterSpec extends Specification with Mockito {
 
   def e1 = {
     val processor = spy(new RequestProcessor)
-    doNothing.when(processor).submit(any(), any(), any(), any(), any())
+    doNothing
+      .when(processor)
+      .submit(
+        any[BlockingQueue[CollectorRequest]](),
+        any[ExecutionContext](),
+        any[Option[Callback]](),
+        any[CollectorParams](),
+        any[CollectorRequest]()
+      )
 
     val params  = CollectorParams.construct("example.com")
     val emitter = new AsyncBatchEmitter(scala.concurrent.ExecutionContext.global, params, 3, None, processor)
@@ -48,7 +63,15 @@ class BatchEmitterSpec extends Specification with Mockito {
 
   def e2 = {
     val processor = spy(new RequestProcessor)
-    doNothing.when(processor).submit(any(), any(), any(), any(), any())
+    doNothing
+      .when(processor)
+      .submit(
+        any[BlockingQueue[CollectorRequest]](),
+        any[ExecutionContext](),
+        any[Option[Callback]](),
+        any[CollectorParams](),
+        any[CollectorRequest]()
+      )
 
     val params  = CollectorParams.construct("example.com")
     val emitter = new AsyncBatchEmitter(scala.concurrent.ExecutionContext.global, params, 3, None, processor)
@@ -58,12 +81,25 @@ class BatchEmitterSpec extends Specification with Mockito {
     emitter.send(payload)
     emitter.send(payload)
 
-    eventually(there was one(processor).submit(any(), any(), any(), any(), any()))
+    eventually(
+      there was one(processor).submit(
+        any[BlockingQueue[CollectorRequest]](),
+        any[ExecutionContext](),
+        any[Option[Callback]](),
+        any[CollectorParams](),
+        any[CollectorRequest]()
+      ))
   }
 
   def e3 = {
     val processor = spy(new RequestProcessor)
-    doNothing.when(processor).sendSync(any(), any(), any(), any(), any())
+    doNothing
+      .when(processor)
+      .sendSync(any[ExecutionContext](),
+                any[Duration](),
+                any[CollectorParams](),
+                any[CollectorRequest](),
+                any[Option[Callback]]())
 
     val params  = CollectorParams.construct("example.com")
     val emitter = new SyncBatchEmitter(params, 1.second, 3, None, processor)
@@ -77,7 +113,13 @@ class BatchEmitterSpec extends Specification with Mockito {
 
   def e4 = {
     val processor = spy(new RequestProcessor)
-    doNothing.when(processor).sendSync(any(), any(), any(), any(), any())
+    doNothing
+      .when(processor)
+      .sendSync(any[ExecutionContext](),
+                any[Duration](),
+                any[CollectorParams](),
+                any[CollectorRequest](),
+                any[Option[Callback]]())
 
     val params  = CollectorParams.construct("example.com")
     val emitter = new SyncBatchEmitter(params, 1.second, 3, None, processor)
@@ -86,6 +128,11 @@ class BatchEmitterSpec extends Specification with Mockito {
     emitter.send(payload)
     emitter.send(payload)
 
-    eventually(there was one(processor).sendSync(any(), any(), any(), any(), any()))
+    eventually(
+      there was one(processor).sendSync(any[ExecutionContext](),
+                                        any[Duration](),
+                                        any[CollectorParams](),
+                                        any[CollectorRequest](),
+                                        any[Option[Callback]]()))
   }
 }

@@ -52,7 +52,7 @@ class RequestProcessor {
         override def run(): Unit = queue.put(event)
       }
       val delay = getDelay(event.attempt)
-      timer.schedule(task, delay)
+      timer.schedule(task, delay.toLong)
       true
     }
 

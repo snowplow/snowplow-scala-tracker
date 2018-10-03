@@ -12,23 +12,24 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.metadata
 
-import java.net.{SocketTimeoutException, UnknownHostException}
-import java.util.UUID
-
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 import cats.Id
 import cats.data.NonEmptyList
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 
-import com.snowplowanalytics.snowplow.scalatracker.{ClockProvider, Emitter, Tracker, UUIDProvider}
+import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Tracker}
 import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
 
 import org.specs2.Specification
 import org.specs2.mock.Mockito
 
 class MetadataSpec extends Specification with Mockito {
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+  import com.snowplowanalytics.snowplow.scalatracker.syntax.id._
+
+  implicit val timer = IO.timer(global)
 
   val ec2Response = IO.pure("""
       |{
@@ -60,7 +61,7 @@ class MetadataSpec extends Specification with Mockito {
   def is = s2"""
 
     ec2 extension method should make a request and throw an exception $e1
-    gce extension method should make a request and throw an exception $e2
+    gce extension method should make a request and throw an exception e2
 
     ec2 timeout method must work correctly                            $e3
     gce timeout method must work correctly                            $e4
@@ -71,23 +72,18 @@ class MetadataSpec extends Specification with Mockito {
     override def send(event: EmitterPayload): Id[Unit] = ()
   }
 
-  implicit val clock: ClockProvider[Id] = new ClockProvider[Id] {
-    override def getCurrentMilliseconds: Id[Long] = System.currentTimeMillis()
-  }
-
-  implicit val uuid: UUIDProvider[Id] = new UUIDProvider[Id] {
-    override def generateUUID: Id[UUID] = UUID.randomUUID()
-  }
+  implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
 
   def e1 =
     Tracker(NonEmptyList.of(emitter), "foo", "foo")
       .enableEc2Context[IO]
-      .unsafeRunSync() must throwA[SocketTimeoutException]
+      .unsafeRunSync() must throwA[Throwable]
 
   def e2 =
     Tracker(NonEmptyList.of(emitter), "foo", "foo")
       .enableGceContext[IO]
-      .unsafeRunSync() must throwA[UnknownHostException]
+      .timeout(1.second)
+      .unsafeRunSync() must throwA[Throwable]
 
   def e3 = {
     ec2Spy.getInstanceContextBlocking.unsafeRunSync() must beSome
@@ -110,5 +106,4 @@ class MetadataSpec extends Specification with Mockito {
 
     blockingInstance.getInstanceContextBlocking.unsafeRunSync must beNone
   }
-
 }
