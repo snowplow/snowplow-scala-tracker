@@ -43,6 +43,7 @@ lazy val core = project
       Dependencies.Libraries.igluCore,
       Dependencies.Libraries.circe,
       Dependencies.Libraries.igluCoreCirce,
+      Dependencies.Libraries.catsEffect,
     )
   ))
 
@@ -55,7 +56,7 @@ lazy val idEmitter = project
       Dependencies.Libraries.scalajHttp,
     )
   ))
-  .dependsOn(core)
+  .dependsOn(core % "test->test;compile->compile")
 
 lazy val metadata = project
   .in(file("modules/metadata"))
@@ -64,7 +65,6 @@ lazy val metadata = project
     name := "snowplow-scala-tracker-metadata",
     libraryDependencies ++= Seq(
       Dependencies.Libraries.scalajHttp,
-      Dependencies.Libraries.catsEffect
     )
   ))
-  .dependsOn(core)
+  .dependsOn(core % "test->test;compile->compile")

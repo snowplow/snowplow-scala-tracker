@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import cats._
 import cats.implicits._
-import cats.effect.Sync
+import cats.effect.{Clock, Sync}
 
 package object metadata {
 
@@ -24,9 +24,7 @@ package object metadata {
      * Adds EC2 context to each sent event
      * Blocks event queue until either context resolved or timed out
      */
-    def enableEc2Context[G[_]: Sync](implicit F: Monad[F],
-                                     clock: ClockProvider[F],
-                                     uuid: UUIDProvider[F]): G[Tracker[F]] =
+    def enableEc2Context[G[_]: Sync](implicit F: Monad[F], clock: Clock[F], uuid: UUIDProvider[F]): G[Tracker[F]] =
       new Ec2Metadata[G]().getInstanceContext
         .map(metadata => tracker.copy(metadata = Some(metadata)))
 
@@ -34,9 +32,7 @@ package object metadata {
      * Adds GCP context to each sent event
      * Blocks event queue until either context resolved or timed out
      */
-    def enableGceContext[G[_]: Sync](implicit F: Monad[F],
-                                     clock: ClockProvider[F],
-                                     uuid: UUIDProvider[F]): G[Tracker[F]] =
+    def enableGceContext[G[_]: Sync](implicit F: Monad[F], clock: Clock[F], uuid: UUIDProvider[F]): G[Tracker[F]] =
       new GceMetadata[G]().getInstanceContext
         .map(metadata => tracker.copy(metadata = Some(metadata)))
 

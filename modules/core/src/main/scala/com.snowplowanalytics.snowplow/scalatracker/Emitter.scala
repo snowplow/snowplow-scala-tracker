@@ -18,20 +18,6 @@ import java.util.UUID
  * This trait is needed here because `Tracker` is referentially transparent, and we leave it up for the emitters
  * to decide whether `F` will be referentially transparent also.
  */
-trait ClockProvider[F[_]] {
-
-  /**
-   * Returns the current time in milliseconds. Most likely it will be `System.currentTimeMillis()` wrapped in `F`
-   * @return current time in milliseconds
-   */
-  def getCurrentMilliseconds: F[Long]
-
-}
-
-/**
- * This trait is needed here because `Tracker` is referentially transparent, and we leave it up for the emitters
- * to decide whether `F` will be referentially transparent also.
- */
 trait UUIDProvider[F[_]] {
 
   /**
