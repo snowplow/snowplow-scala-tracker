@@ -15,7 +15,6 @@ package com.snowplowanalytics.snowplow.scalatracker
 import java.util.UUID
 
 import cats.Id
-import cats.syntax.either._
 import cats.data.NonEmptyList
 
 import io.circe.Json
@@ -251,6 +250,8 @@ class TrackerSpec extends Specification {
     }
 
     "uses default message" >> {
+      import cats.implicits._
+
       "when there is no error message" in new DummyTracker {
         val error = new RuntimeException()
         tracker.trackError(error)
@@ -258,7 +259,7 @@ class TrackerSpec extends Specification {
         val event = emitter.lastInput
         val json  = parse(event("ue_pr")).toOption
 
-        json.flatMap(root.data.data.message.string.getOption(_)) must beSome("Null or empty message found")
+        json.flatMap(js => root.data.data.message.string.getOption(js)) must beSome("Null or empty message found")
       }
 
       "when error message is empty" in new DummyTracker {
@@ -268,7 +269,7 @@ class TrackerSpec extends Specification {
         val event = emitter.lastInput
         val json  = parse(event("ue_pr")).toOption
 
-        json.flatMap(root.data.data.message.string.getOption(_)) must beSome("Null or empty message found")
+        json.flatMap(js => root.data.data.message.string.getOption(js)) must beSome("Null or empty message found")
       }
     }
   }
