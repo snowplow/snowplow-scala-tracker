@@ -18,7 +18,7 @@ object Dependencies {
     // Scala
     val scalajHttp = "2.3.0"
     val igluCore   = "0.3.0"
-    val circe      = "0.9.3"
+    val circe      = "0.10.0"
     val catsEffect = "1.0.0-RC2"
 
     // Scala (test only)
