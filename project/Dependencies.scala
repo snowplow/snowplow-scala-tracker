@@ -20,6 +20,7 @@ object Dependencies {
     val igluCore   = "0.3.0"
     val circe      = "0.10.0"
     val catsEffect = "1.0.0"
+    val fuuid      = "0.2.0-M2"
 
     // Scala (test only)
     val specs2     = "4.3.2"
@@ -33,6 +34,7 @@ object Dependencies {
     val igluCoreCirce  = "com.snowplowanalytics" %% "iglu-core-circe" % V.igluCore
     val circe          = "io.circe"              %% "circe-parser"    % V.circe
     val catsEffect     = "org.typelevel"         %% "cats-effect"     % V.catsEffect
+    val fuuid          = "io.chrisdavenport"     %% "fuuid"           % V.fuuid
 
     // Scala (test only)
     val specs2        = "org.specs2"             %% "specs2-core"     % V.specs2      % "test"

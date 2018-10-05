@@ -22,7 +22,8 @@ lazy val commonSettings = Seq(
     Dependencies.Libraries.specs2,
     Dependencies.Libraries.specs2Mock,
     Dependencies.Libraries.scalaCheck,
-    Dependencies.Libraries.circeOptics
+    Dependencies.Libraries.circeOptics,
+    Dependencies.Libraries.fuuid
   )
 ) ++ BuildSettings.buildSettings ++ BuildSettings.formattingSettings
 
