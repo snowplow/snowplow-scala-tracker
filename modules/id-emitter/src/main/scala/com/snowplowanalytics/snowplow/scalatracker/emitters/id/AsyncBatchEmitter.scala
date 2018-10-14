@@ -16,10 +16,9 @@ import java.util.concurrent.LinkedBlockingQueue
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
-
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
-
 import RequestProcessor._
+import cats.effect.IO
 
 object AsyncBatchEmitter {
   // Avoid starting thread in constructor
@@ -85,7 +84,7 @@ class AsyncBatchEmitter private[id] (ec: ExecutionContext,
    *
    * @param event Fully assembled event
    */
-  def send(event: EmitterPayload): Unit =
+  def send(event: EmitterPayload): IO[Unit] = IO {
     // Multiple threads can input via same tracker and override buffer
     buffer.synchronized {
       buffer.append(event)
@@ -94,6 +93,7 @@ class AsyncBatchEmitter private[id] (ec: ExecutionContext,
         buffer = ListBuffer[Map[String, String]]()
       }
     }
+  }
 
   private[id] def startWorker(): Unit =
     worker.start()

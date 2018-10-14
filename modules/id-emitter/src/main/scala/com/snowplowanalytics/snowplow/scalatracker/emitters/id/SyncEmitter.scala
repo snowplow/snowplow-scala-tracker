@@ -12,12 +12,12 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
+import cats.effect.IO
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
+import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor._
+
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
-
-import com.snowplowanalytics.snowplow.scalatracker.Emitter._
-
-import RequestProcessor._
 
 /**
  * Blocking emitter.
@@ -34,7 +34,7 @@ class SyncEmitter(collector: CollectorParams,
                   private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
-  def send(event: EmitterPayload): Unit = {
+  def send(event: EmitterPayload): IO[Unit] = IO {
     val payload = GetCollectorRequest(1, event)
     processor.sendSync(global, blockingDuration, collector, payload, callback)
   }

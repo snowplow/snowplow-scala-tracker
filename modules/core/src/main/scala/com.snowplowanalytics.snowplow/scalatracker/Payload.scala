@@ -14,9 +14,8 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import java.util.Base64
 
+import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
 import io.circe.Json
-
-import Emitter.EmitterPayload
 
 /**
  * Contains the map of key-value pairs making up an event

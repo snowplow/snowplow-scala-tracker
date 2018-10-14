@@ -14,27 +14,23 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
 import java.io.FileWriter
 
-import cats._
 import cats.data.NonEmptyList
+import cats.effect.{Clock, IO}
 import cats.implicits._
-import io.circe.Json
-import io.circe.syntax._
-import io.circe.parser.parse
-
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.instances._
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.snowplow.scalatracker.Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
+import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor._
 import com.snowplowanalytics.snowplow.scalatracker.{SelfDescribingJson, Tracker}
-
-import RequestProcessor._
-
+import io.circe.Json
+import io.circe.parser.parse
+import io.circe.syntax._
 import org.scalacheck.Gen
 
 /**
  * Ad-hoc load testing
  */
 object StressTest {
-  import com.snowplowanalytics.snowplow.scalatracker.syntax.id._
 
   /** ADT for all possible event types Tracker can accept */
   sealed trait EventArguments
@@ -164,7 +160,7 @@ object StressTest {
    * Thread imitating application's work thread that has access to tracker
    * Constructor blocks until events are not loaded into memory
    */
-  class TrackerThread(path: String, tracker: Tracker[Id]) {
+  class TrackerThread(path: String, tracker: Tracker[IO]) {
     // It can take some time
     val events = scala.io.Source.fromFile(path).getLines().map(Read[EventArguments].reads).toList
 
@@ -222,6 +218,14 @@ object StressTest {
       write(file, cardinality)
     }
     println(s"Writing to files completed. ${files.mkString(", ")}")
+
+    implicit val clock: Clock[IO] = new Clock[IO] {
+      import concurrent.duration._
+
+      override def realTime(unit: TimeUnit): IO[Long] = IO(unit.convert(System.currentTimeMillis(), MILLISECONDS))
+
+      override def monotonic(unit: TimeUnit): IO[Long] = IO(unit.convert(System.nanoTime(), NANOSECONDS))
+    }
 
     val emitter = AsyncBatchEmitter.createAndStart(collector, Some(port), bufferSize = 10)
     val tracker = new Tracker(NonEmptyList.of(emitter), "test-tracker-ns", "test-app")

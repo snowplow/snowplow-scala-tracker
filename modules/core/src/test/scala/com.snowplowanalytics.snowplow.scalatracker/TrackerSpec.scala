@@ -12,26 +12,32 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import cats.Id
 import cats.data.NonEmptyList
-
-import io.circe.Json
-import io.circe.syntax._
-import io.circe.parser.parse
-import io.circe.optics.JsonPath._
-import org.specs2.specification.Scope
-import org.specs2.mutable.Specification
+import cats.effect.{Clock, IO}
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import io.circe.Json
+import io.circe.optics.JsonPath._
+import io.circe.parser.parse
+import io.circe.syntax._
+import org.specs2.mutable.Specification
+import org.specs2.specification.Scope
 
 class TrackerSpec extends Specification {
 
   trait DummyTracker extends Scope {
-    import syntax.id._
 
     var lastInput = Map[String, String]()
 
-    val emitter = new Emitter[Id] {
-      override def send(event: Map[String, String]): Unit = lastInput = event
+    val emitter = new Emitter[IO] {
+      override def send(event: Map[String, String]): IO[Unit] = IO { lastInput = event }
+    }
+
+    implicit val clock: Clock[IO] = new Clock[IO] {
+      import concurrent.duration._
+
+      override def realTime(unit: TimeUnit): IO[Long] = IO(unit.convert(System.currentTimeMillis(), MILLISECONDS))
+
+      override def monotonic(unit: TimeUnit): IO[Long] = IO(unit.convert(System.nanoTime(), NANOSECONDS))
     }
 
     val tracker = new Tracker(NonEmptyList.one(emitter), "mytracker", "myapp", encodeBase64 = false)
@@ -54,7 +60,7 @@ class TrackerSpec extends Specification {
   "trackUnstructEvent" should {
 
     "send an unstructured event to the emitter" in new DummyTracker {
-      tracker.trackSelfDescribingEvent(unstructEventJson)
+      tracker.trackSelfDescribingEvent(unstructEventJson).unsafeRunSync()
 
       val event = lastInput
 
@@ -93,6 +99,7 @@ class TrackerSpec extends Specification {
       tracker
         .setSubject(subject)
         .trackSelfDescribingEvent(unstructEventJson)
+        .unsafeRunSync()
 
       val event = lastInput
 
@@ -114,7 +121,7 @@ class TrackerSpec extends Specification {
   "track" should {
 
     "add custom contexts to the event" in new DummyTracker {
-      tracker.trackSelfDescribingEvent(unstructEventJson, contexts)
+      tracker.trackSelfDescribingEvent(unstructEventJson, contexts).unsafeRunSync()
 
       val event = lastInput
 
@@ -123,7 +130,9 @@ class TrackerSpec extends Specification {
     }
 
     "implicitly (and without additional imports) assume device_timestamp when no data constructor specified for timestamp" in new DummyTracker {
-      tracker.trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(1459778142000L)) // Long
+      tracker
+        .trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(1459778142000L))
+        .unsafeRunSync() // Long
 
       val event = lastInput
 
@@ -133,7 +142,9 @@ class TrackerSpec extends Specification {
     "set true_timestamp when data constructor applied explicitly" in new DummyTracker {
       val timestamp = Tracker.TrueTimestamp(1459778542000L)
 
-      tracker.trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(timestamp))
+      tracker
+        .trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(timestamp))
+        .unsafeRunSync()
 
       val event = lastInput
 
@@ -145,7 +156,7 @@ class TrackerSpec extends Specification {
   "trackAddToCart" should {
 
     "add add_to_cart context to the event" in new DummyTracker {
-      tracker.trackAddToCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
+      tracker.trackAddToCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD")).unsafeRunSync()
 
       val event = lastInput
 
@@ -157,7 +168,9 @@ class TrackerSpec extends Specification {
   "trackRemoveFromCart" should {
 
     "add remove_from_cart context to the event" in new DummyTracker {
-      tracker.trackRemoveFromCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
+      tracker
+        .trackRemoveFromCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
+        .unsafeRunSync()
 
       val event = lastInput
 
@@ -169,15 +182,17 @@ class TrackerSpec extends Specification {
   "trackTransaction" should {
 
     "set the transaction parameters accordingly" in new DummyTracker {
-      tracker.trackTransaction("orderId",
-                               Some("affiliation"),
-                               99.99,
-                               Some(7.99),
-                               Some(5.99),
-                               Some("city"),
-                               Some("state"),
-                               Some("country"),
-                               Some("USD"))
+      tracker
+        .trackTransaction("orderId",
+                          Some("affiliation"),
+                          99.99,
+                          Some(7.99),
+                          Some(5.99),
+                          Some("city"),
+                          Some("state"),
+                          Some("country"),
+                          Some("USD"))
+        .unsafeRunSync()
 
       val event = lastInput
 
@@ -197,7 +212,9 @@ class TrackerSpec extends Specification {
   "trackTransactionItem" should {
 
     "set the transaction item parameters accordingly" in new DummyTracker {
-      tracker.trackTransactionItem("orderId", "sku", Some("name"), Some("category"), 19.99, 5, Some("USD"))
+      tracker
+        .trackTransactionItem("orderId", "sku", Some("name"), Some("category"), 19.99, 5, Some("USD"))
+        .unsafeRunSync()
 
       val event = lastInput
 
@@ -217,7 +234,7 @@ class TrackerSpec extends Specification {
     "tracks an exception" in new DummyTracker {
 
       val error = new RuntimeException("boom!")
-      tracker.trackError(error)
+      tracker.trackError(error).unsafeRunSync()
 
       val event = lastInput
 
@@ -240,11 +257,10 @@ class TrackerSpec extends Specification {
     }
 
     "uses default message" >> {
-      import cats.implicits._
 
       "when there is no error message" in new DummyTracker {
         val error = new RuntimeException()
-        tracker.trackError(error)
+        tracker.trackError(error).unsafeRunSync()
 
         val event = lastInput
         val json  = parse(event("ue_pr")).toOption
@@ -254,7 +270,7 @@ class TrackerSpec extends Specification {
 
       "when error message is empty" in new DummyTracker {
         val error = new RuntimeException("")
-        tracker.trackError(error)
+        tracker.trackError(error).unsafeRunSync()
 
         val event = lastInput
         val json  = parse(event("ue_pr")).toOption

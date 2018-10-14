@@ -12,15 +12,15 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import cats._
 import cats.data.NonEmptyList
+import cats.effect.{Clock, Sync}
 import cats.implicits._
-import cats.effect.Clock
+import com.snowplowanalytics.iglu.core.circe.implicits._
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.snowplow.scalatracker.utils.{ErrorTracking, JsonUtils}
+import io.chrisdavenport.fuuid.FUUID
 import io.circe.Json
 import io.circe.syntax._
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.circe.implicits._
-import utils.{ErrorTracking, JsonUtils}
 
 import scala.concurrent.duration._
 
@@ -33,12 +33,12 @@ import scala.concurrent.duration._
  * @param encodeBase64 Whether to encode JSONs
  * @param metadata optionally a json containing the metadata context for the running instance
  */
-final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyList[Emitter[F]],
-                                                           namespace: String,
-                                                           appId: String,
-                                                           subject: Subject                     = Subject(),
-                                                           encodeBase64: Boolean                = true,
-                                                           metadata: Option[SelfDescribingJson] = None) {
+final case class Tracker[F[_]: Sync: Clock](emitters: NonEmptyList[Emitter[F]],
+                                            namespace: String,
+                                            appId: String,
+                                            subject: Subject                     = Subject(),
+                                            encodeBase64: Boolean                = true,
+                                            metadata: Option[SelfDescribingJson] = None) {
   import Tracker._
 
   /**
@@ -76,7 +76,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
                               contexts: Seq[SelfDescribingJson],
                               timestamp: Option[Timestamp]): F[Payload] =
     for {
-      uuid   <- implicitly[UUIDProvider[F]].generateUUID
+      uuid   <- FUUID.randomFUUID[F]
       millis <- implicitly[Clock[F]].realTime(MILLISECONDS)
     } yield {
       val newPayload = payload
@@ -383,7 +383,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
 
 object Tracker {
 
-  def apply[F[_]: Monad: Clock: UUIDProvider](emitter: Emitter[F], namespace: String, appId: String): Tracker[F] =
+  def apply[F[_]: Sync: Clock](emitter: Emitter[F], namespace: String, appId: String): Tracker[F] =
     Tracker(NonEmptyList.one(emitter), namespace, appId)
 
   /** Tracker's version */

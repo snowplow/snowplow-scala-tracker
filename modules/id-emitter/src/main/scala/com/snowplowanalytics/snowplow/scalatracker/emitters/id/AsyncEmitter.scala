@@ -14,11 +14,11 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
 import java.util.concurrent.LinkedBlockingQueue
 
-import scala.concurrent.ExecutionContext
-
+import cats.effect.IO
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
+import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor._
 
-import RequestProcessor._
+import scala.concurrent.ExecutionContext
 
 object AsyncEmitter {
   // Avoid starting thread in constructor
@@ -73,8 +73,9 @@ class AsyncEmitter private (ec: ExecutionContext,
    *
    * @param event Fully assembled event
    */
-  def send(event: EmitterPayload): Unit =
+  def send(event: EmitterPayload): IO[Unit] = IO {
     queue.put(GetCollectorRequest(1, event))
+  }
 
   private def startWorker(): Unit =
     worker.start()

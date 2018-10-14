@@ -15,17 +15,15 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 import java.util.concurrent.BlockingQueue
 import java.util.{Timer, TimerTask}
 
-import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException}
-import scala.concurrent.duration.Duration
-import scala.util.{Failure, Random, Success, Try}
-
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
+import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import io.circe._
 import io.circe.syntax._
-
 import scalaj.http._
 
-import com.snowplowanalytics.snowplow.scalatracker.Tracker
-import com.snowplowanalytics.snowplow.scalatracker.Emitter._
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException}
+import scala.util.{Failure, Random, Success, Try}
 
 class RequestProcessor {
 

@@ -13,14 +13,13 @@
 
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
+import cats.effect.IO
+import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
+import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor._
+
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
-
-import cats.Id
-
-import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
-import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor._
 
 /**
  * Synchronous batch emitter
@@ -42,7 +41,7 @@ class SyncBatchEmitter(collector: CollectorParams,
 
   private val buffer = new ListBuffer[EmitterPayload]()
 
-  override def send(event: EmitterPayload): Id[Unit] =
+  override def send(event: EmitterPayload): IO[Unit] = IO {
     buffer.synchronized {
       buffer.append(event)
 
@@ -53,7 +52,7 @@ class SyncBatchEmitter(collector: CollectorParams,
         buffer.clear()
       }
     }
-
+  }
 }
 
 object SyncBatchEmitter {
