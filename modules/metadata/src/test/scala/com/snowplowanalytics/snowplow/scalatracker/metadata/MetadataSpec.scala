@@ -13,20 +13,19 @@
 package com.snowplowanalytics.snowplow.scalatracker.metadata
 
 import java.net.{SocketTimeoutException, UnknownHostException}
-import java.util.UUID
 
 import scala.concurrent.duration._
 import cats.Id
 import cats.data.NonEmptyList
 import cats.effect.internals.IOContextShift
 import cats.effect.{ContextShift, IO}
-import com.snowplowanalytics.snowplow.scalatracker.{ClockProvider, Emitter, Tracker, UUIDProvider}
+import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Tracker}
 import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
 import org.specs2.Specification
 import org.specs2.mock.Mockito
 
 class MetadataSpec extends Specification with Mockito {
-
+  import com.snowplowanalytics.snowplow.scalatracker.syntax.id._
   implicit def contextShift: ContextShift[IO] = IOContextShift.global
   implicit val timer                          = IO.timer(scala.concurrent.ExecutionContext.Implicits.global)
 
@@ -69,14 +68,6 @@ class MetadataSpec extends Specification with Mockito {
 
   val emitter: Emitter[Id] = new Emitter[Id] {
     override def send(event: EmitterPayload): Id[Unit] = ()
-  }
-
-  implicit val clock: ClockProvider[Id] = new ClockProvider[Id] {
-    override def getCurrentMilliseconds: Id[Long] = System.currentTimeMillis()
-  }
-
-  implicit val uuid: UUIDProvider[Id] = new UUIDProvider[Id] {
-    override def generateUUID: Id[UUID] = UUID.randomUUID()
   }
 
   def e1 =
