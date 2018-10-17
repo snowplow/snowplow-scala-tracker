@@ -10,22 +10,28 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.scalatracker.emitters
+package com.snowplowanalytics.snowplow.scalatracker
 
 import java.util.UUID
 
 import cats.Id
-import com.snowplowanalytics.snowplow.scalatracker.{ClockProvider, UUIDProvider}
+import cats.effect.Clock
 
-package object id {
+object syntax {
+  object id {
 
-  implicit val clockProvider: ClockProvider[Id] = new ClockProvider[Id] {
+    implicit val idClock: Clock[Id] = new Clock[Id] {
+      import concurrent.duration._
 
-    override def getCurrentMilliseconds: Id[Long] = System.currentTimeMillis()
+      override def realTime(unit: TimeUnit): Id[Long] = unit.convert(System.currentTimeMillis(), MILLISECONDS)
+
+      override def monotonic(unit: TimeUnit): Id[Long] = unit.convert(System.nanoTime(), NANOSECONDS)
+    }
+
+    implicit val uuidProvider: UUIDProvider[Id] = new UUIDProvider[Id] {
+
+      override def generateUUID: Id[UUID] = UUID.randomUUID()
+    }
   }
 
-  implicit val uuidProvider: UUIDProvider[Id] = new UUIDProvider[Id] {
-
-    override def generateUUID: Id[UUID] = UUID.randomUUID()
-  }
 }

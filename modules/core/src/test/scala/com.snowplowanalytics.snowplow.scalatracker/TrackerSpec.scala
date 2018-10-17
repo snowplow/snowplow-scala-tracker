@@ -12,8 +12,6 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import java.util.UUID
-
 import cats.Id
 import cats.data.NonEmptyList
 
@@ -21,7 +19,6 @@ import io.circe.Json
 import io.circe.syntax._
 import io.circe.parser.parse
 import io.circe.optics.JsonPath._
-
 import org.specs2.specification.Scope
 import org.specs2.mutable.Specification
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
@@ -29,19 +26,12 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 class TrackerSpec extends Specification {
 
   trait DummyTracker extends Scope {
+    import syntax.id._
+
+    var lastInput = Map[String, String]()
+
     val emitter = new Emitter[Id] {
-      var lastInput = Map[String, String]()
-
       override def send(event: Map[String, String]): Unit = lastInput = event
-
-    }
-
-    implicit val clock: ClockProvider[Id] = new ClockProvider[Id] {
-      override def getCurrentMilliseconds: Id[Long] = System.currentTimeMillis()
-    }
-
-    implicit val uuid: UUIDProvider[Id] = new UUIDProvider[Id] {
-      override def generateUUID: Id[UUID] = UUID.randomUUID()
     }
 
     val tracker = new Tracker(NonEmptyList.one(emitter), "mytracker", "myapp", encodeBase64 = false)
@@ -66,7 +56,7 @@ class TrackerSpec extends Specification {
     "send an unstructured event to the emitter" in new DummyTracker {
       tracker.trackSelfDescribingEvent(unstructEventJson)
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       """[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}""".r.unapplySeq(event("eid")) must beSome
 
@@ -104,7 +94,7 @@ class TrackerSpec extends Specification {
         .setSubject(subject)
         .trackSelfDescribingEvent(unstructEventJson)
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       event("p") must_== "mob"
       event("uid") must_== "sabnis"
@@ -126,7 +116,7 @@ class TrackerSpec extends Specification {
     "add custom contexts to the event" in new DummyTracker {
       tracker.trackSelfDescribingEvent(unstructEventJson, contexts)
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       event("co") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/contexts/jsonschema/1-0-1","data":[{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"number":20}},{"schema":"iglu:com.snowplowanalytics.snowplow/context1/jsonschema/1-0-0","data":{"letters":["a","b","c"]}}]}"""
 
@@ -135,7 +125,7 @@ class TrackerSpec extends Specification {
     "implicitly (and without additional imports) assume device_timestamp when no data constructor specified for timestamp" in new DummyTracker {
       tracker.trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(1459778142000L)) // Long
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       (event("dtm") must_== "1459778142000").and(event.get("ttm") must beNone)
     }
@@ -145,7 +135,7 @@ class TrackerSpec extends Specification {
 
       tracker.trackStructEvent("e-commerce", "buy", property = Some("book"), timestamp = Some(timestamp))
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       (event("ttm") must_== "1459778542000").and(event.get("dtm") must beNone)
     }
@@ -157,7 +147,7 @@ class TrackerSpec extends Specification {
     "add add_to_cart context to the event" in new DummyTracker {
       tracker.trackAddToCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       event("e") must_== "ue"
       event("ue_pr") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/add_to_cart/jsonschema/1-0-0","data":{"sku":"aSku","name":"productName","category":"category","unitPrice":99.99,"quantity":1,"currency":"USD"}}}"""
@@ -169,7 +159,7 @@ class TrackerSpec extends Specification {
     "add remove_from_cart context to the event" in new DummyTracker {
       tracker.trackRemoveFromCart("aSku", Some("productName"), Some("category"), Some(99.99), 1, Some("USD"))
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       event("e") must_== "ue"
       event("ue_pr") must_== """{"schema":"iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0","data":{"schema":"iglu:com.snowplowanalytics.snowplow/remove_from_cart/jsonschema/1-0-0","data":{"sku":"aSku","name":"productName","category":"category","unitPrice":99.99,"quantity":1.0,"currency":"USD"}}}"""
@@ -189,7 +179,7 @@ class TrackerSpec extends Specification {
                                Some("country"),
                                Some("USD"))
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       event("e") must_== "tr"
       event("tr_id") must_== "orderId"
@@ -209,7 +199,7 @@ class TrackerSpec extends Specification {
     "set the transaction item parameters accordingly" in new DummyTracker {
       tracker.trackTransactionItem("orderId", "sku", Some("name"), Some("category"), 19.99, 5, Some("USD"))
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       event("e") must_== "ti"
       event("ti_id") must_== "orderId"
@@ -229,7 +219,7 @@ class TrackerSpec extends Specification {
       val error = new RuntimeException("boom!")
       tracker.trackError(error)
 
-      val event = emitter.lastInput
+      val event = lastInput
 
       val json = parse(event("ue_pr")).right.get
 
@@ -256,7 +246,7 @@ class TrackerSpec extends Specification {
         val error = new RuntimeException()
         tracker.trackError(error)
 
-        val event = emitter.lastInput
+        val event = lastInput
         val json  = parse(event("ue_pr")).toOption
 
         json.flatMap(js => root.data.data.message.string.getOption(js)) must beSome("Null or empty message found")
@@ -266,7 +256,7 @@ class TrackerSpec extends Specification {
         val error = new RuntimeException("")
         tracker.trackError(error)
 
-        val event = emitter.lastInput
+        val event = lastInput
         val json  = parse(event("ue_pr")).toOption
 
         json.flatMap(js => root.data.data.message.string.getOption(js)) must beSome("Null or empty message found")

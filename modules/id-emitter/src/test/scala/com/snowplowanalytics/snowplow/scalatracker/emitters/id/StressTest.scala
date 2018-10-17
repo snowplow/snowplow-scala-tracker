@@ -17,7 +17,6 @@ import java.io.FileWriter
 import cats._
 import cats.data.NonEmptyList
 import cats.implicits._
-
 import io.circe.Json
 import io.circe.syntax._
 import io.circe.parser.parse
@@ -35,6 +34,7 @@ import org.scalacheck.Gen
  * Ad-hoc load testing
  */
 object StressTest {
+  import com.snowplowanalytics.snowplow.scalatracker.syntax.id._
 
   /** ADT for all possible event types Tracker can accept */
   sealed trait EventArguments
