@@ -19,8 +19,6 @@ import scala.concurrent.ExecutionContext
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
-import RequestProcessor._
-
 object AsyncBatchEmitter {
   // Avoid starting thread in constructor
   /**

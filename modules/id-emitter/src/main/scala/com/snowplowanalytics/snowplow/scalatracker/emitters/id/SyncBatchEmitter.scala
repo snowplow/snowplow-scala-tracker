@@ -19,8 +19,7 @@ import scala.concurrent.duration._
 
 import cats.Id
 
-import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
-import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor._
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 /**
  * Synchronous batch emitter

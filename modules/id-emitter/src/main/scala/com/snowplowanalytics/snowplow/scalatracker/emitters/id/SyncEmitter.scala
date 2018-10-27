@@ -17,8 +17,6 @@ import scala.concurrent.duration._
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
-import RequestProcessor._
-
 /**
  * Blocking emitter.
  * This emitter blocks whole thread (from global execution context)
