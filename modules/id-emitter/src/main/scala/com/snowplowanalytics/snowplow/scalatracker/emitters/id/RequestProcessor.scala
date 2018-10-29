@@ -21,19 +21,11 @@ import scala.util.{Failure, Random, Success, Try}
 
 import cats.Id
 
-import io.circe._
-import io.circe.syntax._
-
 import scalaj.http._
 
-import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 class RequestProcessor {
-
-  // JSON object with Iglu URI to Schema for payload
-  private val payloadBatchStub: JsonObject =
-    JsonObject("schema" := Tracker.PayloadDataSchemaKey.toSchemaUri)
 
   /** Timer thread, responsible for adding failed payloads to queue after delay */
   private val timer = new Timer("snowplow-event-retry-timer", true)
@@ -64,15 +56,6 @@ class RequestProcessor {
   }
 
   /**
-   * Transform List of Map[String, String] to JSON array of objects
-   *
-   * @param payload list of string-to-string maps taken from HTTP query
-   * @return JSON array represented as String
-   */
-  private def postPayload(payload: Seq[Map[String, String]]): String =
-    payloadBatchStub.add("data", payload.asJson).asJson.noSpaces
-
-  /**
    * Construct POST request with batch event payload
    *
    * @param collector endpoint preferences
@@ -81,12 +64,12 @@ class RequestProcessor {
    */
   private[scalatracker] def constructRequest(collector: CollectorParams, request: CollectorRequest): HttpRequest =
     request match {
-      case PostCollectorRequest(_, payload) =>
-        Http(s"${collector.getUri}/com.snowplowanalytics.snowplow/tp2")
+      case CollectorRequest.Post(_, payload) =>
+        Http(collector.getPostUri)
           .postData(postPayload(payload))
           .header("content-type", "application/json")
-      case GetCollectorRequest(_, payload) =>
-        Http(s"${collector.getUri}/i").params(payload)
+      case CollectorRequest.Get(_, payload) =>
+        Http(collector.getGetUri).params(payload)
     }
 
   /**
@@ -110,11 +93,11 @@ class RequestProcessor {
       val result = httpToCollector(response)
       finish(payload, result)
       result match {
-        case CollectorSuccess(_) => ()
+        case Result.Success(_) => ()
         case failure =>
           val updated = payload.updateAttempt
           val resend  = backToQueue(originQueue, updated)
-          if (!resend) finish(updated, RetriesExceeded(failure))
+          if (!resend) finish(updated, Result.RetriesExceeded(failure))
       }
     }(ec)
   }
@@ -131,7 +114,7 @@ class RequestProcessor {
    */
   def invokeCallback(ec: ExecutionContext, collector: CollectorParams, callback: Option[Callback[Id]])(
     payload: CollectorRequest,
-    result: CollectorResponse): Unit =
+    result: Result): Unit =
     callback match {
       case Some(cb) =>
         Future(cb(collector, payload, result))(ec).failed.foreach { throwable =>
@@ -162,7 +145,7 @@ class RequestProcessor {
         .ready(response, duration)
         .value
         .map(httpToCollector)
-        .getOrElse(TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $duration")))
+        .getOrElse(Result.TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $duration")))
 
     callback match {
       case None     => ()
@@ -171,9 +154,9 @@ class RequestProcessor {
   }
 
   /** Transform implementation-specific response into tracker-specific */
-  def httpToCollector(httpResponse: Try[HttpResponse[_]]): CollectorResponse = httpResponse match {
-    case Success(s) if s.code >= 200 && s.code < 300 => CollectorSuccess(s.code)
-    case Success(s)                                  => CollectorFailure(s.code)
-    case Failure(e)                                  => TrackerFailure(e)
+  def httpToCollector(httpResponse: Try[HttpResponse[_]]): Result = httpResponse match {
+    case Success(s) if s.code >= 200 && s.code < 300 => Result.Success(s.code)
+    case Success(s)                                  => Result.Failure(s.code)
+    case Failure(e)                                  => Result.TrackerFailure(e)
   }
 }

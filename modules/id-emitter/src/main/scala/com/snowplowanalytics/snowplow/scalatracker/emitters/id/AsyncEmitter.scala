@@ -74,7 +74,7 @@ class AsyncEmitter private (ec: ExecutionContext,
    * @param event Fully assembled event
    */
   def send(event: EmitterPayload): Unit =
-    queue.put(GetCollectorRequest(1, event))
+    queue.put(CollectorRequest.Get(1, event))
 
   private def startWorker(): Unit =
     worker.start()

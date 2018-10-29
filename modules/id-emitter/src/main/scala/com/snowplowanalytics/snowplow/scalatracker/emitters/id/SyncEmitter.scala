@@ -35,7 +35,7 @@ class SyncEmitter(collector: CollectorParams,
     extends BaseEmitter {
 
   def send(event: EmitterPayload): Unit = {
-    val payload = GetCollectorRequest(1, event)
+    val payload = CollectorRequest.Get(1, event)
     processor.sendSync(global, blockingDuration, collector, payload, callback)
   }
 }

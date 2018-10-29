@@ -90,7 +90,7 @@ class AsyncBatchEmitter private[id] (ec: ExecutionContext,
     buffer.synchronized {
       buffer.append(event)
       if (buffer.size >= bufferSize) {
-        queue.put(PostCollectorRequest(1, buffer.toList))
+        queue.put(CollectorRequest.Post(1, buffer.toList))
         buffer = ListBuffer[Map[String, String]]()
       }
     }

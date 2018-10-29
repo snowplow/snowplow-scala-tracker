@@ -46,7 +46,7 @@ class SyncBatchEmitter(collector: CollectorParams,
       buffer.append(event)
 
       if (buffer.size >= bufferSize) {
-        val payload = PostCollectorRequest(1, buffer.toList)
+        val payload = CollectorRequest.Post(1, buffer.toList)
 
         processor.sendSync(global, blockingDuration, collector, payload, callback)
         buffer.clear()
