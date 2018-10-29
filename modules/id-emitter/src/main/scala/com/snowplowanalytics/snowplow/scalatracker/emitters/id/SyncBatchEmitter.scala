@@ -35,7 +35,7 @@ import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 class SyncBatchEmitter(collector: CollectorParams,
                        blockingDuration: Duration,
                        bufferSize: Int,
-                       callback: Option[Callback],
+                       callback: Option[Callback[Id]],
                        private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
@@ -69,11 +69,11 @@ object SyncBatchEmitter {
    * @return emitter
    */
   def createAndStart(host: String,
-                     port: Option[Int]          = None,
-                     https: Boolean             = false,
-                     bufferSize: Int            = 50,
-                     callback: Option[Callback] = None,
-                     blockingDuration: Duration = 5.seconds): SyncBatchEmitter = {
+                     port: Option[Int]              = None,
+                     https: Boolean                 = false,
+                     bufferSize: Int                = 50,
+                     callback: Option[Callback[Id]] = None,
+                     blockingDuration: Duration     = 5.seconds): SyncBatchEmitter = {
     val collector = CollectorParams.construct(host, port, https)
     new SyncBatchEmitter(collector, blockingDuration, bufferSize, callback)
   }

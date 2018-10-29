@@ -17,6 +17,8 @@ import java.util.concurrent.LinkedBlockingQueue
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
 
+import cats.Id
+
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 object AsyncBatchEmitter {
@@ -33,10 +35,10 @@ object AsyncBatchEmitter {
    * @return emitter
    */
   def createAndStart(host: String,
-                     port: Option[Int]          = None,
-                     https: Boolean             = false,
-                     bufferSize: Int            = 50,
-                     callback: Option[Callback] = None)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
+                     port: Option[Int]              = None,
+                     https: Boolean                 = false,
+                     bufferSize: Int                = 50,
+                     callback: Option[Callback[Id]] = None)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
     val collector = CollectorParams.construct(host, port, https)
     val emitter   = new AsyncBatchEmitter(ec, collector, bufferSize, callback)
     emitter.startWorker()
@@ -57,7 +59,7 @@ object AsyncBatchEmitter {
 class AsyncBatchEmitter private[id] (ec: ExecutionContext,
                                      collector: CollectorParams,
                                      bufferSize: Int,
-                                     callback: Option[Callback],
+                                     callback: Option[Callback[Id]],
                                      private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 

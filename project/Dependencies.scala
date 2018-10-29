@@ -20,7 +20,8 @@ object Dependencies {
     val igluCore   = "0.3.0"
     val circe      = "0.10.0"
     val catsEffect = "1.0.0"
-    val http4s     = "0.19.0-M1"
+    val http4s     = "0.19.0-M4"
+    val fs2        = "1.0.0"
 
     // Scala (test only)
     val specs2     = "4.3.2"
@@ -29,12 +30,14 @@ object Dependencies {
 
   object Libraries {
     // Scala
-    val scalajHttp     = "org.scalaj"            %% "scalaj-http"     % V.scalajHttp
-    val igluCore       = "com.snowplowanalytics" %% "iglu-core"       % V.igluCore
-    val igluCoreCirce  = "com.snowplowanalytics" %% "iglu-core-circe" % V.igluCore
-    val circe          = "io.circe"              %% "circe-parser"    % V.circe
-    val catsEffect     = "org.typelevel"         %% "cats-effect"     % V.catsEffect
-    val http4s         = "org.http4s"            %% "http4s-client"   % V.http4s
+    val scalajHttp     = "org.scalaj"            %% "scalaj-http"         % V.scalajHttp
+    val igluCore       = "com.snowplowanalytics" %% "iglu-core"           % V.igluCore
+    val igluCoreCirce  = "com.snowplowanalytics" %% "iglu-core-circe"     % V.igluCore
+    val circe          = "io.circe"              %% "circe-parser"        % V.circe
+    val catsEffect     = "org.typelevel"         %% "cats-effect"         % V.catsEffect
+    val http4sClient   = "org.http4s"            %% "http4s-client"       % V.http4s
+    val http4sBlaze    = "org.http4s"            %% "http4s-blaze-client" % V.http4s
+    val fs2            = "co.fs2"                %% "fs2-core"            % V.fs2
 
     // Scala (test only)
     val specs2        = "org.specs2"             %% "specs2-core"     % V.specs2      % "test"

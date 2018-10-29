@@ -68,7 +68,7 @@ object Emitter {
   final case class RetriesExceeded(lastResponse: CollectorResponse) extends CollectorResponse
 
   /** User-provided callback */
-  type Callback = (CollectorParams, CollectorRequest, CollectorResponse) => Unit
+  type Callback[F[_]] = (CollectorParams, CollectorRequest, CollectorResponse) => F[Unit]
 
   /** Payload (either GET or POST) ready to be send to collector */
   sealed trait CollectorRequest extends Product with Serializable {

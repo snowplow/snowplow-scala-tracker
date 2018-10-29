@@ -16,6 +16,8 @@ import java.util.concurrent.LinkedBlockingQueue
 
 import scala.concurrent.ExecutionContext
 
+import cats.Id
+
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 object AsyncEmitter {
@@ -30,7 +32,7 @@ object AsyncEmitter {
    * @param https should this use the https scheme
    * @return emitter
    */
-  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback])(
+  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback[Id]])(
     implicit ec: ExecutionContext): AsyncEmitter = {
     val collector = CollectorParams.construct(host, port, https)
     val emitter   = new AsyncEmitter(ec, collector, callback)
@@ -48,7 +50,7 @@ object AsyncEmitter {
  */
 class AsyncEmitter private (ec: ExecutionContext,
                             collector: CollectorParams,
-                            callback: Option[Callback],
+                            callback: Option[Callback[Id]],
                             private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 

@@ -19,6 +19,8 @@ import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException}
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Random, Success, Try}
 
+import cats.Id
+
 import io.circe._
 import io.circe.syntax._
 
@@ -99,7 +101,7 @@ class RequestProcessor {
   def submit(
     originQueue: BlockingQueue[CollectorRequest],
     ec: ExecutionContext,
-    callback: Option[Callback],
+    callback: Option[Callback[Id]],
     collector: CollectorParams,
     payload: CollectorRequest
   ): Unit = {
@@ -127,7 +129,7 @@ class RequestProcessor {
    * @param payload latest *sent* payload
    * @param result latest result
    */
-  def invokeCallback(ec: ExecutionContext, collector: CollectorParams, callback: Option[Callback])(
+  def invokeCallback(ec: ExecutionContext, collector: CollectorParams, callback: Option[Callback[Id]])(
     payload: CollectorRequest,
     result: CollectorResponse): Unit =
     callback match {
@@ -153,7 +155,7 @@ class RequestProcessor {
                duration: Duration,
                collector: CollectorParams,
                payload: CollectorRequest,
-               callback: Option[Callback]): Unit = {
+               callback: Option[Callback[Id]]): Unit = {
     val response = sendAsync(ec, collector, payload)
     val result =
       Await
