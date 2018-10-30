@@ -12,17 +12,20 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import cats._
+import scala.concurrent.duration._
+
+import cats.Monad
 import cats.data.NonEmptyList
 import cats.implicits._
 import cats.effect.Clock
+
 import io.circe.Json
 import io.circe.syntax._
+
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
-import utils.{ErrorTracking, JsonUtils}
 
-import scala.concurrent.duration._
+import utils.{ErrorTracking, JsonUtils}
 
 /**
  * Tracker class
@@ -61,7 +64,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    */
   private def send(payload: Payload): F[Unit] = {
     val event = payload.get
-    emitters.traverse(e => e.send(event)).map(x => ())
+    emitters.traverse(e => e.send(event)).void
   }
 
   /**
