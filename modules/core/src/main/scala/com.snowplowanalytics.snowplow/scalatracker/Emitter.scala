@@ -13,7 +13,6 @@
 package com.snowplowanalytics.snowplow.scalatracker
 
 import java.net.URI
-import java.util.UUID
 
 import cats.syntax.either._
 
@@ -22,19 +21,6 @@ import io.circe.syntax._
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
-
-/**
- * This trait is needed here because `Tracker` is referentially transparent, and we leave it up for the emitters
- * to decide whether `F` will be referentially transparent also.
- */
-trait UUIDProvider[F[_]] {
-
-  /**
-   * Returns a random UUID. Most likely it will be `UUID.randomUUID()` wrapped in `F`
-   * @return current time in milliseconds
-   */
-  def generateUUID: F[UUID]
-}
 
 /**
  * Emitters are entities in charge of transforming events sent from tracker
@@ -70,6 +56,7 @@ object Emitter {
   object BufferConfig {
     case object Get extends BufferConfig
     case class Post(size: Int) extends BufferConfig
+    case class Sized(bytes: Int) extends BufferConfig
   }
 
   /** Payload (either GET or POST) ready to be send to collector */
@@ -89,15 +76,16 @@ object Emitter {
 
     /**
      * Return same payload, but with updated stm
-     * **Must** be used right before payload goes to collector
+     * Must be used right before payload goes to collector
      */
-    def updateStm: CollectorRequest = this match { // TODO: factor our as non-RT
-      case CollectorRequest.Get(_, map) =>
-        val stm = System.currentTimeMillis().toString
-        CollectorRequest.Get(attempt, map.updated("stm", stm))
-      case CollectorRequest.Post(_, list) =>
-        val stm = System.currentTimeMillis().toString
-        CollectorRequest.Post(attempt, list.map(_.updated("stm", stm)))
+    def updateStm(deviceSentTimestamp: Long): CollectorRequest = {
+      val stm = deviceSentTimestamp.toString
+      this match {
+        case CollectorRequest.Get(_, map) =>
+          CollectorRequest.Get(attempt, map.updated("stm", stm))
+        case CollectorRequest.Post(_, list) =>
+          CollectorRequest.Post(attempt, list.map(_.updated("stm", stm)))
+      }
     }
   }
 
@@ -153,8 +141,9 @@ object Emitter {
         s"Fragment is not allowed in collector URI, $s given".asLeft[Unit])
       val userinfo = Option(uri.getUserInfo).fold(().asRight[String])(s =>
         s"Userinfo is not allowed in collector URI, $s given".asLeft[Unit])
-      val path = Option(uri.getPath).flatMap(p => if (p.isEmpty) None else Some(p)).fold(().asRight[String])(s =>
-        s"Path is not allowed in collector URI, $s given".asLeft[Unit])
+      val path = Option(uri.getPath)
+        .flatMap(p => if (p.isEmpty) None else Some(p))
+        .fold(().asRight[String])(s => s"Path is not allowed in collector URI, $s given".asLeft[Unit])
       val query = Option(uri.getQuery).fold(().asRight[String])(s =>
         s"Query is not allowed in collector URI, $s given".asLeft[Unit])
       val authority = Option(uri.getQuery).fold(().asRight[String])(s =>
@@ -188,6 +177,13 @@ object Emitter {
 
     /** Emitter cannot continue retrying. Note that this is not *response* */
     final case class RetriesExceeded(lastResponse: Result) extends Result
+  }
+
+  /** Get delay with increased non-linear back-off period in millis */
+  def getDelay(attempt: Int, seed: Double): Int = {
+    val rangeMin = attempt.toDouble
+    val rangeMax = attempt.toDouble * 3
+    ((rangeMin + (rangeMax - rangeMin) * seed) * 1000).toInt
   }
 
   /**

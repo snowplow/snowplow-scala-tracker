@@ -13,24 +13,24 @@
 package com.snowplowanalytics.snowplow.scalatracker
 package emitters.http4s
 
+import scala.util.Random
+import scala.concurrent.duration._
 import cats.{Applicative, ApplicativeError, Monad}
 import cats.effect._
-import cats.effect.concurrent.Ref
 import cats.effect.implicits._
 import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-
-import fs2.{Sink, Stream}
-import fs2.concurrent.{Enqueue, Queue}
-
+import cats.syntax.apply._
+import fs2.{Pipe, Sink, Stream}
+import fs2.concurrent.{Enqueue, InspectableQueue, Queue, Signal, SignallingRef}
 import org.http4s.{Method, Request, Response, Uri}
 import org.http4s.client.Client
-
 import Emitter._
 
 trait BatchEmitter[F[_]] extends Emitter[F] {
   def send(event: EmitterPayload): F[Unit]
+  def flush: F[Unit]
 
   private[scalatracker] def handle: Fiber[F, Unit]
 }
@@ -46,23 +46,25 @@ object BatchEmitter {
    * @param callback optional callback
    * @return resource that will free the pulling thread after releasing
    */
-  def start[F[_]: Concurrent](client: Client[F],
-                              collector: CollectorParams,
-                              config: BufferConfig,
-                              callback: Option[Callback[F]]): Resource[F, BatchEmitter[F]] = {
+  def start[F[_]: Concurrent: Timer](client: Client[F],
+                                     collector: CollectorParams,
+                                     config: BufferConfig,
+                                     callback: Option[Callback[F]]): Resource[F, BatchEmitter[F]] = {
     val create: F[BatchEmitter[F]] = for {
-      buffer <- Ref.of[F, Vector[EmitterPayload]](Vector.empty[EmitterPayload])
-      queue  <- Queue.bounded[F, CollectorRequest](10)
-      sink = pull(client, collector, callback, queue)
-      queueFiber <- queue.dequeue.observe(sink).compile.drain.start
-    } yield BatchEmitter(submit(config)(queue, buffer), queueFiber)
-    Resource.make(create)(_.handle.cancel)
+      buffer     <- getBufferQueue(config)
+      queue      <- Queue.unbounded[F, CollectorRequest]
+      ff         <- runBuffer(buffer, queue, config)
+      retryQueue <- Queue.circularBuffer[F, CollectorRequest](1024)
+      sink = pull(client, collector, callback, queue, retryQueue)
+      queueFiber <- queue.dequeue.to(sink).compile.drain.foreverM[Unit].start
+    } yield BatchEmitter(submit(config, queue, buffer), queueFiber, flush(queue, buffer))
+    Resource.make(create)(e => e.flush *> e.handle.cancel)
   }
 
   /** Send payload as HTTP request */
-  def send[F[_]](client: Client[F], collector: CollectorParams, payload: CollectorRequest)(
+  def send[F[_]](client: Client[F], collector: CollectorParams, request: CollectorRequest, dtm: Long)(
     implicit F: ApplicativeError[F, Throwable]): F[Emitter.Result] = {
-    val request = payload match {
+    val httpRequest = request.updateStm(dtm) match {
       case CollectorRequest.Post(_, payload) =>
         val body = Stream.emits(Emitter.postPayload(payload).getBytes).covary[F]
         Request[F](Method.POST, Uri.unsafeFromString(collector.getPostUri), body = body)
@@ -72,62 +74,125 @@ object BatchEmitter {
     }
 
     client
-      .fetch(request)(response => toResult(response))
+      .fetch(httpRequest)(response => toResult(response))
       .attempt
       .map(e => e.fold(Result.TrackerFailure.apply, identity))
   }
 
   /** Pull a queue for payloads and send them to a collector, re-add in case of failure */
-  def pull[F[_]: Sync](client: Client[F],
-                       collector: CollectorParams,
-                       callback: Option[Callback[F]],
-                       queue: Enqueue[F, CollectorRequest]): Sink[F, CollectorRequest] =
+  def pull[F[_]: Concurrent: Timer](client: Client[F],
+                                    collector: CollectorParams,
+                                    callback: Option[Callback[F]],
+                                    queue: Enqueue[F, CollectorRequest],
+                                    retryQueue: Enqueue[F, CollectorRequest]): Sink[F, CollectorRequest] =
     _.evalMap[F, Unit] { payload =>
       val finish: Result => F[Unit] =
         callback.fold((_: Result) => Sync[F].unit)(cb => r => cb(collector, payload, r))
       for {
-        result <- send(client, collector, payload)
+        dtm    <- implicitly[Timer[F]].clock.realTime(MILLISECONDS)
+        result <- send(client, collector, payload, dtm)
         _      <- finish(result)
         _ <- result match {
           case Result.Success(_) => Sync[F].unit
           case failure =>
             for {
-              resent <- backToQueue(queue, payload)
-              _      <- if (resent) Sync[F].unit else finish(Result.RetriesExceeded(failure))
+              resent <- backToQueue(retryQueue, payload)
+              _ <- resent match {
+                case None    => finish(Result.RetriesExceeded(failure))
+                case Some(_) => Applicative[F].unit // Ignoring fiber here because cancellation isn't meaningful
+              }
             } yield ()
         }
       } yield ()
     }
 
+  def flush[F[_]: Async](queue: Enqueue[F, CollectorRequest], buffer: Queue[F, EmitterPayload]) =
+    buffer.dequeue.through(wrapPayloads(10)).to(queue.enqueue).compile.drain
+
+  def wrapPayloads[F[_]: Async](i: Int): Pipe[F, EmitterPayload, CollectorRequest] =
+    (buffer: Stream[F, EmitterPayload]) => {
+      buffer.chunkLimit(i).map { chunk =>
+        CollectorRequest(chunk.toList)
+      }
+    }
+
   /** Depending on buffer configuration, either buffer an event or send it straight away */
-  def submit[F[_]: Monad](bufferConfig: BufferConfig)(queue: Enqueue[F, CollectorRequest],
-                                                      buffer: Ref[F, Vector[EmitterPayload]])(event: EmitterPayload) =
+  def submit[F[_]: Async](bufferConfig: BufferConfig,
+                          queue: Enqueue[F, CollectorRequest],
+                          buffer: Queue[F, EmitterPayload])(event: EmitterPayload) =
     bufferConfig match {
-      case BufferConfig.Post(allowed) =>
+      case BufferConfig.Post(_) =>
+        buffer.enqueue1(event)
+      case BufferConfig.Sized(bytesAllowed) =>
         for {
-          currentSize <- buffer.get.map(_.length)
-          _ <- if (currentSize >= allowed)
-            buffer.getAndSet(Vector.empty).flatMap(payload => queue.enqueue1(CollectorRequest(payload.toList)))
-          else buffer.update(_ :+ event)
+          // Find more efficient solution
+          // but probably this won't work at all
+          // E.g. buffer is infinite stream and cannot be drained to finite seq
+          current <- buffer.dequeue.compile.toVector
+          isAllowed = canBuffer(current, event, bytesAllowed)
+          _ = if (isAllowed) buffer.enqueue(bufferEmit(event +: current)).compile.drain
+          else buffer.enqueue(bufferEmit(current)).compile.drain *> buffer.enqueue1(event)
         } yield ()
       case BufferConfig.Get =>
         queue.enqueue1(CollectorRequest(event))
     }
 
-  private[scalatracker] def apply[F[_]](f: EmitterPayload => F[Unit], fiber: Fiber[F, Unit]): BatchEmitter[F] =
+  /** false if need to send existing, true if okay to add */
+  def canBuffer(existing: Seq[EmitterPayload], newcomer: EmitterPayload, allowed: Int): Boolean =
+    Emitter.postPayload(existing :+ newcomer).getBytes.length < allowed
+
+  private def bufferEmit[F[_]](payloads: Vector[EmitterPayload]) =
+    Stream.emits[F, EmitterPayload](payloads)
+
+  private[scalatracker] def apply[F[_]](f: EmitterPayload => F[Unit],
+                                        fiber: Fiber[F, Unit],
+                                        end: F[Unit]): BatchEmitter[F] =
     new BatchEmitter[F] {
       def send(event: EmitterPayload): F[Unit] = f(event)
-      def handle: Fiber[F, Unit]               = fiber
+      val handle: Fiber[F, Unit]               = fiber
+      val flush: F[Unit]                       = end
+
     }
 
   /** Add a payload to queue or reject as wasted */
-  private def backToQueue[F[_]: Applicative](queue: Enqueue[F, CollectorRequest],
-                                             request: CollectorRequest): F[Boolean] =
-    if (request.isFailed) Applicative[F].pure(false)
-    else queue.enqueue1(request).as(true)
+  private def backToQueue[F[_]: Concurrent: Timer](retryQueue: Enqueue[F, CollectorRequest],
+                                                   retry: CollectorRequest): F[Option[Fiber[F, Unit]]] =
+    if (retry.isFailed) Applicative[F].pure(None)
+    else
+      for {
+        seed <- Sync[F].delay(new Random().nextDouble())
+        delay = getDelay(retry.attempt, seed)
+        _      <- implicitly[Timer[F]].sleep(delay.millis)
+        newTry <- retryQueue.enqueue1(retry).start
+      } yield Some(newTry)
 
   /** Transform http4s [[Response]] to tracker's [[Result]] */
   private def toResult[F[_]: Applicative](response: Response[F]): F[Result] =
     if (response.status.code == 200) Applicative[F].pure(Result.Success(200))
     else Applicative[F].pure(Result.Failure(response.status.code))
+
+  def runBuffer[F[_]: Concurrent](buffer: Queue[F, EmitterPayload],
+                                  queue: Queue[F, CollectorRequest],
+                                  config: BufferConfig) =
+    config match {
+      case BufferConfig.Post(size) =>
+        Stream
+          .repeatEval(Sync[F].pure(size))
+          .through[F, EmitterPayload](buffer.dequeueBatch)
+          .through(wrapPayloads(size))
+          .to(queue.enqueue)
+          .compile
+          .drain
+          .start
+    }
+
+  private def getBufferQueue[F[_]: Concurrent](config: BufferConfig): F[Queue[F, EmitterPayload]] =
+    config match {
+      case BufferConfig.Post(size) =>
+        Queue.bounded[F, EmitterPayload](size * 2)
+      case BufferConfig.Sized(_) =>
+        Queue.unbounded[F, EmitterPayload]
+      case BufferConfig.Get =>
+        Queue.bounded[F, EmitterPayload](1)
+    }
 }

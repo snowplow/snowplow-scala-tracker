@@ -130,7 +130,6 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
   def trackSelfDescribingEvent(unstructEvent: SelfDescribingJson,
                                contexts: Seq[SelfDescribingJson] = Nil,
                                timestamp: Option[Timestamp]      = None): F[Unit] = {
-
     val envelope = SelfDescribingData(SelfDescribingEventSchemaKey, unstructEvent.normalize)
     val payload = Payload()
       .add("e", "ue")

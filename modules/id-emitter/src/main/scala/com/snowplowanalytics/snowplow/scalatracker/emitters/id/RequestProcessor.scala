@@ -43,17 +43,10 @@ class RequestProcessor {
       val task = new TimerTask {
         override def run(): Unit = queue.put(event)
       }
-      val delay = getDelay(event.attempt)
+      val delay = getDelay(event.attempt, rng.nextDouble())
       timer.schedule(task, delay.toLong)
       true
     }
-
-  /** Get delay with increased non-linear back-off period */
-  private def getDelay(attempt: Int): Int = {
-    val rangeMin = attempt.toDouble
-    val rangeMax = attempt.toDouble * 3
-    ((rangeMin + (rangeMax - rangeMin) * rng.nextDouble()) * 1000).toInt
-  }
 
   /**
    * Construct POST request with batch event payload
@@ -132,7 +125,10 @@ class RequestProcessor {
    * @param payload either GET or POST payload
    */
   def sendAsync(ec: ExecutionContext, collector: CollectorParams, payload: CollectorRequest): Future[HttpResponse[_]] =
-    Future(constructRequest(collector, payload.updateStm).asBytes)(ec)
+    Future {
+      val deviceSentTimestamp = System.currentTimeMillis()
+      constructRequest(collector, payload.updateStm(deviceSentTimestamp)).asBytes
+    }(ec)
 
   def sendSync(ec: ExecutionContext,
                duration: Duration,

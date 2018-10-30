@@ -13,7 +13,7 @@
 
 lazy val commonSettings = Seq(
   organization := "com.snowplowanalytics",
-  version := "0.7.0-M1",
+  version := "0.7.0-SNAPSHOT",
   scalaVersion := "2.12.6",
   crossScalaVersions := Seq("2.11.12", "2.12.6"),
   scalacOptions := BuildSettings.compilerOptions,
