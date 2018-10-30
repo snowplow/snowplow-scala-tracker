@@ -75,9 +75,7 @@ lazy val http4sEmitter = project
   .settings(Seq(
     name := "snowplow-scala-tracker-emitter-http4s",
     libraryDependencies ++= Seq(
-      Dependencies.Libraries.http4sClient,
-      Dependencies.Libraries.http4sBlaze,
-      Dependencies.Libraries.fs2
+      Dependencies.Libraries.http4sClient
     )
   ))
   .dependsOn(core % "test->test;compile->compile")
