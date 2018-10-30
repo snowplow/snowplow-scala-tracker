@@ -34,7 +34,7 @@ object AsyncEmitter {
    */
   def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback[Id]])(
     implicit ec: ExecutionContext): AsyncEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+    val collector = CollectorParams(host, port, Some(https))
     val emitter   = new AsyncEmitter(ec, collector, callback)
     emitter.startWorker()
     emitter

@@ -12,7 +12,10 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
+import java.net.URI
 import java.util.UUID
+
+import cats.syntax.either._
 
 import io.circe._
 import io.circe.syntax._
@@ -60,15 +63,6 @@ object Emitter {
 
   /** User-provided callback */
   type Callback[F[_]] = (CollectorParams, CollectorRequest, Result) => F[Unit]
-
-  /**
-   * Transform List of Map[String, String] to JSON array of objects
-   *
-   * @param payload list of string-to-string maps taken from HTTP query
-   * @return JSON array represented as String
-   */
-  def postPayload(payload: Seq[Map[String, String]]): String =
-    SelfDescribingData[Json](Tracker.PayloadDataSchemaKey, payload.asJson).normalize.noSpaces
 
   /** Emitter buffering config */
   sealed trait BufferConfig extends Product with Serializable
@@ -135,6 +129,49 @@ object Emitter {
     def getGetUri: String = getUri ++ "/i"
   }
 
+  object CollectorParams {
+
+    /** Construct collector preferences with correct default port */
+    def apply(host: String, port: Option[Int], https: Option[Boolean]): CollectorParams =
+      (port, https) match {
+        case (Some(p), s)    => CollectorParams(host, p, s.getOrElse(false))
+        case (None, Some(s)) => CollectorParams(host, if (s) 443 else 80, s)
+        case (None, None)    => CollectorParams(host, 80, false)
+      }
+
+    /** Construct collector preferences from URI, fail on any unexpected element */
+    def fromUri(uri: URI): Either[String, CollectorParams] = {
+      val https = Option(uri.getScheme) match {
+        case Some("http")  => Some(false).asRight
+        case Some("https") => Some(true).asRight
+        case Some(other)   => s"Scheme $other is not supported, http and https only".asLeft
+        case None          => None.asRight
+      }
+      val host = Option(uri.getHost).toRight("Host must be present")
+      val port = if (uri.getPort == -1) None else Some(uri.getPort)
+      val fragment = Option(uri.getFragment).fold(().asRight[String])(s =>
+        s"Fragment is not allowed in collector URI, $s given".asLeft[Unit])
+      val userinfo = Option(uri.getUserInfo).fold(().asRight[String])(s =>
+        s"Userinfo is not allowed in collector URI, $s given".asLeft[Unit])
+      val path = Option(uri.getPath).flatMap(p => if (p.isEmpty) None else Some(p)).fold(().asRight[String])(s =>
+        s"Path is not allowed in collector URI, $s given".asLeft[Unit])
+      val query = Option(uri.getQuery).fold(().asRight[String])(s =>
+        s"Query is not allowed in collector URI, $s given".asLeft[Unit])
+      val authority = Option(uri.getQuery).fold(().asRight[String])(s =>
+        s"Authority is not allowed in collector URI, $s given".asLeft[Unit])
+
+      for {
+        h <- host
+        s <- https
+        _ <- fragment
+        _ <- userinfo
+        _ <- path
+        _ <- query
+        _ <- authority
+      } yield CollectorParams(h, port, s)
+    }
+  }
+
   /** ADT for possible track results */
   sealed trait Result extends Product with Serializable
 
@@ -153,14 +190,13 @@ object Emitter {
     final case class RetriesExceeded(lastResponse: Result) extends Result
   }
 
-  object CollectorParams {
+  /**
+   * Transform List of Map[String, String] to JSON array of objects
+   *
+   * @param payload list of string-to-string maps taken from HTTP query
+   * @return JSON array represented as String
+   */
+  private[scalatracker] def postPayload(payload: Seq[Map[String, String]]): String =
+    SelfDescribingData[Json](Tracker.PayloadDataSchemaKey, payload.asJson).normalize.noSpaces
 
-    /** Construct collector preferences with correct default port */
-    def construct(host: String, port: Option[Int] = None, https: Boolean = false): CollectorParams =
-      port match {
-        case Some(p)       => CollectorParams(host, p, https)
-        case None if https => CollectorParams(host, 443, https = true)
-        case None          => CollectorParams(host, 80, https = false)
-      }
-  }
 }

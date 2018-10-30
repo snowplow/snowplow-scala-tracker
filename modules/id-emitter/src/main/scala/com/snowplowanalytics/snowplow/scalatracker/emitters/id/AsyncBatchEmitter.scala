@@ -39,7 +39,7 @@ object AsyncBatchEmitter {
                      https: Boolean                 = false,
                      bufferSize: Int                = 50,
                      callback: Option[Callback[Id]] = None)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+    val collector = CollectorParams(host, port, Some(https))
     val emitter   = new AsyncBatchEmitter(ec, collector, bufferSize, callback)
     emitter.startWorker()
     emitter

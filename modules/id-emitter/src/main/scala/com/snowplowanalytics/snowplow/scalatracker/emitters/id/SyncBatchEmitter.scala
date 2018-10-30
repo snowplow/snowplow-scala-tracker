@@ -74,7 +74,7 @@ object SyncBatchEmitter {
                      bufferSize: Int                = 50,
                      callback: Option[Callback[Id]] = None,
                      blockingDuration: Duration     = 5.seconds): SyncBatchEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+    val collector = CollectorParams(host, port, Some(https))
     new SyncBatchEmitter(collector, blockingDuration, bufferSize, callback)
   }
 }

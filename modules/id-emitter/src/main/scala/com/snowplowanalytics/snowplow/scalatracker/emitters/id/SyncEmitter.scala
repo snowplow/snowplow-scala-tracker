@@ -56,7 +56,7 @@ object SyncEmitter {
                      https: Boolean                 = false,
                      callback: Option[Callback[Id]] = None,
                      blockingDuration: Duration     = 5.seconds): SyncEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+    val collector = CollectorParams(host, port, Some(https))
     new SyncEmitter(collector, blockingDuration, callback)
   }
 }
