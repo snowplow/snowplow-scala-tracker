@@ -23,7 +23,7 @@ lazy val commonSettings = Seq(
     Dependencies.Libraries.specs2Mock,
     Dependencies.Libraries.scalaCheck,
     Dependencies.Libraries.circeOptics
-  )
+  ),
 ) ++ BuildSettings.buildSettings ++ BuildSettings.formattingSettings
 
 lazy val root = project

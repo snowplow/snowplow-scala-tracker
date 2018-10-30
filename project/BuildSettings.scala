@@ -80,7 +80,8 @@ object BuildSettings {
       </developers>)
   )
 
-  lazy val buildSettings = scalifySettings ++ publishSettings ++ mavenCentralExtras
+  lazy val buildSettings = scalifySettings ++ publishSettings ++ mavenCentralExtras ++
+    Seq(addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.8"))
 
   lazy val formattingSettings = Seq(
     scalafmtOnCompile := true,
