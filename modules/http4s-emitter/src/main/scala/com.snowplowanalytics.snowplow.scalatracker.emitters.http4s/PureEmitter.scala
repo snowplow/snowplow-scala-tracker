@@ -15,27 +15,32 @@ package emitters.http4s
 
 import scala.util.Random
 import scala.concurrent.duration._
-import cats.{Applicative, ApplicativeError, Monad}
+
+import cats.{Applicative, ApplicativeError}
 import cats.effect._
 import cats.effect.implicits._
 import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.apply._
+
 import fs2.{Pipe, Sink, Stream}
-import fs2.concurrent.{Enqueue, InspectableQueue, Queue, Signal, SignallingRef}
+import fs2.concurrent.{Enqueue, Queue}
+
 import org.http4s.{Method, Request, Response, Uri}
 import org.http4s.client.Client
+
 import Emitter._
 
-trait BatchEmitter[F[_]] extends Emitter[F] {
+trait PureEmitter[F[_]] extends Emitter[F] {
   def send(event: EmitterPayload): F[Unit]
   def flush: F[Unit]
 
-  private[scalatracker] def handle: Fiber[F, Unit]
+  private[scalatracker] def mainHandle: Fiber[F, Unit]
+  private[scalatracker] def retryHandle: Fiber[F, Unit]
 }
 
-object BatchEmitter {
+object PureEmitter {
 
   /**
    * Primary constructor, creating a queue and starting a pulling thread
@@ -49,17 +54,25 @@ object BatchEmitter {
   def start[F[_]: Concurrent: Timer](client: Client[F],
                                      collector: CollectorParams,
                                      config: BufferConfig,
-                                     callback: Option[Callback[F]]): Resource[F, BatchEmitter[F]] = {
-    val create: F[BatchEmitter[F]] = for {
-      buffer     <- getBufferQueue(config)
-      queue      <- Queue.unbounded[F, CollectorRequest]
-      ff         <- runBuffer(buffer, queue, config)
-      retryQueue <- Queue.circularBuffer[F, CollectorRequest](1024)
-      sink = pull(client, collector, callback, queue, retryQueue)
-      queueFiber <- queue.dequeue.to(sink).compile.drain.foreverM[Unit].start
-    } yield BatchEmitter(submit(config, queue, buffer), queueFiber, flush(queue, buffer))
-    Resource.make(create)(e => e.flush *> e.handle.cancel)
+                                     callback: Option[Callback[F]],
+                                     retryQueueSize: Int): Resource[F, PureEmitter[F]] = {
+    val create: F[PureEmitter[F]] = for {
+      rng          <- Sync[F].delay(new Random())
+      buffer       <- getBufferQueue(config)
+      requestQueue <- Queue.unbounded[F, CollectorRequest]
+      bufferFiber  <- runBuffer(buffer, requestQueue, config)
+      retryQueue   <- Queue.circularBuffer[F, CollectorRequest](retryQueueSize)
+      sink = pull(client, rng, collector, callback, requestQueue, retryQueue)
+      queueFiber <- requestQueue.dequeue.to(sink).compile.drain.foreverM[Unit].start
+    } yield PureEmitter(submit(config, requestQueue, buffer), queueFiber, bufferFiber, flush(requestQueue, buffer))
+
+    Resource.make(create)(e => e.flush *> e.mainHandle.cancel *> e.retryHandle.cancel)
   }
+
+  def start[F[_]: Concurrent: Timer](client: Client[F],
+                                     collector: CollectorParams,
+                                     config: BufferConfig): Resource[F, PureEmitter[F]] =
+    start(client, collector, config, None, 1024)
 
   /** Send payload as HTTP request */
   def send[F[_]](client: Client[F], collector: CollectorParams, request: CollectorRequest, dtm: Long)(
@@ -81,6 +94,7 @@ object BatchEmitter {
 
   /** Pull a queue for payloads and send them to a collector, re-add in case of failure */
   def pull[F[_]: Concurrent: Timer](client: Client[F],
+                                    rng: Random,
                                     collector: CollectorParams,
                                     callback: Option[Callback[F]],
                                     queue: Enqueue[F, CollectorRequest],
@@ -96,18 +110,23 @@ object BatchEmitter {
           case Result.Success(_) => Sync[F].unit
           case failure =>
             for {
-              resent <- backToQueue(retryQueue, payload)
-              _ <- resent match {
-                case None    => finish(Result.RetriesExceeded(failure))
-                case Some(_) => Applicative[F].unit // Ignoring fiber here because cancellation isn't meaningful
-              }
+              resent <- backToQueue(rng, retryQueue, payload)
+              _      <- if (resent) Applicative[F].unit else finish(Result.RetriesExceeded(failure))
             } yield ()
         }
       } yield ()
     }
 
-  def flush[F[_]: Async](queue: Enqueue[F, CollectorRequest], buffer: Queue[F, EmitterPayload]) =
-    buffer.dequeue.through(wrapPayloads(10)).to(queue.enqueue).compile.drain
+  def flush[F[_]: Async](queue: Enqueue[F, CollectorRequest], buffer: Queue[F, EmitterPayload]) = {
+    val stream = Stream
+      .repeatEval(buffer.tryDequeueChunk1(10))
+      .takeWhile(_.isDefined)
+      .flatMap {
+        case Some(chunk) => Stream.emit(CollectorRequest(chunk.toList))
+        case None        => Stream.empty
+      }
+    stream.compile.drain
+  }
 
   def wrapPayloads[F[_]: Async](i: Int): Pipe[F, EmitterPayload, CollectorRequest] =
     (buffer: Stream[F, EmitterPayload]) => {
@@ -141,36 +160,7 @@ object BatchEmitter {
   def canBuffer(existing: Seq[EmitterPayload], newcomer: EmitterPayload, allowed: Int): Boolean =
     Emitter.postPayload(existing :+ newcomer).getBytes.length < allowed
 
-  private def bufferEmit[F[_]](payloads: Vector[EmitterPayload]) =
-    Stream.emits[F, EmitterPayload](payloads)
-
-  private[scalatracker] def apply[F[_]](f: EmitterPayload => F[Unit],
-                                        fiber: Fiber[F, Unit],
-                                        end: F[Unit]): BatchEmitter[F] =
-    new BatchEmitter[F] {
-      def send(event: EmitterPayload): F[Unit] = f(event)
-      val handle: Fiber[F, Unit]               = fiber
-      val flush: F[Unit]                       = end
-
-    }
-
-  /** Add a payload to queue or reject as wasted */
-  private def backToQueue[F[_]: Concurrent: Timer](retryQueue: Enqueue[F, CollectorRequest],
-                                                   retry: CollectorRequest): F[Option[Fiber[F, Unit]]] =
-    if (retry.isFailed) Applicative[F].pure(None)
-    else
-      for {
-        seed <- Sync[F].delay(new Random().nextDouble())
-        delay = getDelay(retry.attempt, seed)
-        _      <- implicitly[Timer[F]].sleep(delay.millis)
-        newTry <- retryQueue.enqueue1(retry).start
-      } yield Some(newTry)
-
-  /** Transform http4s [[Response]] to tracker's [[Result]] */
-  private def toResult[F[_]: Applicative](response: Response[F]): F[Result] =
-    if (response.status.code == 200) Applicative[F].pure(Result.Success(200))
-    else Applicative[F].pure(Result.Failure(response.status.code))
-
+  /** Run buffering pipe if necessary */
   def runBuffer[F[_]: Concurrent](buffer: Queue[F, EmitterPayload],
                                   queue: Queue[F, CollectorRequest],
                                   config: BufferConfig) =
@@ -184,7 +174,44 @@ object BatchEmitter {
           .compile
           .drain
           .start
+      case BufferConfig.Get =>
+        Sync[F].pure(Fiber(Sync[F].unit, Sync[F].unit))
     }
+
+  private def bufferEmit[F[_]](payloads: Vector[EmitterPayload]) =
+    Stream.emits[F, EmitterPayload](payloads)
+
+  private[scalatracker] def apply[F[_]](f: EmitterPayload => F[Unit],
+                                        main: Fiber[F, Unit],
+                                        retry: Fiber[F, Unit],
+                                        end: F[Unit]): PureEmitter[F] =
+    new PureEmitter[F] {
+      def send(event: EmitterPayload): F[Unit] = f(event)
+      val flush: F[Unit]                       = end
+
+      val mainHandle: Fiber[F, Unit]  = main
+      val retryHandle: Fiber[F, Unit] = retry
+
+    }
+
+  /** Add a payload to queue or reject as wasted */
+  private def backToQueue[F[_]: Concurrent: Timer](rng: Random,
+                                                   retryQueue: Enqueue[F, CollectorRequest],
+                                                   retry: CollectorRequest): F[Boolean] =
+    if (retry.isFailed) Applicative[F].pure(false)
+    else
+      for {
+        seed <- Sync[F].delay(rng.nextDouble())
+        delay = getDelay(retry.attempt, seed)
+        _ <- implicitly[Timer[F]].sleep(delay.millis)
+        _ <- retryQueue.enqueue1(retry) // retryQueue supposed to be circular, so no blocking happens
+        // TODO: we need to have a callback for discarded events
+      } yield true
+
+  /** Transform http4s [[Response]] to tracker's [[Result]] */
+  private def toResult[F[_]: Applicative](response: Response[F]): F[Result] =
+    if (response.status.code == 200) Applicative[F].pure(Result.Success(200))
+    else Applicative[F].pure(Result.Failure(response.status.code))
 
   private def getBufferQueue[F[_]: Concurrent](config: BufferConfig): F[Queue[F, EmitterPayload]] =
     config match {
