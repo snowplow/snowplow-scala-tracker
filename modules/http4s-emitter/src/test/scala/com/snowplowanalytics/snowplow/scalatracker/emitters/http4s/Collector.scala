@@ -12,6 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.http4s
 
+import java.util.Base64
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -35,15 +36,17 @@ object Collector {
   val Host   = "localhost"
   val Port   = 8080
   val Params = CollectorParams(Host, Port, false)
-  val Pixel  = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+  val Pixel = Base64.getDecoder.decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==")
+  val Response = Ok(Pixel).map(_.withContentType(`Content-Type`(MediaType.image.png)))
 
   def routes(queue: Queue[IO, Request[IO]]): HttpRoutes[IO] = HttpRoutes.of[IO] {
     case req @ GET -> Root / "i" =>
-      val response = Ok(Pixel.getBytes).map(_.withContentType(`Content-Type`(MediaType.image.png)))
-      queue.enqueue1(req) *> response
-    case req @ POST -> Root / "com.snowplowanalytics.snowplow/tp2" =>
-      val response = Ok().map(_.withContentType(`Content-Type`(MediaType.image.png)))
-      queue.enqueue1(req) *> response
+      println(req)
+      queue.enqueue1(req) *> Response
+    case req @ POST -> Root / "com.snowplowanalytics.snowplow" / "tp2" =>
+      println(req)
+      queue.enqueue1(req) *> Response
   }
 
   def getServerLog: Resource[IO, Queue[IO, Request[IO]]] =

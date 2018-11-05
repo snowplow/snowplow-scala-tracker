@@ -32,7 +32,7 @@ import org.http4s.client.Client
 
 import Emitter._
 
-trait PureEmitter[F[_]] extends Emitter[F] {
+trait HttpEmitter[F[_]] extends Emitter[F] {
   def send(event: EmitterPayload): F[Unit]
   def flush: F[Unit]
 
@@ -40,7 +40,7 @@ trait PureEmitter[F[_]] extends Emitter[F] {
   private[scalatracker] def retryHandle: Fiber[F, Unit]
 }
 
-object PureEmitter {
+object HttpEmitter {
 
   /**
    * Primary constructor, creating a queue and starting a pulling thread
@@ -55,8 +55,8 @@ object PureEmitter {
                                      collector: CollectorParams,
                                      config: BufferConfig,
                                      callback: Option[Callback[F]],
-                                     retryQueueSize: Int): Resource[F, PureEmitter[F]] = {
-    val create: F[PureEmitter[F]] = for {
+                                     retryQueueSize: Int): Resource[F, HttpEmitter[F]] = {
+    val create: F[HttpEmitter[F]] = for {
       rng          <- Sync[F].delay(new Random())
       buffer       <- getBufferQueue(config)
       requestQueue <- Queue.unbounded[F, CollectorRequest]
@@ -64,14 +64,14 @@ object PureEmitter {
       retryQueue   <- Queue.circularBuffer[F, CollectorRequest](retryQueueSize)
       sink = pull(client, rng, collector, callback, requestQueue, retryQueue)
       queueFiber <- requestQueue.dequeue.to(sink).compile.drain.foreverM[Unit].start
-    } yield PureEmitter(submit(config, requestQueue, buffer), queueFiber, bufferFiber, flush(requestQueue, buffer))
+    } yield HttpEmitter(submit(config, requestQueue, buffer), queueFiber, bufferFiber, flush(requestQueue, buffer))
 
     Resource.make(create)(e => e.flush *> e.mainHandle.cancel *> e.retryHandle.cancel)
   }
 
   def start[F[_]: Concurrent: Timer](client: Client[F],
                                      collector: CollectorParams,
-                                     config: BufferConfig): Resource[F, PureEmitter[F]] =
+                                     config: BufferConfig): Resource[F, HttpEmitter[F]] =
     start(client, collector, config, None, 1024)
 
   /** Send payload as HTTP request */
@@ -184,8 +184,8 @@ object PureEmitter {
   private[scalatracker] def apply[F[_]](f: EmitterPayload => F[Unit],
                                         main: Fiber[F, Unit],
                                         retry: Fiber[F, Unit],
-                                        end: F[Unit]): PureEmitter[F] =
-    new PureEmitter[F] {
+                                        end: F[Unit]): HttpEmitter[F] =
+    new HttpEmitter[F] {
       def send(event: EmitterPayload): F[Unit] = f(event)
       val flush: F[Unit]                       = end
 
