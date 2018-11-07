@@ -17,9 +17,9 @@ import java.util.concurrent.LinkedBlockingQueue
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
 
-import com.snowplowanalytics.snowplow.scalatracker.Emitter._
+import cats.Id
 
-import RequestProcessor._
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 object AsyncBatchEmitter {
   // Avoid starting thread in constructor
@@ -35,11 +35,11 @@ object AsyncBatchEmitter {
    * @return emitter
    */
   def createAndStart(host: String,
-                     port: Option[Int]          = None,
-                     https: Boolean             = false,
-                     bufferSize: Int            = 50,
-                     callback: Option[Callback] = None)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+                     port: Option[Int]              = None,
+                     https: Boolean                 = false,
+                     bufferSize: Int                = 50,
+                     callback: Option[Callback[Id]] = None)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
+    val collector = CollectorParams(host, port, Some(https))
     val emitter   = new AsyncBatchEmitter(ec, collector, bufferSize, callback)
     emitter.startWorker()
     emitter
@@ -59,7 +59,7 @@ object AsyncBatchEmitter {
 class AsyncBatchEmitter private[id] (ec: ExecutionContext,
                                      collector: CollectorParams,
                                      bufferSize: Int,
-                                     callback: Option[Callback],
+                                     callback: Option[Callback[Id]],
                                      private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
@@ -90,7 +90,7 @@ class AsyncBatchEmitter private[id] (ec: ExecutionContext,
     buffer.synchronized {
       buffer.append(event)
       if (buffer.size >= bufferSize) {
-        queue.put(PostCollectorRequest(1, buffer.toList))
+        queue.put(CollectorRequest.Post(1, buffer.toList))
         buffer = ListBuffer[Map[String, String]]()
       }
     }

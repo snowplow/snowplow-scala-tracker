@@ -16,9 +16,9 @@ import java.util.concurrent.LinkedBlockingQueue
 
 import scala.concurrent.ExecutionContext
 
-import com.snowplowanalytics.snowplow.scalatracker.Emitter._
+import cats.Id
 
-import RequestProcessor._
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 object AsyncEmitter {
   // Avoid starting thread in constructor
@@ -32,9 +32,9 @@ object AsyncEmitter {
    * @param https should this use the https scheme
    * @return emitter
    */
-  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback])(
+  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback[Id]])(
     implicit ec: ExecutionContext): AsyncEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+    val collector = CollectorParams(host, port, Some(https))
     val emitter   = new AsyncEmitter(ec, collector, callback)
     emitter.startWorker()
     emitter
@@ -50,7 +50,7 @@ object AsyncEmitter {
  */
 class AsyncEmitter private (ec: ExecutionContext,
                             collector: CollectorParams,
-                            callback: Option[Callback],
+                            callback: Option[Callback[Id]],
                             private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
@@ -74,7 +74,7 @@ class AsyncEmitter private (ec: ExecutionContext,
    * @param event Fully assembled event
    */
   def send(event: EmitterPayload): Unit =
-    queue.put(GetCollectorRequest(1, event))
+    queue.put(CollectorRequest.Get(1, event))
 
   private def startWorker(): Unit =
     worker.start()

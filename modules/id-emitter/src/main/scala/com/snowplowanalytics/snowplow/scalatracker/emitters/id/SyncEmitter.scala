@@ -15,9 +15,9 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
-import com.snowplowanalytics.snowplow.scalatracker.Emitter._
+import cats.Id
 
-import RequestProcessor._
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 /**
  * Blocking emitter.
@@ -30,12 +30,12 @@ import RequestProcessor._
  */
 class SyncEmitter(collector: CollectorParams,
                   blockingDuration: Duration,
-                  callback: Option[Callback],
+                  callback: Option[Callback[Id]],
                   private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
   def send(event: EmitterPayload): Unit = {
-    val payload = GetCollectorRequest(1, event)
+    val payload = CollectorRequest.Get(1, event)
     processor.sendSync(global, blockingDuration, collector, payload, callback)
   }
 }
@@ -52,11 +52,11 @@ object SyncEmitter {
    * @return emitter
    */
   def createAndStart(host: String,
-                     port: Option[Int]          = None,
-                     https: Boolean             = false,
-                     callback: Option[Callback] = None,
-                     blockingDuration: Duration = 5.seconds): SyncEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+                     port: Option[Int]              = None,
+                     https: Boolean                 = false,
+                     callback: Option[Callback[Id]] = None,
+                     blockingDuration: Duration     = 5.seconds): SyncEmitter = {
+    val collector = CollectorParams(host, port, Some(https))
     new SyncEmitter(collector, blockingDuration, callback)
   }
 }

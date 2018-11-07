@@ -19,8 +19,7 @@ import scala.concurrent.duration._
 
 import cats.Id
 
-import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
-import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor._
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 /**
  * Synchronous batch emitter
@@ -36,7 +35,7 @@ import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor.
 class SyncBatchEmitter(collector: CollectorParams,
                        blockingDuration: Duration,
                        bufferSize: Int,
-                       callback: Option[Callback],
+                       callback: Option[Callback[Id]],
                        private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
@@ -47,7 +46,7 @@ class SyncBatchEmitter(collector: CollectorParams,
       buffer.append(event)
 
       if (buffer.size >= bufferSize) {
-        val payload = PostCollectorRequest(1, buffer.toList)
+        val payload = CollectorRequest.Post(1, buffer.toList)
 
         processor.sendSync(global, blockingDuration, collector, payload, callback)
         buffer.clear()
@@ -70,12 +69,12 @@ object SyncBatchEmitter {
    * @return emitter
    */
   def createAndStart(host: String,
-                     port: Option[Int]          = None,
-                     https: Boolean             = false,
-                     bufferSize: Int            = 50,
-                     callback: Option[Callback] = None,
-                     blockingDuration: Duration = 5.seconds): SyncBatchEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+                     port: Option[Int]              = None,
+                     https: Boolean                 = false,
+                     bufferSize: Int                = 50,
+                     callback: Option[Callback[Id]] = None,
+                     blockingDuration: Duration     = 5.seconds): SyncBatchEmitter = {
+    val collector = CollectorParams(host, port, Some(https))
     new SyncBatchEmitter(collector, blockingDuration, bufferSize, callback)
   }
 }

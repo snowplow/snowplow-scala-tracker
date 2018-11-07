@@ -13,7 +13,7 @@
 
 lazy val commonSettings = Seq(
   organization := "com.snowplowanalytics",
-  version := "0.6.0",
+  version := "0.7.0-SNAPSHOT",
   scalaVersion := "2.12.6",
   crossScalaVersions := Seq("2.11.12", "2.12.6"),
   scalacOptions := BuildSettings.compilerOptions,
@@ -23,7 +23,7 @@ lazy val commonSettings = Seq(
     Dependencies.Libraries.specs2Mock,
     Dependencies.Libraries.scalaCheck,
     Dependencies.Libraries.circeOptics
-  )
+  ),
 ) ++ BuildSettings.buildSettings ++ BuildSettings.formattingSettings
 
 lazy val root = project
@@ -65,6 +65,21 @@ lazy val metadata = project
     name := "snowplow-scala-tracker-metadata",
     libraryDependencies ++= Seq(
       Dependencies.Libraries.scalajHttp,
+    )
+  ))
+  .dependsOn(core % "test->test;compile->compile")
+
+lazy val http4sEmitter = project
+  .in(file("modules/http4s-emitter"))
+  .settings(commonSettings)
+  .settings(Seq(
+    name := "snowplow-scala-tracker-emitter-http4s",
+    resolvers += Resolver.sonatypeRepo("snapshots"),    // TODO: remove after final 0.20.0
+    libraryDependencies ++= List(
+      Dependencies.Libraries.http4sClient,
+      Dependencies.Libraries.http4sServerB,
+      Dependencies.Libraries.http4sClientB,
+      Dependencies.Libraries.http4sDsl
     )
   ))
   .dependsOn(core % "test->test;compile->compile")
