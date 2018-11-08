@@ -85,7 +85,7 @@ class AsyncBatchEmitter private[id] (ec: ExecutionContext,
    *
    * @param event Fully assembled event
    */
-  def send(event: EmitterPayload): Unit =
+  def send(event: Payload): Unit =
     // Multiple threads can input via same tracker and override buffer
     buffer.synchronized {
       buffer.append(event)

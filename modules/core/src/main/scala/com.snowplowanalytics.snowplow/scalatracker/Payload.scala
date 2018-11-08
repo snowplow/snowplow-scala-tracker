@@ -16,7 +16,7 @@ import java.util.Base64
 
 import io.circe.Json
 
-import Emitter.EmitterPayload
+import Emitter.Payload
 
 /**
  * Contains the map of key-value pairs making up an event
@@ -74,5 +74,5 @@ private[scalatracker] final case class Payload(private val nvPairs: Map[String, 
    *
    * @return Event map
    */
-  def get: EmitterPayload = nvPairs
+  def get: Payload = nvPairs
 }

@@ -38,14 +38,14 @@ trait Emitter[F[_]] {
    *
    * @param event Fully assembled event
    */
-  def send(event: Emitter.EmitterPayload): F[Unit]
+  def send(event: Emitter.Payload): F[Unit]
 
 }
 
 object Emitter {
 
   /** Low-level representation of event */
-  type EmitterPayload = Map[String, String]
+  type Payload = Map[String, String]
 
   /** User-provided callback */
   type Callback[F[_]] = (EndpointParams, Request, Result) => F[Unit]
@@ -92,17 +92,17 @@ object Emitter {
   object Request {
 
     /** Single event, supposed to passed with GET-request */
-    final case class Single(attempt: Int, payload: EmitterPayload) extends Request
+    final case class Single(attempt: Int, payload: Payload) extends Request
 
     /** Multiple events, supposed to passed with POST-request */
-    final case class Buffered(attempt: Int, payload: List[EmitterPayload]) extends Request
+    final case class Buffered(attempt: Int, payload: List[Payload]) extends Request
 
     /** Initial GET */
-    private[scalatracker] def apply(payload: EmitterPayload): Request =
+    private[scalatracker] def apply(payload: Payload): Request =
       Single(1, payload)
 
     /** Initial POST */
-    private[scalatracker] def apply(payload: List[EmitterPayload]): Request =
+    private[scalatracker] def apply(payload: List[Payload]): Request =
       Buffered(1, payload)
   }
 

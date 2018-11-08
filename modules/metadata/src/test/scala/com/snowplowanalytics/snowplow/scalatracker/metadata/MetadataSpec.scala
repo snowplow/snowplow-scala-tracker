@@ -20,7 +20,7 @@ import cats.data.NonEmptyList
 import cats.effect.internals.IOContextShift
 import cats.effect.{ContextShift, IO}
 import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Tracker}
-import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
+import com.snowplowanalytics.snowplow.scalatracker.Emitter.Payload
 import org.specs2.Specification
 import org.specs2.mock.Mockito
 
@@ -67,7 +67,7 @@ class MetadataSpec extends Specification with Mockito {
     """
 
   val emitter: Emitter[Id] = new Emitter[Id] {
-    override def send(event: EmitterPayload): Id[Unit] = ()
+    override def send(event: Payload): Id[Unit] = ()
   }
 
   def e1 =

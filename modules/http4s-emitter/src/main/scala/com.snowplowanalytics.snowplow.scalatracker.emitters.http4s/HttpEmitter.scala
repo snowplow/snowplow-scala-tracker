@@ -33,7 +33,7 @@ import org.http4s.client.Client
 import Emitter._
 
 trait HttpEmitter[F[_]] extends Emitter[F] {
-  def send(event: EmitterPayload): F[Unit]
+  def send(event: Payload): F[Unit]
   def flush: F[Unit]
 
   private[scalatracker] def mainHandle: Fiber[F, Unit]
@@ -117,7 +117,7 @@ object HttpEmitter {
       } yield ()
     }
 
-  def flush[F[_]: Async](queue: Enqueue[F, Request], buffer: Queue[F, EmitterPayload]) = {
+  def flush[F[_]: Async](queue: Enqueue[F, Request], buffer: Queue[F, Payload]) = {
     val stream = Stream
       .repeatEval(buffer.tryDequeueChunk1(10))
       .takeWhile(_.isDefined)
@@ -128,8 +128,8 @@ object HttpEmitter {
     stream.compile.drain
   }
 
-  def wrapPayloads[F[_]: Async](i: Int): Pipe[F, EmitterPayload, Request] =
-    (buffer: Stream[F, EmitterPayload]) => {
+  def wrapPayloads[F[_]: Async](i: Int): Pipe[F, Payload, Request] =
+    (buffer: Stream[F, Payload]) => {
       buffer.chunkLimit(i).map { chunk =>
         Request(chunk.toList)
       }
@@ -138,7 +138,7 @@ object HttpEmitter {
   /** Depending on buffer configuration, either buffer an event or send it straight away */
   def submit[F[_]: Async](bufferConfig: BufferConfig,
                           queue: Enqueue[F, Request],
-                          buffer: Queue[F, EmitterPayload])(event: EmitterPayload) =
+                          buffer: Queue[F, Payload])(event: Payload) =
     bufferConfig match {
       case BufferConfig.EventsCardinality(_) =>
         buffer.enqueue1(event)
@@ -157,18 +157,18 @@ object HttpEmitter {
     }
 
   /** false if need to send existing, true if okay to add */
-  def canBuffer(existing: Seq[EmitterPayload], newcomer: EmitterPayload, allowed: Int): Boolean =
+  def canBuffer(existing: Seq[Payload], newcomer: Payload, allowed: Int): Boolean =
     Emitter.postPayload(existing :+ newcomer).getBytes.length < allowed
 
   /** Run buffering pipe if necessary */
-  def runBuffer[F[_]: Concurrent](buffer: Queue[F, EmitterPayload],
+  def runBuffer[F[_]: Concurrent](buffer: Queue[F, Payload],
                                   queue: Queue[F, Request],
                                   config: BufferConfig) =
     config match {
       case BufferConfig.EventsCardinality(size) =>
         Stream
           .repeatEval(Sync[F].pure(size))
-          .through[F, EmitterPayload](buffer.dequeueBatch)
+          .through[F, Payload](buffer.dequeueBatch)
           .through(wrapPayloads(size))
           .to(queue.enqueue)
           .compile
@@ -178,15 +178,15 @@ object HttpEmitter {
         Sync[F].pure(Fiber(Sync[F].unit, Sync[F].unit))
     }
 
-  private def bufferEmit[F[_]](payloads: Vector[EmitterPayload]) =
-    Stream.emits[F, EmitterPayload](payloads)
+  private def bufferEmit[F[_]](payloads: Vector[Payload]) =
+    Stream.emits[F, Payload](payloads)
 
-  private[scalatracker] def apply[F[_]](f: EmitterPayload => F[Unit],
+  private[scalatracker] def apply[F[_]](f: Payload => F[Unit],
                                         main: Fiber[F, Unit],
                                         retry: Fiber[F, Unit],
                                         end: F[Unit]): HttpEmitter[F] =
     new HttpEmitter[F] {
-      def send(event: EmitterPayload): F[Unit] = f(event)
+      def send(event: Payload): F[Unit] = f(event)
       val flush: F[Unit]                       = end
 
       val mainHandle: Fiber[F, Unit]  = main
@@ -213,13 +213,13 @@ object HttpEmitter {
     if (response.status.code == 200) Applicative[F].pure(Result.Success(200))
     else Applicative[F].pure(Result.Failure(response.status.code))
 
-  private def getBufferQueue[F[_]: Concurrent](config: BufferConfig): F[Queue[F, EmitterPayload]] =
+  private def getBufferQueue[F[_]: Concurrent](config: BufferConfig): F[Queue[F, Payload]] =
     config match {
       case BufferConfig.EventsCardinality(size) =>
-        Queue.bounded[F, EmitterPayload](size * 2)
+        Queue.bounded[F, Payload](size * 2)
       case BufferConfig.PayloadSize(_) =>
-        Queue.unbounded[F, EmitterPayload]
+        Queue.unbounded[F, Payload]
       case BufferConfig.NoBuffering =>
-        Queue.bounded[F, EmitterPayload](1)
+        Queue.bounded[F, Payload](1)
     }
 }

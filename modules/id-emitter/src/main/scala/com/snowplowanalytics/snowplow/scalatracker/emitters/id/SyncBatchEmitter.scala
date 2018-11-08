@@ -39,9 +39,9 @@ class SyncBatchEmitter(collector: EndpointParams,
                        private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
-  private val buffer = new ListBuffer[EmitterPayload]()
+  private val buffer = new ListBuffer[Payload]()
 
-  override def send(event: EmitterPayload): Id[Unit] =
+  override def send(event: Payload): Id[Unit] =
     buffer.synchronized {
       buffer.append(event)
 

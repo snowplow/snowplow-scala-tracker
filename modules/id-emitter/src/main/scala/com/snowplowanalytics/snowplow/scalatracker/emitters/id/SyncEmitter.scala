@@ -34,7 +34,7 @@ class SyncEmitter(collector: EndpointParams,
                   private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
-  def send(event: EmitterPayload): Unit = {
+  def send(event: Payload): Unit = {
     val payload = Request.Single(1, event)
     processor.sendSync(global, blockingDuration, collector, payload, callback)
   }

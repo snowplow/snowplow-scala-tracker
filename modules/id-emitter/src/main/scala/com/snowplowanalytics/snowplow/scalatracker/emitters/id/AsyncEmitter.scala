@@ -73,7 +73,7 @@ class AsyncEmitter private (ec: ExecutionContext,
    *
    * @param event Fully assembled event
    */
-  def send(event: EmitterPayload): Unit =
+  def send(event: Payload): Unit =
     queue.put(Request.Single(1, event))
 
   private def startWorker(): Unit =
