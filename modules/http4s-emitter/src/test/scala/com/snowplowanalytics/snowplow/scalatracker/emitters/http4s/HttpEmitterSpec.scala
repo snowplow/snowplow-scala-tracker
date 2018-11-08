@@ -8,7 +8,7 @@ import fs2.concurrent.Queue
 import org.http4s.Request
 import org.http4s.client.blaze.BlazeClientBuilder
 import com.snowplowanalytics.snowplow.scalatracker.Tracker
-import com.snowplowanalytics.snowplow.scalatracker.Emitter.{BufferConfig, CollectorRequest}
+import com.snowplowanalytics.snowplow.scalatracker.Emitter.{BufferConfig, Request}
 import org.specs2.Specification
 
 import scala.util.Random
@@ -20,7 +20,7 @@ class HttpEmitterSpec extends Specification {
   """
 
   def e1 = {
-    val requests = HttpEmitterSpec.perform(BufferConfig.Get) { tracker =>
+    val requests = HttpEmitterSpec.perform(BufferConfig.NoBuffering) { tracker =>
       tracker.trackPageView("http://example.com") *>
         tracker.trackPageView("http://example.com") *>
         tracker.trackPageView("http://example.com")
@@ -30,7 +30,7 @@ class HttpEmitterSpec extends Specification {
   }
 
   def e2 = {
-    val requests = HttpEmitterSpec.perform(BufferConfig.Post(2)) { tracker =>
+    val requests = HttpEmitterSpec.perform(BufferConfig.EventsCardinality(2)) { tracker =>
       tracker.trackPageView("http://example.com") *>
         tracker.trackPageView("http://example.com") *>
         tracker.trackPageView("http://example.com")

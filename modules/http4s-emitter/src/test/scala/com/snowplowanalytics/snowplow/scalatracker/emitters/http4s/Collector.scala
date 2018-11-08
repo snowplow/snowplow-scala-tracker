@@ -26,7 +26,7 @@ import org.http4s.{HttpRoutes, MediaType, Request}
 import org.http4s.headers.`Content-Type`
 import org.http4s.server.jetty.JettyBuilder
 
-import com.snowplowanalytics.snowplow.scalatracker.Emitter.CollectorParams
+import com.snowplowanalytics.snowplow.scalatracker.Emitter.EndpointParams
 
 object Collector {
 
@@ -35,7 +35,7 @@ object Collector {
 
   val Host   = "localhost"
   val Port   = 8080
-  val Params = CollectorParams(Host, Port, false)
+  val Params = EndpointParams(Host, Port, false)
   val Pixel = Base64.getDecoder.decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==")
   val Response = Ok(Pixel).map(_.withContentType(`Content-Type`(MediaType.image.png)))

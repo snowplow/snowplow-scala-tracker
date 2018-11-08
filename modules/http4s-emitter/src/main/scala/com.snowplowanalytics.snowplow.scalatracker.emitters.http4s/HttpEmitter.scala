@@ -52,16 +52,16 @@ object HttpEmitter {
    * @return resource that will free the pulling thread after releasing
    */
   def start[F[_]: Concurrent: Timer](client: Client[F],
-                                     collector: CollectorParams,
+                                     collector: EndpointParams,
                                      config: BufferConfig,
                                      callback: Option[Callback[F]],
                                      retryQueueSize: Int): Resource[F, HttpEmitter[F]] = {
     val create: F[HttpEmitter[F]] = for {
       rng          <- Sync[F].delay(new Random())
       buffer       <- getBufferQueue(config)
-      requestQueue <- Queue.unbounded[F, CollectorRequest]
+      requestQueue <- Queue.unbounded[F, Request]
       bufferFiber  <- runBuffer(buffer, requestQueue, config)
-      retryQueue   <- Queue.circularBuffer[F, CollectorRequest](retryQueueSize)
+      retryQueue   <- Queue.circularBuffer[F, Request](retryQueueSize)
       sink = pull(client, rng, collector, callback, requestQueue, retryQueue)
       queueFiber <- requestQueue.dequeue.to(sink).compile.drain.foreverM[Unit].start
     } yield HttpEmitter(submit(config, requestQueue, buffer), queueFiber, bufferFiber, flush(requestQueue, buffer))
@@ -70,18 +70,18 @@ object HttpEmitter {
   }
 
   def start[F[_]: Concurrent: Timer](client: Client[F],
-                                     collector: CollectorParams,
+                                     collector: EndpointParams,
                                      config: BufferConfig): Resource[F, HttpEmitter[F]] =
     start(client, collector, config, None, 1024)
 
   /** Send payload as HTTP request */
-  def send[F[_]](client: Client[F], collector: CollectorParams, request: CollectorRequest, dtm: Long)(
+  def send[F[_]](client: Client[F], collector: EndpointParams, request: Request, dtm: Long)(
     implicit F: ApplicativeError[F, Throwable]): F[Emitter.Result] = {
     val httpRequest = request.updateStm(dtm) match {
-      case CollectorRequest.Post(_, payload) =>
+      case Request.Post(_, payload) =>
         val body = Stream.emits(Emitter.postPayload(payload).getBytes).covary[F]
         Request[F](Method.POST, Uri.unsafeFromString(collector.getPostUri), body = body)
-      case CollectorRequest.Get(_, payload) =>
+      case Request.Get(_, payload) =>
         val uri = Uri.unsafeFromString(collector.getGetUri).setQueryParams(payload.mapValues(v => List(v)))
         Request[F](Method.GET, uri)
     }
@@ -95,10 +95,10 @@ object HttpEmitter {
   /** Pull a queue for payloads and send them to a collector, re-add in case of failure */
   def pull[F[_]: Concurrent: Timer](client: Client[F],
                                     rng: Random,
-                                    collector: CollectorParams,
+                                    collector: EndpointParams,
                                     callback: Option[Callback[F]],
-                                    queue: Enqueue[F, CollectorRequest],
-                                    retryQueue: Enqueue[F, CollectorRequest]): Sink[F, CollectorRequest] =
+                                    queue: Enqueue[F, Request],
+                                    retryQueue: Enqueue[F, Request]): Sink[F, Request] =
     _.evalMap[F, Unit] { payload =>
       val finish: Result => F[Unit] =
         callback.fold((_: Result) => Sync[F].unit)(cb => r => cb(collector, payload, r))
@@ -117,32 +117,32 @@ object HttpEmitter {
       } yield ()
     }
 
-  def flush[F[_]: Async](queue: Enqueue[F, CollectorRequest], buffer: Queue[F, EmitterPayload]) = {
+  def flush[F[_]: Async](queue: Enqueue[F, Request], buffer: Queue[F, EmitterPayload]) = {
     val stream = Stream
       .repeatEval(buffer.tryDequeueChunk1(10))
       .takeWhile(_.isDefined)
       .flatMap {
-        case Some(chunk) => Stream.emit(CollectorRequest(chunk.toList))
+        case Some(chunk) => Stream.emit(Request(chunk.toList))
         case None        => Stream.empty
       }
     stream.compile.drain
   }
 
-  def wrapPayloads[F[_]: Async](i: Int): Pipe[F, EmitterPayload, CollectorRequest] =
+  def wrapPayloads[F[_]: Async](i: Int): Pipe[F, EmitterPayload, Request] =
     (buffer: Stream[F, EmitterPayload]) => {
       buffer.chunkLimit(i).map { chunk =>
-        CollectorRequest(chunk.toList)
+        Request(chunk.toList)
       }
     }
 
   /** Depending on buffer configuration, either buffer an event or send it straight away */
   def submit[F[_]: Async](bufferConfig: BufferConfig,
-                          queue: Enqueue[F, CollectorRequest],
+                          queue: Enqueue[F, Request],
                           buffer: Queue[F, EmitterPayload])(event: EmitterPayload) =
     bufferConfig match {
-      case BufferConfig.Post(_) =>
+      case BufferConfig.EventsCardinality(_) =>
         buffer.enqueue1(event)
-      case BufferConfig.Sized(bytesAllowed) =>
+      case BufferConfig.PayloadSize(bytesAllowed) =>
         for {
           // Find more efficient solution
           // but probably this won't work at all
@@ -152,8 +152,8 @@ object HttpEmitter {
           _ = if (isAllowed) buffer.enqueue(bufferEmit(event +: current)).compile.drain
           else buffer.enqueue(bufferEmit(current)).compile.drain *> buffer.enqueue1(event)
         } yield ()
-      case BufferConfig.Get =>
-        queue.enqueue1(CollectorRequest(event))
+      case BufferConfig.NoBuffering =>
+        queue.enqueue1(Request(event))
     }
 
   /** false if need to send existing, true if okay to add */
@@ -162,10 +162,10 @@ object HttpEmitter {
 
   /** Run buffering pipe if necessary */
   def runBuffer[F[_]: Concurrent](buffer: Queue[F, EmitterPayload],
-                                  queue: Queue[F, CollectorRequest],
+                                  queue: Queue[F, Request],
                                   config: BufferConfig) =
     config match {
-      case BufferConfig.Post(size) =>
+      case BufferConfig.EventsCardinality(size) =>
         Stream
           .repeatEval(Sync[F].pure(size))
           .through[F, EmitterPayload](buffer.dequeueBatch)
@@ -174,7 +174,7 @@ object HttpEmitter {
           .compile
           .drain
           .start
-      case BufferConfig.Get =>
+      case BufferConfig.NoBuffering =>
         Sync[F].pure(Fiber(Sync[F].unit, Sync[F].unit))
     }
 
@@ -196,8 +196,8 @@ object HttpEmitter {
 
   /** Add a payload to queue or reject as wasted */
   private def backToQueue[F[_]: Concurrent: Timer](rng: Random,
-                                                   retryQueue: Enqueue[F, CollectorRequest],
-                                                   retry: CollectorRequest): F[Boolean] =
+                                                   retryQueue: Enqueue[F, Request],
+                                                   retry: Request): F[Boolean] =
     if (retry.isFailed) Applicative[F].pure(false)
     else
       for {
@@ -215,11 +215,11 @@ object HttpEmitter {
 
   private def getBufferQueue[F[_]: Concurrent](config: BufferConfig): F[Queue[F, EmitterPayload]] =
     config match {
-      case BufferConfig.Post(size) =>
+      case BufferConfig.EventsCardinality(size) =>
         Queue.bounded[F, EmitterPayload](size * 2)
-      case BufferConfig.Sized(_) =>
+      case BufferConfig.PayloadSize(_) =>
         Queue.unbounded[F, EmitterPayload]
-      case BufferConfig.Get =>
+      case BufferConfig.NoBuffering =>
         Queue.bounded[F, EmitterPayload](1)
     }
 }
