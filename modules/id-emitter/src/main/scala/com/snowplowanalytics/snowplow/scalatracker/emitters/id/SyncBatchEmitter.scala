@@ -32,7 +32,7 @@ import com.snowplowanalytics.snowplow.scalatracker.Emitter._
  * @param bufferSize quantity of events in a batch request
  * @param callback optional callback executed after each sent event
  */
-class SyncBatchEmitter(collector: CollectorParams,
+class SyncBatchEmitter(collector: EndpointParams,
                        blockingDuration: Duration,
                        bufferSize: Int,
                        callback: Option[Callback[Id]],
@@ -46,7 +46,7 @@ class SyncBatchEmitter(collector: CollectorParams,
       buffer.append(event)
 
       if (buffer.size >= bufferSize) {
-        val payload = CollectorRequest.Post(1, buffer.toList)
+        val payload = Request.Buffered(1, buffer.toList)
 
         processor.sendSync(global, blockingDuration, collector, payload, callback)
         buffer.clear()
@@ -74,7 +74,7 @@ object SyncBatchEmitter {
                      bufferSize: Int                = 50,
                      callback: Option[Callback[Id]] = None,
                      blockingDuration: Duration     = 5.seconds): SyncBatchEmitter = {
-    val collector = CollectorParams(host, port, Some(https))
+    val collector = EndpointParams(host, port, Some(https))
     new SyncBatchEmitter(collector, blockingDuration, bufferSize, callback)
   }
 }

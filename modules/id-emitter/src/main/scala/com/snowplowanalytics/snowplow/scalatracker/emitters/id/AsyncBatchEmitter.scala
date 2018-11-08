@@ -39,7 +39,7 @@ object AsyncBatchEmitter {
                      https: Boolean                 = false,
                      bufferSize: Int                = 50,
                      callback: Option[Callback[Id]] = None)(implicit ec: ExecutionContext): AsyncBatchEmitter = {
-    val collector = CollectorParams(host, port, Some(https))
+    val collector = EndpointParams(host, port, Some(https))
     val emitter   = new AsyncBatchEmitter(ec, collector, bufferSize, callback)
     emitter.startWorker()
     emitter
@@ -57,7 +57,7 @@ object AsyncBatchEmitter {
  * @param bufferSize quantity of events in a batch request
  */
 class AsyncBatchEmitter private[id] (ec: ExecutionContext,
-                                     collector: CollectorParams,
+                                     collector: EndpointParams,
                                      bufferSize: Int,
                                      callback: Option[Callback[Id]],
                                      private val processor: RequestProcessor = new RequestProcessor)
@@ -66,7 +66,7 @@ class AsyncBatchEmitter private[id] (ec: ExecutionContext,
   private var buffer = ListBuffer[Map[String, String]]()
 
   /** Queue of HTTP requests */
-  val queue = new LinkedBlockingQueue[CollectorRequest]()
+  val queue = new LinkedBlockingQueue[Request]()
 
   // Start consumer thread synchronously trying to send events to collector
   val worker = new Thread {
@@ -90,7 +90,7 @@ class AsyncBatchEmitter private[id] (ec: ExecutionContext,
     buffer.synchronized {
       buffer.append(event)
       if (buffer.size >= bufferSize) {
-        queue.put(CollectorRequest.Post(1, buffer.toList))
+        queue.put(Request.Buffered(1, buffer.toList))
         buffer = ListBuffer[Map[String, String]]()
       }
     }

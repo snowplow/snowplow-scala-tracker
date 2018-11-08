@@ -48,19 +48,19 @@ object Emitter {
   type EmitterPayload = Map[String, String]
 
   /** User-provided callback */
-  type Callback[F[_]] = (CollectorParams, CollectorRequest, Result) => F[Unit]
+  type Callback[F[_]] = (EndpointParams, Request, Result) => F[Unit]
 
   /** Emitter buffering config */
   sealed trait BufferConfig extends Product with Serializable
 
   object BufferConfig {
-    case object Get extends BufferConfig
-    case class Post(size: Int) extends BufferConfig
-    case class Sized(bytes: Int) extends BufferConfig
+    case object NoBuffering extends BufferConfig
+    case class EventsCardinality(size: Int) extends BufferConfig
+    case class PayloadSize(bytes: Int) extends BufferConfig
   }
 
   /** Payload (either GET or POST) ready to be send to collector */
-  sealed trait CollectorRequest extends Product with Serializable {
+  sealed trait Request extends Product with Serializable {
 
     /** Attempt to send */
     def attempt: Int
@@ -69,45 +69,45 @@ object Emitter {
     def isFailed: Boolean = attempt >= 10
 
     /** Increment attempt number. Must be used whenever payload failed */
-    def updateAttempt: CollectorRequest = this match {
-      case g: CollectorRequest.Get  => g.copy(attempt = attempt + 1)
-      case p: CollectorRequest.Post => p.copy(attempt = attempt + 1)
+    def updateAttempt: Request = this match {
+      case g: Request.Single  => g.copy(attempt = attempt + 1)
+      case p: Request.Buffered => p.copy(attempt = attempt + 1)
     }
 
     /**
      * Return same payload, but with updated stm
      * Must be used right before payload goes to collector
      */
-    def updateStm(deviceSentTimestamp: Long): CollectorRequest = {
+    def updateStm(deviceSentTimestamp: Long): Request = {
       val stm = deviceSentTimestamp.toString
       this match {
-        case CollectorRequest.Get(_, map) =>
-          CollectorRequest.Get(attempt, map.updated("stm", stm))
-        case CollectorRequest.Post(_, list) =>
-          CollectorRequest.Post(attempt, list.map(_.updated("stm", stm)))
+        case Request.Single(_, map) =>
+          Request.Single(attempt, map.updated("stm", stm))
+        case Request.Buffered(_, list) =>
+          Request.Buffered(attempt, list.map(_.updated("stm", stm)))
       }
     }
   }
 
-  object CollectorRequest {
+  object Request {
 
     /** Single event, supposed to passed with GET-request */
-    final case class Get(attempt: Int, payload: EmitterPayload) extends CollectorRequest
+    final case class Single(attempt: Int, payload: EmitterPayload) extends Request
 
     /** Multiple events, supposed to passed with POST-request */
-    final case class Post(attempt: Int, payload: List[EmitterPayload]) extends CollectorRequest
-
-    /** Initial POST */
-    private[scalatracker] def apply(payload: List[EmitterPayload]): CollectorRequest =
-      Post(1, payload)
+    final case class Buffered(attempt: Int, payload: List[EmitterPayload]) extends Request
 
     /** Initial GET */
-    private[scalatracker] def apply(payload: EmitterPayload): CollectorRequest =
-      Get(1, payload)
+    private[scalatracker] def apply(payload: EmitterPayload): Request =
+      Single(1, payload)
+
+    /** Initial POST */
+    private[scalatracker] def apply(payload: List[EmitterPayload]): Request =
+      Buffered(1, payload)
   }
 
   /** Collector preferences */
-  case class CollectorParams(host: String, port: Int, https: Boolean) {
+  case class EndpointParams(host: String, port: Int, https: Boolean) {
 
     /** Return stringified collector representation, e.g. `https://splw.acme.com:80/` */
     def getUri: String = s"${if (https) "https" else "http"}://$host:$port"
@@ -117,18 +117,18 @@ object Emitter {
     def getGetUri: String = getUri ++ "/i"
   }
 
-  object CollectorParams {
+  object EndpointParams {
 
     /** Construct collector preferences with correct default port */
-    def apply(host: String, port: Option[Int], https: Option[Boolean]): CollectorParams =
+    def apply(host: String, port: Option[Int], https: Option[Boolean]): EndpointParams =
       (port, https) match {
-        case (Some(p), s)    => CollectorParams(host, p, s.getOrElse(false))
-        case (None, Some(s)) => CollectorParams(host, if (s) 443 else 80, s)
-        case (None, None)    => CollectorParams(host, 80, false)
+        case (Some(p), s)    => EndpointParams(host, p, s.getOrElse(false))
+        case (None, Some(s)) => EndpointParams(host, if (s) 443 else 80, s)
+        case (None, None)    => EndpointParams(host, 80, false)
       }
 
     /** Construct collector preferences from URI, fail on any unexpected element */
-    def fromUri(uri: URI): Either[String, CollectorParams] = {
+    def fromUri(uri: URI): Either[String, EndpointParams] = {
       val https = Option(uri.getScheme) match {
         case Some("http")  => Some(false).asRight
         case Some("https") => Some(true).asRight
@@ -157,7 +157,7 @@ object Emitter {
         _ <- path
         _ <- query
         _ <- authority
-      } yield CollectorParams(h, port, s)
+      } yield EndpointParams(h, port, s)
     }
   }
 

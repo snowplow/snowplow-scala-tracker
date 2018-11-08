@@ -37,7 +37,7 @@ class RequestProcessor {
    * Schedule re-adding of a failed event to queue after some delay.
    * Delay is calculated based on number of undertaken attempts
    */
-  def backToQueue(queue: BlockingQueue[CollectorRequest], event: CollectorRequest): Boolean =
+  def backToQueue(queue: BlockingQueue[Request], event: Request): Boolean =
     if (event.isFailed) false
     else {
       val task = new TimerTask {
@@ -55,13 +55,13 @@ class RequestProcessor {
    * @param request events enveloped with either Get or Post request
    * @return HTTP request with event
    */
-  private[scalatracker] def constructRequest(collector: CollectorParams, request: CollectorRequest): HttpRequest =
+  private[scalatracker] def constructRequest(collector: EndpointParams, request: Request): HttpRequest =
     request match {
-      case CollectorRequest.Post(_, payload) =>
+      case Request.Buffered(_, payload) =>
         Http(collector.getPostUri)
           .postData(postPayload(payload))
           .header("content-type", "application/json")
-      case CollectorRequest.Get(_, payload) =>
+      case Request.Single(_, payload) =>
         Http(collector.getGetUri).params(payload)
     }
 
@@ -75,11 +75,11 @@ class RequestProcessor {
    * @param payload either GET or POST payload
    */
   def submit(
-    originQueue: BlockingQueue[CollectorRequest],
-    ec: ExecutionContext,
-    callback: Option[Callback[Id]],
-    collector: CollectorParams,
-    payload: CollectorRequest
+              originQueue: BlockingQueue[Request],
+              ec: ExecutionContext,
+              callback: Option[Callback[Id]],
+              collector: EndpointParams,
+              payload: Request
   ): Unit = {
     val finish = invokeCallback(ec, collector, callback) _
     sendAsync(ec, collector, payload).onComplete { response =>
@@ -105,8 +105,8 @@ class RequestProcessor {
    * @param payload latest *sent* payload
    * @param result latest result
    */
-  def invokeCallback(ec: ExecutionContext, collector: CollectorParams, callback: Option[Callback[Id]])(
-    payload: CollectorRequest,
+  def invokeCallback(ec: ExecutionContext, collector: EndpointParams, callback: Option[Callback[Id]])(
+    payload: Request,
     result: Result): Unit =
     callback match {
       case Some(cb) =>
@@ -124,7 +124,7 @@ class RequestProcessor {
    * @param collector endpoint preferences
    * @param payload either GET or POST payload
    */
-  def sendAsync(ec: ExecutionContext, collector: CollectorParams, payload: CollectorRequest): Future[HttpResponse[_]] =
+  def sendAsync(ec: ExecutionContext, collector: EndpointParams, payload: Request): Future[HttpResponse[_]] =
     Future {
       val deviceSentTimestamp = System.currentTimeMillis()
       constructRequest(collector, payload.updateStm(deviceSentTimestamp)).asBytes
@@ -132,8 +132,8 @@ class RequestProcessor {
 
   def sendSync(ec: ExecutionContext,
                duration: Duration,
-               collector: CollectorParams,
-               payload: CollectorRequest,
+               collector: EndpointParams,
+               payload: Request,
                callback: Option[Callback[Id]]): Unit = {
     val response = sendAsync(ec, collector, payload)
     val result =

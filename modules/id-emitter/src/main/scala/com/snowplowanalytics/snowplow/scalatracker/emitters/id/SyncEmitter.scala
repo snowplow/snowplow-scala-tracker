@@ -28,14 +28,14 @@ import com.snowplowanalytics.snowplow.scalatracker.Emitter._
  * @param callback optional callback executed after each sent event
  *
  */
-class SyncEmitter(collector: CollectorParams,
+class SyncEmitter(collector: EndpointParams,
                   blockingDuration: Duration,
                   callback: Option[Callback[Id]],
                   private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
   def send(event: EmitterPayload): Unit = {
-    val payload = CollectorRequest.Get(1, event)
+    val payload = Request.Single(1, event)
     processor.sendSync(global, blockingDuration, collector, payload, callback)
   }
 }
@@ -56,7 +56,7 @@ object SyncEmitter {
                      https: Boolean                 = false,
                      callback: Option[Callback[Id]] = None,
                      blockingDuration: Duration     = 5.seconds): SyncEmitter = {
-    val collector = CollectorParams(host, port, Some(https))
+    val collector = EndpointParams(host, port, Some(https))
     new SyncEmitter(collector, blockingDuration, callback)
   }
 }
