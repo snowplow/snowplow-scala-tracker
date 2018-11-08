@@ -21,6 +21,7 @@ object Dependencies {
     val circe      = "0.10.0"
     val catsEffect = "1.0.0"
     val http4s     = "0.20.0-SNAPSHOT"
+    val pubsub     = "1.51.0"
 
     // Scala (test only)
     val specs2     = "4.3.5"
@@ -35,6 +36,9 @@ object Dependencies {
     val circe         = "io.circe"              %% "circe-parser"        % V.circe
     val catsEffect    = "org.typelevel"         %% "cats-effect"         % V.catsEffect
     val http4sClient  = "org.http4s"            %% "http4s-client"       % V.http4s
+
+    // Java
+    val pubsub        = "com.google.cloud"      % "google-cloud-pubsub"  % V.pubsub
 
     // Scala (test only)
     val specs2        = "org.specs2"             %% "specs2-core"         % V.specs2      % "test"

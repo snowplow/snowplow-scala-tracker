@@ -83,3 +83,14 @@ lazy val http4sEmitter = project
     )
   ))
   .dependsOn(core % "test->test;compile->compile")
+
+lazy val pubsubEmitter = project
+  .in(file("modules/pubsub-emitter"))
+  .settings(commonSettings)
+  .settings(Seq(
+    name := "snowplow-scala-tracker-emitter-pubsub",
+    libraryDependencies ++= List(
+      Dependencies.Libraries.pubsub
+    )
+  ))
+  .dependsOn(core % "test->test;compile->compile")
