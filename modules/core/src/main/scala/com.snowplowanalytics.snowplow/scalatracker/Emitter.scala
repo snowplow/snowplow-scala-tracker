@@ -70,7 +70,7 @@ object Emitter {
 
     /** Increment attempt number. Must be used whenever payload failed */
     def updateAttempt: Request = this match {
-      case g: Request.Single  => g.copy(attempt = attempt + 1)
+      case g: Request.Single   => g.copy(attempt = attempt + 1)
       case p: Request.Buffered => p.copy(attempt = attempt + 1)
     }
 
@@ -194,5 +194,4 @@ object Emitter {
    */
   private[scalatracker] def postPayload(payload: Seq[Map[String, String]]): String =
     SelfDescribingData[Json](Tracker.PayloadDataSchemaKey, payload.asJson).normalize.noSpaces
-
 }

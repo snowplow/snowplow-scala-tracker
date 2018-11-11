@@ -20,7 +20,7 @@ object Dependencies {
     val igluCore   = "0.3.0"
     val circe      = "0.10.0"
     val catsEffect = "1.0.0"
-    val http4s     = "0.20.0-SNAPSHOT"
+    val http4s     = "0.20.0-M2"
     val pubsub     = "1.51.0"
 
     // Scala (test only)

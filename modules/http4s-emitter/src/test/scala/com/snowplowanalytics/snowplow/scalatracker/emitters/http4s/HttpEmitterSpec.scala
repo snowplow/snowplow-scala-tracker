@@ -7,8 +7,7 @@ import fs2.Stream
 import fs2.concurrent.Queue
 import org.http4s.Request
 import org.http4s.client.blaze.BlazeClientBuilder
-import com.snowplowanalytics.snowplow.scalatracker.Tracker
-import com.snowplowanalytics.snowplow.scalatracker.Emitter.{BufferConfig, Request}
+import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Tracker}
 import org.specs2.Specification
 
 import scala.util.Random
@@ -16,11 +15,12 @@ import scala.util.Random
 class HttpEmitterSpec extends Specification {
   def is = s2"""
   Perform specified amount of requests e1
-  Perform specified amount of requests even with POST $e2
+  Perform specified amount of requests even with POST e2
+  Perform streaming flush $e3
   """
 
   def e1 = {
-    val requests = HttpEmitterSpec.perform(BufferConfig.NoBuffering) { tracker =>
+    val requests = HttpEmitterSpec.perform(Emitter.BufferConfig.NoBuffering) { tracker =>
       tracker.trackPageView("http://example.com") *>
         tracker.trackPageView("http://example.com") *>
         tracker.trackPageView("http://example.com")
@@ -30,13 +30,31 @@ class HttpEmitterSpec extends Specification {
   }
 
   def e2 = {
-    val requests = HttpEmitterSpec.perform(BufferConfig.EventsCardinality(2)) { tracker =>
+    val requests = HttpEmitterSpec.perform(Emitter.BufferConfig.EventsCardinality(2)) { tracker =>
       tracker.trackPageView("http://example.com") *>
         tracker.trackPageView("http://example.com") *>
         tracker.trackPageView("http://example.com")
     }
 
     requests.unsafeRunSync() must haveLength(2)
+  }
+
+  def e3 = {
+    def send(tracker: Tracker[IO])(i: Int): IO[Unit] =
+      tracker.trackPageView("http://example.com", Some(i.toString))
+
+    implicit val cs = IO.contextShift(scala.concurrent.ExecutionContext.global)
+
+    val requests = HttpEmitterSpec.perform(Emitter.BufferConfig.NoBuffering) { tracker =>
+      val stream = Stream
+        .emits[IO, Int](List(1, 2, 3))
+        .evalMap[IO, Unit] { send(tracker) }
+      val flattenStream = Stream(stream, stream, stream).covary[IO].parJoin(2)
+      flattenStream.compile.drain
+    }
+
+    requests.unsafeRunSync().flatMap(_.params.get("page")) must beEqualTo(
+      List(1, 1, 2, 3, 2, 3, 1, 2, 3).map(_.toString))
   }
 }
 
@@ -54,14 +72,14 @@ object HttpEmitterSpec {
   def getClient =
     BlazeClientBuilder[IO](ec).resource
 
-  def getTracker(bufferConfig: BufferConfig): Resource[IO, Tracker[IO]] =
+  def getTracker(bufferConfig: Emitter.BufferConfig): Resource[IO, Tracker[IO]] =
     for {
       client  <- getClient
       emitter <- HttpEmitter.start(client, Collector.Params, bufferConfig)
       tracker = Tracker[IO](emitter, "emitter-spec", "scala-tracker")
     } yield tracker
 
-  def perform(bufferConfig: BufferConfig)(action: Tracker[IO] => IO[Unit]) = {
+  def perform(bufferConfig: Emitter.BufferConfig)(action: Tracker[IO] => IO[Unit]) = {
     val resources: Resource[IO, (Queue[IO, Request[IO]], Tracker[IO])] = for {
       queue   <- Collector.getServerLog
       tracker <- HttpEmitterSpec.getTracker(bufferConfig)
