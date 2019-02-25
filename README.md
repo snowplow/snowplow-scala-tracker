@@ -36,8 +36,8 @@ limitations under the License.
 [license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
 
-[maven-badge]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker_2.12/badge.svg
-[maven]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker_2.12
+[maven-badge]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker-core_2.12/badge.svg
+[maven]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker-core_2.12
 
 [codecov-badge]: https://codecov.io/gh/snowplow/snowplow-scala-tracker/branch/master/graph/badge.svg
 [codecov]: https://codecov.io/gh/snowplow/snowplow-scala-tracker
