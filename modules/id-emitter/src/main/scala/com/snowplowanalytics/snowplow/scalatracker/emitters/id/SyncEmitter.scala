@@ -38,6 +38,9 @@ class SyncEmitter(collector: CollectorParams,
     val payload = GetCollectorRequest(1, event)
     processor.sendSync(global, blockingDuration, collector, payload, callback)
   }
+
+  // Does nothing as all events are sent immediately
+  def flush: Unit = {}
 }
 
 object SyncEmitter {

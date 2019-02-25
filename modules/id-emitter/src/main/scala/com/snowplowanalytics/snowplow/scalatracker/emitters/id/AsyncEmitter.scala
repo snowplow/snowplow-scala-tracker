@@ -76,6 +76,8 @@ class AsyncEmitter private (ec: ExecutionContext,
   def send(event: EmitterPayload): Unit =
     queue.put(GetCollectorRequest(1, event))
 
+  def flush: Unit = {}
+
   private def startWorker(): Unit =
     worker.start()
 }

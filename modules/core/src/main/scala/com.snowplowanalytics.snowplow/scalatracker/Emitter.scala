@@ -47,6 +47,10 @@ trait Emitter[F[_]] {
    */
   def send(event: EmitterPayload): F[Unit]
 
+  /**
+   * Flushes the current event buffer
+   */
+  def flush: F[Unit]
 }
 
 object Emitter {

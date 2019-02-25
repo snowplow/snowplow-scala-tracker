@@ -45,15 +45,21 @@ class SyncBatchEmitter(collector: CollectorParams,
   override def send(event: EmitterPayload): Id[Unit] =
     buffer.synchronized {
       buffer.append(event)
-
       if (buffer.size >= bufferSize) {
-        val payload = PostCollectorRequest(1, buffer.toList)
-
-        processor.sendSync(global, blockingDuration, collector, payload, callback)
-        buffer.clear()
+        doEmit()
       }
     }
 
+  override def flush: Id[Unit] =
+    buffer.synchronized {
+      doEmit()
+    }
+
+  private def doEmit(): Id[Unit] = {
+    val payload = PostCollectorRequest(1, buffer.toList)
+    processor.sendSync(global, blockingDuration, collector, payload, callback)
+    buffer.clear()
+  }
 }
 
 object SyncBatchEmitter {

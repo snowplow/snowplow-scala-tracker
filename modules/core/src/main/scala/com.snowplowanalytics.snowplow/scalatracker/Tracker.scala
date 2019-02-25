@@ -379,6 +379,12 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    */
   def setSubject(newSubject: Subject): Tracker[F] =
     new Tracker[F](emitters, namespace, appId, newSubject, encodeBase64, metadata)
+
+  /**
+   * Flushes the current event buffer for all attached emitters
+   */
+  def flush: F[Unit] =
+    emitters.traverse(e => e.flush).map(x => ())
 }
 
 object Tracker {

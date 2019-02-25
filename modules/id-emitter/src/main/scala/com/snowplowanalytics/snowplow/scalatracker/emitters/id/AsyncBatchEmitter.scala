@@ -95,6 +95,8 @@ class AsyncBatchEmitter private[id] (ec: ExecutionContext,
       }
     }
 
+  def flush: Unit = {}
+
   private[id] def startWorker(): Unit =
     worker.start()
 }
