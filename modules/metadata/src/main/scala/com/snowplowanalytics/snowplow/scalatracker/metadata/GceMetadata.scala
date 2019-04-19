@@ -11,8 +11,6 @@
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
 package com.snowplowanalytics.snowplow.scalatracker.metadata
-import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
 
 import scala.concurrent.duration._
 
@@ -25,6 +23,9 @@ import io.circe.parser.parse
 
 import scalaj.http.{Http, HttpRequest}
 
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
+import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
+
 /**
  * Module with parsing GCE-metadata logic
  *
@@ -35,8 +36,9 @@ import scalaj.http.{Http, HttpRequest}
  */
 class GceMetadata[F[_]: Sync] {
 
-  val InstanceMetadataSchema =
+  val InstanceMetadataSchema: SchemaKey =
     SchemaKey("com.google.cloud.gce", "instance_metadata", "jsonschema", SchemaVer.Full(1, 0, 0))
+
   val InstanceMetadataUri = "http://metadata.google.internal/computeMetadata/v1/instance/"
 
   /**
@@ -44,7 +46,7 @@ class GceMetadata[F[_]: Sync] {
    *
    * @return some context or None in case of any error including 3 sec timeout
    */
-  def getInstanceContextBlocking(implicit F: Concurrent[F], timer: Timer[F]): F[Option[SelfDescribingJson]] =
+  def getInstanceContextBlocking(implicit F: Concurrent[F], T: Timer[F]): F[Option[SelfDescribingJson]] =
     Concurrent.timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
 
   /**

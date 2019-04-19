@@ -42,7 +42,7 @@ class Ec2Metadata[F[_]: Sync] {
    *
    * @return some context or None in case of any error including 3 sec timeout
    */
-  def getInstanceContextBlocking(implicit F: Concurrent[F], timer: Timer[F]): F[Option[SelfDescribingJson]] =
+  def getInstanceContextBlocking(implicit F: Concurrent[F], T: Timer[F]): F[Option[SelfDescribingJson]] =
     Concurrent.timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
 
   /**
