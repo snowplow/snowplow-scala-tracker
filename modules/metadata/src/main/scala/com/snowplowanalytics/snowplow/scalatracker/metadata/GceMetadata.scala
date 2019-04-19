@@ -46,10 +46,8 @@ class GceMetadata[F[_]: Sync] {
    *
    * @return some context or None in case of any error including 3 sec timeout
    */
-  def getInstanceContextBlocking(implicit F: Concurrent[F]): F[Option[SelfDescribingJson]] = {
-    implicit val timer: Timer[F] = Timer.derive[F]
+  def getInstanceContextBlocking(implicit F: Concurrent[F], T: Timer[F]): F[Option[SelfDescribingJson]] =
     Concurrent.timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
-  }
 
   /**
    * Tries to GET self-describing JSON with instance identity
