@@ -1,4 +1,11 @@
-Version 0.6.0 (2018-09-03)
+Version 0.6.1 (2019-06-25)
+--------------------------
+Replace ClockProvider by cats-effect's Clock (#108)
+Bump cats-effect to 1.3.1 (#105)
+Bump iglu-core to 0.5.1 (#121)
+Fix BuildInfo collision (#124)
+
+Version 0.6.0 (2018-08-31)
 --------------------------
 Track page URL in the tracker subject (#92)
 Add SyncBatchEmitter (#70)
