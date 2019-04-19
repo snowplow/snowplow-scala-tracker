@@ -12,8 +12,11 @@
  */
 package com.snowplowanalytics.snowplow
 
-import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
+import cats.syntax.either._
+
 import io.circe.Json
+
+import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
 
 package object scalatracker {
 
@@ -27,8 +30,9 @@ package object scalatracker {
       SelfDescribingData[Json](
         SchemaKey
           .fromUri(key)
-          .getOrElse(
-            throw new RuntimeException(s"Invalid SchemaKey $key. Use com.snowplowanalytics.iglu.core.SchemaKey")),
+          .valueOr(e =>
+            throw new RuntimeException(
+              s"Invalid SchemaKey $key, ${e.code}. Use com.snowplowanalytics.iglu.core.SchemaKey")),
         data)
   }
 }
