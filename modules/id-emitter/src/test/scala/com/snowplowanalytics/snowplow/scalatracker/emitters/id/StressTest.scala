@@ -53,21 +53,15 @@ object StressTest {
   }
 
   implicit val sdJsonsRead = new Read[List[SelfDescribingJson]] {
-    def parseJson(json: Json): SelfDescribingData[Json] =
-      json.asObject
-        .flatMap { obj =>
-          val schemaKeyOpt = obj.toMap.get("schema").flatMap(_.asString).flatMap(SchemaKey.fromUri)
-          val dataOpt      = obj.toMap.get("data")
-
-          (schemaKeyOpt, dataOpt).mapN((key, data) => SelfDescribingData(key, data))
-        }
-        .getOrElse(throw new RuntimeException("Failed the test while parsing JSON"))
-
     def reads(line: String): List[SelfDescribingJson] = parse(line).toOption match {
-      case Some(json) => json.asArray.getOrElse(Vector.empty).map(parseJson).toList
-      case None       => Nil
+      case Some(json) =>
+        json.asArray
+          .getOrElse(Vector.empty)
+          .map(json => SelfDescribingData.parse(json).valueOr(e => throw new RuntimeException(e.code)))
+          .toList
+      case None =>
+        Nil
     }
-
   }
 
   implicit val tstmpRead = new Read[Option[Timestamp]] {

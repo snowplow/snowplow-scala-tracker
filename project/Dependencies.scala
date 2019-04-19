@@ -16,14 +16,15 @@ object Dependencies {
 
   object V {
     // Scala
-    val scalajHttp = "2.3.0"
-    val igluCore   = "0.3.0"
-    val circe      = "0.9.3"
-    val catsEffect = "1.0.0-RC2"
+    val scalajHttp  = "2.3.0"
+    val igluCore    = "0.5.0-M1"
+    val circe       = "0.11.1"
+    val circeOptics = "0.11.0"
+    val catsEffect  = "1.0.0-RC2"
 
     // Scala (test only)
-    val specs2     = "4.3.2"
-    val scalaCheck = "1.13.4"
+    val specs2      = "4.3.2"
+    val scalaCheck  = "1.13.4"
   }
 
   object Libraries {
@@ -38,6 +39,6 @@ object Dependencies {
     val specs2        = "org.specs2"             %% "specs2-core"     % V.specs2      % "test"
     val specs2Mock    = "org.specs2"             %% "specs2-mock"     % V.specs2      % "test"
     val scalaCheck    = "org.scalacheck"         %% "scalacheck"      % V.scalaCheck  % "test"
-    val circeOptics   = "io.circe"               %% "circe-optics"    % V.circe       % "test"
+    val circeOptics   = "io.circe"               %% "circe-optics"    % V.circeOptics % "test"
   }
 }
