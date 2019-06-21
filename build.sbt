@@ -45,7 +45,7 @@ lazy val core = project
       Dependencies.Libraries.igluCoreCirce,
       Dependencies.Libraries.catsEffect,
     )
-  ))
+  ) ++ BuildSettings.scalifySettings)
 
 lazy val idEmitter = project
   .in(file("modules/id-emitter"))

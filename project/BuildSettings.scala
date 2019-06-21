@@ -80,7 +80,7 @@ object BuildSettings {
       </developers>)
   )
 
-  lazy val buildSettings = scalifySettings ++ publishSettings ++ mavenCentralExtras
+  lazy val buildSettings = publishSettings ++ mavenCentralExtras
 
   lazy val formattingSettings = Seq(
     scalafmtOnCompile := true,
