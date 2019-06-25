@@ -17,10 +17,10 @@ object Dependencies {
   object V {
     // Scala
     val scalajHttp  = "2.3.0"
-    val igluCore    = "0.5.0"
+    val igluCore    = "0.5.1"
     val circe       = "0.11.1"
     val circeOptics = "0.11.0"
-    val catsEffect  = "1.2.0"
+    val catsEffect  = "1.3.1"
 
     // Scala (test only)
     val specs2      = "4.3.2"

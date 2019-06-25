@@ -12,14 +12,12 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.metadata
 
-import java.util.UUID
-
 import scala.concurrent.duration._
 import cats.Id
 import cats.data.NonEmptyList
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO}
 
-import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Tracker, UUIDProvider}
+import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Tracker}
 import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
 
 import org.specs2.Specification
@@ -107,5 +105,4 @@ class MetadataSpec extends Specification with Mockito {
 
     blockingInstance.getInstanceContextBlocking.unsafeRunSync must beNone
   }
-
 }
