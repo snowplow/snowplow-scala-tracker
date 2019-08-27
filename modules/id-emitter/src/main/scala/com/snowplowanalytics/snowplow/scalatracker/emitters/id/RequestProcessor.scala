@@ -75,11 +75,11 @@ class RequestProcessor {
    * @param payload either GET or POST payload
    */
   def submit(
-              originQueue: BlockingQueue[Request],
-              ec: ExecutionContext,
-              callback: Option[Callback[Id]],
-              collector: EndpointParams,
-              payload: Request
+    originQueue: BlockingQueue[Request],
+    ec: ExecutionContext,
+    callback: Option[Callback[Id]],
+    collector: EndpointParams,
+    payload: Request
   ): Unit = {
     val finish = invokeCallback(ec, collector, callback) _
     sendAsync(ec, collector, payload).onComplete { response =>

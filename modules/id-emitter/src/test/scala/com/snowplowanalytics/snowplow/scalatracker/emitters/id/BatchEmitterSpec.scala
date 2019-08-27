@@ -15,11 +15,11 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 import java.util.concurrent.BlockingQueue
 
 import scala.concurrent.duration._
-import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor.{
-  Callback,
-  CollectorParams,
-  CollectorRequest
-}
+
+import cats.Id
+
+import com.snowplowanalytics.snowplow.scalatracker.Emitter
+
 import org.specs2.Specification
 import org.specs2.mock.Mockito
 
@@ -43,14 +43,14 @@ class BatchEmitterSpec extends Specification with Mockito {
     doNothing
       .when(processor)
       .submit(
-        any[BlockingQueue[CollectorRequest]](),
+        any[BlockingQueue[Emitter.Request]](),
         any[ExecutionContext](),
-        any[Option[Callback]](),
-        any[CollectorParams](),
-        any[CollectorRequest]()
+        any[Option[Emitter.Callback[Id]]](),
+        any[Emitter.EndpointParams](),
+        any[Emitter.Request]()
       )
 
-    val params  = CollectorParams.construct("example.com")
+    val params  = Emitter.EndpointParams("example.com", None, None)
     val emitter = new AsyncBatchEmitter(scala.concurrent.ExecutionContext.global, params, 3, None, processor)
     emitter.startWorker()
 
@@ -66,14 +66,14 @@ class BatchEmitterSpec extends Specification with Mockito {
     doNothing
       .when(processor)
       .submit(
-        any[BlockingQueue[CollectorRequest]](),
+        any[BlockingQueue[Emitter.Request]](),
         any[ExecutionContext](),
-        any[Option[Callback]](),
-        any[CollectorParams](),
-        any[CollectorRequest]()
+        any[Option[Emitter.Callback[Id]]](),
+        any[Emitter.EndpointParams](),
+        any[Emitter.Request]()
       )
 
-    val params  = CollectorParams.construct("example.com")
+    val params  = Emitter.EndpointParams("example.com", None, None)
     val emitter = new AsyncBatchEmitter(scala.concurrent.ExecutionContext.global, params, 3, None, processor)
     emitter.startWorker()
 
@@ -83,11 +83,11 @@ class BatchEmitterSpec extends Specification with Mockito {
 
     eventually(
       there was one(processor).submit(
-        any[BlockingQueue[CollectorRequest]](),
+        any[BlockingQueue[Emitter.Request]](),
         any[ExecutionContext](),
-        any[Option[Callback]](),
-        any[CollectorParams](),
-        any[CollectorRequest]()
+        any[Option[Emitter.Callback[Id]]](),
+        any[Emitter.EndpointParams](),
+        any[Emitter.Request]()
       ))
   }
 
@@ -97,11 +97,11 @@ class BatchEmitterSpec extends Specification with Mockito {
       .when(processor)
       .sendSync(any[ExecutionContext](),
                 any[Duration](),
-                any[CollectorParams](),
-                any[CollectorRequest](),
-                any[Option[Callback]]())
+                any[Emitter.EndpointParams](),
+                any[Emitter.Request](),
+                any[Option[Emitter.Callback[Id]]]())
 
-    val params  = CollectorParams.construct("example.com")
+    val params  = Emitter.EndpointParams("example.com", None, None)
     val emitter = new SyncBatchEmitter(params, 1.second, 3, None, processor)
 
     emitter.send(payload)
@@ -117,11 +117,11 @@ class BatchEmitterSpec extends Specification with Mockito {
       .when(processor)
       .sendSync(any[ExecutionContext](),
                 any[Duration](),
-                any[CollectorParams](),
-                any[CollectorRequest](),
-                any[Option[Callback]]())
+                any[Emitter.EndpointParams](),
+                any[Emitter.Request](),
+                any[Option[Emitter.Callback[Id]]]())
 
-    val params  = CollectorParams.construct("example.com")
+    val params  = Emitter.EndpointParams("example.com", None, None)
     val emitter = new SyncBatchEmitter(params, 1.second, 3, None, processor)
 
     emitter.send(payload)
@@ -131,8 +131,8 @@ class BatchEmitterSpec extends Specification with Mockito {
     eventually(
       there was one(processor).sendSync(any[ExecutionContext](),
                                         any[Duration](),
-                                        any[CollectorParams](),
-                                        any[CollectorRequest](),
-                                        any[Option[Callback]]()))
+                                        any[Emitter.EndpointParams](),
+                                        any[Emitter.Request](),
+                                        any[Option[Emitter.Callback[Id]]]()))
   }
 }

@@ -25,8 +25,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.instances._
 import com.snowplowanalytics.snowplow.scalatracker.Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
 import com.snowplowanalytics.snowplow.scalatracker.{SelfDescribingJson, Tracker}
-
-import RequestProcessor._
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 import org.scalacheck.Gen
 
@@ -214,7 +213,7 @@ object StressTest {
                      dir: String,
                      cardinality: Int,
                      threads: Int = 1,
-                     callback: Option[Callback]) = {
+                     callback: Option[Callback[Id]]) = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     val files = List.fill(threads)(dir).zipWithIndex.map { case (path, i) => s"$path/events-$i.tsv" }

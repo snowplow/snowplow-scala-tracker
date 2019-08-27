@@ -27,8 +27,9 @@ object Buffer {
 
   def wrapPayloads[F[_]: Async](i: Int): Pipe[F, Emitter.Payload, Emitter.Request] =
     (buffer: Stream[F, Emitter.Payload]) =>
-      buffer.chunkLimit(i).map { chunk => Emitter.Request(chunk.toList) }
-
+      buffer.chunkLimit(i).map { chunk =>
+        Emitter.Request(chunk.toList)
+    }
 
   /** Split list of elements into segments, so that any segment would not exceed a limit */
   def segment[A](getSize: A => Int, limit: Int)(list: Chunk[A]) = {

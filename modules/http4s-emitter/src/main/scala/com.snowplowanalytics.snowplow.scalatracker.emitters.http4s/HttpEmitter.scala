@@ -154,8 +154,7 @@ object HttpEmitter {
           .through(Buffer.wrapPayloads(size))
           .to(queue.enqueue)
       case BufferConfig.PayloadSize(bytesAllowed) =>
-        buffer
-          .dequeue
+        buffer.dequeue
           .through(Buffer.notExceed(payloadSize, bytesAllowed))
           .flatMap(Buffer.emit)
           .to(queue.enqueue)
@@ -163,10 +162,7 @@ object HttpEmitter {
         Stream.empty
     }
 
-    stream
-      .compile
-      .drain
-      .start
+    stream.compile.drain.start
   }
 
   private[scalatracker] def apply[F[_]](f: Payload => F[Unit],
