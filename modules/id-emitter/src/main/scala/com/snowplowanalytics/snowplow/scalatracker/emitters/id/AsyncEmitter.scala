@@ -15,6 +15,7 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 import java.util.concurrent.LinkedBlockingQueue
 
 import scala.concurrent.ExecutionContext
+import scala.collection.mutable.ListBuffer
 
 import cats.Id
 
@@ -32,10 +33,13 @@ object AsyncEmitter {
    * @param https should this use the https scheme
    * @return emitter
    */
-  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback[Id]])(
-    implicit ec: ExecutionContext): AsyncEmitter = {
+  def createAndStart(host: String,
+                     bufferConfig: BufferConfig,
+                     port: Option[Int]              = None,
+                     https: Boolean                 = false,
+                     callback: Option[Callback[Id]] = None)(implicit ec: ExecutionContext): AsyncEmitter = {
     val collector = EndpointParams(host, port, Some(https))
-    val emitter   = new AsyncEmitter(ec, collector, callback)
+    val emitter   = new AsyncEmitter(ec, collector, bufferConfig, callback)
     emitter.startWorker()
     emitter
   }
@@ -48,11 +52,14 @@ object AsyncEmitter {
  * @param collector collector preferences
  * @param callback optional callback executed after each sent event
  */
-class AsyncEmitter private (ec: ExecutionContext,
-                            collector: EndpointParams,
-                            callback: Option[Callback[Id]],
-                            private val processor: RequestProcessor = new RequestProcessor)
+class AsyncEmitter private[id] (ec: ExecutionContext,
+                                collector: EndpointParams,
+                                bufferConfig: BufferConfig,
+                                callback: Option[Callback[Id]],
+                                private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
+
+  private var buffer = ListBuffer[Map[String, String]]()
 
   /** Queue of HTTP requests */
   val queue = new LinkedBlockingQueue[Request]()
@@ -74,8 +81,28 @@ class AsyncEmitter private (ec: ExecutionContext,
    * @param event Fully assembled event
    */
   def send(event: Payload): Unit =
-    queue.put(Request.Single(1, event))
+    bufferConfig match {
+      case BufferConfig.NoBuffering =>
+        queue.put(Request.Single(1, event))
+      case BufferConfig.EventsCardinality(size) =>
+        // Multiple threads can input via same tracker and override buffer
+        buffer.synchronized {
+          buffer.append(event)
+          if (buffer.size >= size) {
+            queue.put(Request.Buffered(1, buffer.toList))
+            buffer = ListBuffer[Map[String, String]]()
+          }
+        }
+      case BufferConfig.PayloadSize(bytes) =>
+        buffer.synchronized {
+          buffer.append(event)
+          if (bufferSizeInBytes(buffer) >= bytes) {
+            queue.put(Request.Buffered(1, buffer.toList))
+            buffer = ListBuffer[Map[String, String]]()
+          }
+        }
+    }
 
-  private def startWorker(): Unit =
+  private[id] def startWorker(): Unit =
     worker.start()
 }

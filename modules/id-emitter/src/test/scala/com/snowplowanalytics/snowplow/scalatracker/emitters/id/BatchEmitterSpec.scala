@@ -29,10 +29,14 @@ class BatchEmitterSpec extends Specification with Mockito {
 
   override def is = s2"""
 
-    AsyncBatchEmitter's buffer should not flush before reaching bufferSize $e1
-    AsyncBatchEmitter's buffer should flush after reaching bufferSize      $e2
-    SyncBatchEmitter's buffer should not flush before reaching bufferSize  $e3
-    SyncBatchEmitter's buffer should flush after reaching bufferSize       $e4
+    AsyncEmitter's buffer should not flush before reaching buffer's event cardinality limit $e1
+    AsyncEmitter's buffer should flush after reaching buffer's event cardinality limit      $e2
+    AsyncEmitter's buffer should not flush before reaching buffer's payload size limit      $e3
+    AsyncEmitter's buffer should flush after reaching buffer's payload size limit           $e4
+    SyncEmitter's buffer should not flush before reaching buffer's event cardinality limit  $e5
+    SyncEmitter's buffer should flush after reaching buffer's event cardinality limit       $e6
+    SyncEmitter's buffer should not flush before reaching buffer's payload size limit       $e7
+    SyncEmitter's buffer should flush after reaching buffer's payload size limit            $e8
 
   """
 
@@ -50,8 +54,9 @@ class BatchEmitterSpec extends Specification with Mockito {
         any[Emitter.Request]()
       )
 
-    val params  = Emitter.EndpointParams("example.com", None, None)
-    val emitter = new AsyncBatchEmitter(scala.concurrent.ExecutionContext.global, params, 3, None, processor)
+    val params       = Emitter.EndpointParams("example.com", None, None)
+    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+    val emitter      = new AsyncEmitter(scala.concurrent.ExecutionContext.global, params, bufferConfig, None, processor)
     emitter.startWorker()
 
     emitter.send(payload)
@@ -73,8 +78,9 @@ class BatchEmitterSpec extends Specification with Mockito {
         any[Emitter.Request]()
       )
 
-    val params  = Emitter.EndpointParams("example.com", None, None)
-    val emitter = new AsyncBatchEmitter(scala.concurrent.ExecutionContext.global, params, 3, None, processor)
+    val params       = Emitter.EndpointParams("example.com", None, None)
+    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+    val emitter      = new AsyncEmitter(scala.concurrent.ExecutionContext.global, params, bufferConfig, None, processor)
     emitter.startWorker()
 
     emitter.send(payload)
@@ -95,14 +101,19 @@ class BatchEmitterSpec extends Specification with Mockito {
     val processor = spy(new RequestProcessor)
     doNothing
       .when(processor)
-      .sendSync(any[ExecutionContext](),
-                any[Duration](),
-                any[Emitter.EndpointParams](),
-                any[Emitter.Request](),
-                any[Option[Emitter.Callback[Id]]]())
+      .submit(
+        any[BlockingQueue[Emitter.Request]](),
+        any[ExecutionContext](),
+        any[Option[Emitter.Callback[Id]]](),
+        any[Emitter.EndpointParams](),
+        any[Emitter.Request]()
+      )
 
-    val params  = Emitter.EndpointParams("example.com", None, None)
-    val emitter = new SyncBatchEmitter(params, 1.second, 3, None, processor)
+    val payloadSize  = Emitter.payloadSize(payload)
+    val params       = Emitter.EndpointParams("example.com", None, None)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
+    val emitter      = new AsyncEmitter(scala.concurrent.ExecutionContext.global, params, bufferConfig, None, processor)
+    emitter.startWorker()
 
     emitter.send(payload)
     emitter.send(payload)
@@ -115,19 +126,126 @@ class BatchEmitterSpec extends Specification with Mockito {
     val processor = spy(new RequestProcessor)
     doNothing
       .when(processor)
+      .submit(
+        any[BlockingQueue[Emitter.Request]](),
+        any[ExecutionContext](),
+        any[Option[Emitter.Callback[Id]]](),
+        any[Emitter.EndpointParams](),
+        any[Emitter.Request]()
+      )
+
+    val payloadSize  = Emitter.payloadSize(payload)
+    val params       = Emitter.EndpointParams("example.com", None, None)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
+    val emitter      = new AsyncEmitter(scala.concurrent.ExecutionContext.global, params, bufferConfig, None, processor)
+    emitter.startWorker()
+
+    emitter.send(payload)
+    emitter.send(payload)
+    emitter.send(payload)
+    emitter.send(payload)
+
+    Thread.sleep(100)
+    eventually(
+      there was one(processor).submit(
+        any[BlockingQueue[Emitter.Request]](),
+        any[ExecutionContext](),
+        any[Option[Emitter.Callback[Id]]](),
+        any[Emitter.EndpointParams](),
+        any[Emitter.Request]()
+      ))
+  }
+
+  def e5 = {
+    val processor = spy(new RequestProcessor)
+    doNothing
+      .when(processor)
       .sendSync(any[ExecutionContext](),
                 any[Duration](),
                 any[Emitter.EndpointParams](),
                 any[Emitter.Request](),
                 any[Option[Emitter.Callback[Id]]]())
 
-    val params  = Emitter.EndpointParams("example.com", None, None)
-    val emitter = new SyncBatchEmitter(params, 1.second, 3, None, processor)
+    val params       = Emitter.EndpointParams("example.com", None, None)
+    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+    val emitter      = new SyncEmitter(params, 1.second, bufferConfig, None, processor)
+
+    emitter.send(payload)
+    emitter.send(payload)
+
+    Thread.sleep(100)
+    there were noCallsTo(processor)
+  }
+
+  def e6 = {
+    val processor = spy(new RequestProcessor)
+    doNothing
+      .when(processor)
+      .sendSync(any[ExecutionContext](),
+                any[Duration](),
+                any[Emitter.EndpointParams](),
+                any[Emitter.Request](),
+                any[Option[Emitter.Callback[Id]]]())
+
+    val params       = Emitter.EndpointParams("example.com", None, None)
+    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+    val emitter      = new SyncEmitter(params, 1.second, bufferConfig, None, processor)
 
     emitter.send(payload)
     emitter.send(payload)
     emitter.send(payload)
 
+    eventually(
+      there was one(processor).sendSync(any[ExecutionContext](),
+                                        any[Duration](),
+                                        any[Emitter.EndpointParams](),
+                                        any[Emitter.Request](),
+                                        any[Option[Emitter.Callback[Id]]]()))
+  }
+
+  def e7 = {
+    val processor = spy(new RequestProcessor)
+    doNothing
+      .when(processor)
+      .sendSync(any[ExecutionContext](),
+                any[Duration](),
+                any[Emitter.EndpointParams](),
+                any[Emitter.Request](),
+                any[Option[Emitter.Callback[Id]]]())
+
+    val payloadSize  = Emitter.payloadSize(payload)
+    val params       = Emitter.EndpointParams("example.com", None, None)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
+    val emitter      = new SyncEmitter(params, 1.second, bufferConfig, None, processor)
+
+    emitter.send(payload)
+    emitter.send(payload)
+
+    Thread.sleep(100)
+    there were noCallsTo(processor)
+  }
+
+  def e8 = {
+    val processor = spy(new RequestProcessor)
+    doNothing
+      .when(processor)
+      .sendSync(any[ExecutionContext](),
+                any[Duration](),
+                any[Emitter.EndpointParams](),
+                any[Emitter.Request](),
+                any[Option[Emitter.Callback[Id]]]())
+
+    val payloadSize  = Emitter.payloadSize(payload)
+    val params       = Emitter.EndpointParams("example.com", None, None)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
+    val emitter      = new SyncEmitter(params, 1.second, bufferConfig, None, processor)
+
+    emitter.send(payload)
+    emitter.send(payload)
+    emitter.send(payload)
+    emitter.send(payload)
+
+    Thread.sleep(100)
     eventually(
       there was one(processor).sendSync(any[ExecutionContext](),
                                         any[Duration](),

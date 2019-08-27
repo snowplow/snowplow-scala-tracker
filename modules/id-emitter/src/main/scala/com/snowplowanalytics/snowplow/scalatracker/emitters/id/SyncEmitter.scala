@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
+import scala.collection.mutable.ListBuffer
 
 import cats.Id
 
@@ -30,14 +31,37 @@ import com.snowplowanalytics.snowplow.scalatracker.Emitter._
  */
 class SyncEmitter(collector: EndpointParams,
                   blockingDuration: Duration,
+                  bufferConfig: BufferConfig,
                   callback: Option[Callback[Id]],
                   private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
-  def send(event: Payload): Unit = {
-    val payload = Request.Single(1, event)
-    processor.sendSync(global, blockingDuration, collector, payload, callback)
-  }
+  private val buffer = new ListBuffer[Payload]()
+
+  def send(event: Payload): Unit =
+    bufferConfig match {
+      case BufferConfig.NoBuffering =>
+        val payload = Request.Single(1, event)
+        processor.sendSync(global, blockingDuration, collector, payload, callback)
+      case BufferConfig.EventsCardinality(size) =>
+        buffer.synchronized {
+          buffer.append(event)
+          if (buffer.size >= size) {
+            val payload = Request.Buffered(1, buffer.toList)
+            processor.sendSync(global, blockingDuration, collector, payload, callback)
+            buffer.clear()
+          }
+        }
+      case BufferConfig.PayloadSize(bytes) =>
+        buffer.synchronized {
+          buffer.append(event)
+          if (bufferSizeInBytes(buffer) >= bytes) {
+            val payload = Request.Buffered(1, buffer.toList)
+            processor.sendSync(global, blockingDuration, collector, payload, callback)
+            buffer.clear()
+          }
+        }
+    }
 }
 
 object SyncEmitter {
@@ -52,11 +76,12 @@ object SyncEmitter {
    * @return emitter
    */
   def createAndStart(host: String,
+                     bufferConfig: BufferConfig,
                      port: Option[Int]              = None,
                      https: Boolean                 = false,
                      callback: Option[Callback[Id]] = None,
                      blockingDuration: Duration     = 5.seconds): SyncEmitter = {
     val collector = EndpointParams(host, port, Some(https))
-    new SyncEmitter(collector, blockingDuration, callback)
+    new SyncEmitter(collector, blockingDuration, bufferConfig, callback)
   }
 }

@@ -12,6 +12,8 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
+import scala.collection.mutable.ListBuffer
+
 import java.net.URI
 
 import cats.syntax.either._
@@ -185,6 +187,12 @@ object Emitter {
     val rangeMax = attempt.toDouble * 3
     ((rangeMin + (rangeMax - rangeMin) * seed) * 1000).toInt
   }
+
+  def payloadSize(newcomer: Payload): Int =
+    Emitter.postPayload(List(newcomer)).getBytes.length
+
+  def bufferSizeInBytes(buffer: ListBuffer[Payload]): Int =
+    buffer.map(payloadSize).sum
 
   /**
    * Transform List of Map[String, String] to JSON array of objects

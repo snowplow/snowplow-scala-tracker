@@ -140,10 +140,6 @@ object HttpEmitter {
         buffer.enqueue1(event)
     }
 
-  /** false if need to send existing, true if okay to add */
-  def payloadSize(newcomer: Payload): Int =
-    Emitter.postPayload(List(newcomer)).getBytes.length
-
   /** Fork buffering pipe, which groups events from buffer into queue **/
   def runBuffer[F[_]: Concurrent](buffer: Queue[F, Payload], queue: Queue[F, Emitter.Request], config: BufferConfig) = {
     val stream = config match {
@@ -155,7 +151,7 @@ object HttpEmitter {
           .to(queue.enqueue)
       case BufferConfig.PayloadSize(bytesAllowed) =>
         buffer.dequeue
-          .through(Buffer.notExceed(payloadSize, bytesAllowed))
+          .through(Buffer.notExceed(Emitter.payloadSize, bytesAllowed))
           .flatMap(Buffer.emit)
           .to(queue.enqueue)
       case BufferConfig.NoBuffering =>
