@@ -1,10 +1,10 @@
 # Snowplow Scala Tracker
 
+[![early-release]][tracker-classificiation]
 [![Build Status][travis-image]][travis]
 [![Maven Central][maven-badge]][maven]
 [![codecov][codecov-badge]][codecov]
 [![License][license-image]][license]
-[![Join the chat at https://gitter.im/snowplow/snowplow-scala-tracker][gitter-image]][gitter]
 
 ## Overview
 
@@ -31,10 +31,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 [travis-image]: https://travis-ci.org/snowplow/snowplow-scala-tracker.png?branch=master
-[travis]: http://travis-ci.org/snowplow/snowplow-scala-tracker
+[travis]: https://travis-ci.org/snowplow/snowplow-scala-tracker
 
-[license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
-[license]: http://www.apache.org/licenses/LICENSE-2.0
+[license-image]: https://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
+[license]: https://www.apache.org/licenses/LICENSE-2.0
 
 [maven-badge]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker_2.12/badge.svg
 [maven]: https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-scala-tracker_2.12
@@ -42,8 +42,8 @@ limitations under the License.
 [codecov-badge]: https://codecov.io/gh/snowplow/snowplow-scala-tracker/branch/master/graph/badge.svg
 [codecov]: https://codecov.io/gh/snowplow/snowplow-scala-tracker
 
-[snowplow]: http://snowplowanalytics.com
-[scala]: http://www.scala-lang.org/
+[snowplow]: https://snowplowanalytics.com
+[scala]: https://www.scala-lang.org/
 
 [techdocs-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/techdocs.png
 [setup-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/setup.png
@@ -55,5 +55,5 @@ limitations under the License.
 [roadmap]: https://github.com/snowplow/snowplow/wiki/Scala-Tracker-Roadmap
 [contributing]: https://github.com/snowplow/snowplow/wiki/Scala-Tracker-Contributing
 
-[gitter-image]: https://badges.gitter.im/snowplow/snowplow-scala-tracker.svg
-[gitter]: https://gitter.im/snowplow/snowplow-scala-tracker?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
+[tracker-classificiation]: https://github.com/snowplow/snowplow/wiki/Tracker-Maintenance-Classification
+[early-release]: https://img.shields.io/static/v1?style=flat&label=Snowplow&message=Early%20Release&color=014477&labelColor=9ba0aa&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAeFBMVEVMaXGXANeYANeXANZbAJmXANeUANSQAM+XANeMAMpaAJhZAJeZANiXANaXANaOAM2WANVnAKWXANZ9ALtmAKVaAJmXANZaAJlXAJZdAJxaAJlZAJdbAJlbAJmQAM+UANKZANhhAJ+EAL+BAL9oAKZnAKVjAKF1ALNBd8J1AAAAKHRSTlMAa1hWXyteBTQJIEwRgUh2JjJon21wcBgNfmc+JlOBQjwezWF2l5dXzkW3/wAAAHpJREFUeNokhQOCA1EAxTL85hi7dXv/E5YPCYBq5DeN4pcqV1XbtW/xTVMIMAZE0cBHEaZhBmIQwCFofeprPUHqjmD/+7peztd62dWQRkvrQayXkn01f/gWp2CrxfjY7rcZ5V7DEMDQgmEozFpZqLUYDsNwOqbnMLwPAJEwCopZxKttAAAAAElFTkSuQmCC 
