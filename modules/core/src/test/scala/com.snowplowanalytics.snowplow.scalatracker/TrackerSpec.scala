@@ -221,7 +221,7 @@ class TrackerSpec extends Specification {
 
       val event = lastInput
 
-      val json = parse(event("ue_pr")).right.get
+      val json = parse(event("ue_pr")).getOrElse(Json.Null)
 
       val data = root.data.data
 
@@ -240,7 +240,6 @@ class TrackerSpec extends Specification {
     }
 
     "uses default message" >> {
-      import cats.implicits._
 
       "when there is no error message" in new DummyTracker {
         val error = new RuntimeException()
