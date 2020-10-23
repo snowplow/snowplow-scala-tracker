@@ -1,3 +1,9 @@
+Version 0.7.0 (2020-10-23)
+--------------------------
+Add support for Scala 2.13 (#126)
+Add Snyk Workflow (#137)
+Switch to Github Actions (#136)
+
 Version 0.6.1 (2019-06-25)
 --------------------------
 Replace ClockProvider by cats-effect's Clock (#108)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2013-2020 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -13,7 +13,7 @@
 
 lazy val commonSettings = Seq(
   organization := "com.snowplowanalytics",
-  version := "0.6.1",
+  version := "0.7.0",
   scalaVersion := "2.13.3",
   crossScalaVersions := Seq("2.12.12", "2.13.3"),
   scalacOptions := BuildSettings.compilerOptions(scalaVersion.value),
