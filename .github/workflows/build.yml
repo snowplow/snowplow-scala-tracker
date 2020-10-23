@@ -21,3 +21,6 @@ jobs:
 
     - name: Run sbt
       run: sbt ++${{ matrix.scala-version }} coverage test coverageReport
+
+    - name: Codecov
+      run: bash <(curl -s https://codecov.io/bash)
