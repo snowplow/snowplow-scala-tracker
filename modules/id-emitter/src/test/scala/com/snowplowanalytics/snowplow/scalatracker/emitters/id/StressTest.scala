@@ -22,7 +22,7 @@ import io.circe.syntax._
 import io.circe.parser.parse
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
-import com.snowplowanalytics.iglu.core.circe.instances._
+import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.scalatracker.Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
 import com.snowplowanalytics.snowplow.scalatracker.{SelfDescribingJson, Tracker}
 

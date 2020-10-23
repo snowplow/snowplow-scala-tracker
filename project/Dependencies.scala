@@ -16,15 +16,15 @@ object Dependencies {
 
   object V {
     // Scala
-    val scalajHttp  = "2.3.0"
-    val igluCore    = "0.5.1"
-    val circe       = "0.11.1"
-    val circeOptics = "0.11.0"
-    val catsEffect  = "1.3.1"
+    val scalajHttp  = "2.4.2"
+    val igluCore    = "1.0.0"
+    val circe       = "0.13.0"
+    val circeOptics = "0.13.0"
+    val catsEffect  = "2.2.0"
 
     // Scala (test only)
-    val specs2      = "4.3.2"
-    val scalaCheck  = "1.13.4"
+    val specs2      = "4.10.5"
+    val scalaCheck  = "1.14.3"
   }
 
   object Libraries {

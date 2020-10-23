@@ -12,9 +12,10 @@
  */
 import bintray.BintrayPlugin._
 import bintray.BintrayKeys._
-
 import sbt._
 import Keys._
+
+import scala.Seq
 
 // Scalafmt plugin
 import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin.autoImport._
@@ -37,7 +38,7 @@ object BuildSettings {
     }.taskValue
   )
 
-  lazy val compilerOptions = Seq(
+  def compilerOptions(scalaVersion: String) = Seq(
     "-deprecation",
     "-encoding", "UTF-8",
     "-feature",
@@ -45,17 +46,21 @@ object BuildSettings {
     "-language:higherKinds",
     "-language:implicitConversions",
     "-unchecked",
-    "-Ypartial-unification",
     "-Ywarn-dead-code",
     "-Ywarn-numeric-widen",
-    "-Xfuture",
     "-Xlint"
-  )
+  ) ++ (if (priorTo2_13(scalaVersion)) Seq("-Ypartial-unification", "-Xfuture") else Nil )
 
   lazy val javaCompilerOptions = Seq(
     "-source", "1.8",
     "-target", "1.8"
   )
+
+  def priorTo2_13(scalaVersion: String): Boolean =
+    CrossVersion.partialVersion(scalaVersion) match {
+      case Some((2, minor)) if minor < 13 => true
+      case _                              => false
+    }
 
   // Bintray publishing settings
   lazy val publishSettings = bintraySettings ++ Seq[Setting[_]](
