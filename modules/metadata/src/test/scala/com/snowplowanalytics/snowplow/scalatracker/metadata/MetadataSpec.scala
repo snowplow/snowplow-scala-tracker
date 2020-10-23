@@ -28,7 +28,8 @@ class MetadataSpec extends Specification with Mockito {
 
   import com.snowplowanalytics.snowplow.scalatracker.syntax.id._
 
-  implicit val timer = IO.timer(global)
+  implicit val timer                          = IO.timer(global)
+  implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
 
   val ec2Response = IO.pure("""
       |{
@@ -71,8 +72,6 @@ class MetadataSpec extends Specification with Mockito {
     override def send(event: EmitterPayload): Id[Unit] = ()
   }
 
-  implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
-
   def e1 =
     Tracker(NonEmptyList.of(emitter), "foo", "foo")
       .enableEc2Context[IO]
@@ -92,7 +91,7 @@ class MetadataSpec extends Specification with Mockito {
       .returns(IO.sleep(5.seconds).map(_ => "foo"))
       .getMock[Ec2Metadata[IO]]
 
-    blockingInstance.getInstanceContextBlocking.unsafeRunSync must beNone
+    blockingInstance.getInstanceContextBlocking.unsafeRunSync() must beNone
   }
 
   def e4 = {
@@ -103,6 +102,6 @@ class MetadataSpec extends Specification with Mockito {
       .returns(IO.sleep(5.seconds).map(_ => "foo"))
       .getMock[GceMetadata[IO]]
 
-    blockingInstance.getInstanceContextBlocking.unsafeRunSync must beNone
+    blockingInstance.getInstanceContextBlocking.unsafeRunSync() must beNone
   }
 }
