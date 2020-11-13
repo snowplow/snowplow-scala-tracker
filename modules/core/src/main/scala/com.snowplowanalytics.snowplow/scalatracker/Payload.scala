@@ -14,7 +14,10 @@ package com.snowplowanalytics.snowplow.scalatracker
 
 import java.util.Base64
 
-import io.circe.{Encoder, Json}
+import io.circe._
+import io.circe.syntax._
+import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
 /**
  * Contains the map of key-value pairs making up an event
@@ -73,5 +76,24 @@ object Payload {
       }
     }
   }
+
+  private[scalatracker] def sizeOf(payloads: Seq[Payload]): Int =
+    postPayload(payloads).getBytes.length
+
+  /* Calculates how many extra bytes one more extra payload contributes to a json post request
+   *
+   * Assumes this is not the first payload in the array, and therefore adds 1 for the comma required to separate payloads
+   */
+  private[scalatracker] def sizeContributionOf(payload: Payload): Int =
+    payload.asJson.noSpaces.getBytes.length + 1
+
+  /**
+   * Transform List of Map[String, String] to JSON array of objects
+   *
+   * @param payload list of string-to-string maps taken from HTTP query
+   * @return JSON array represented as String
+   */
+  private[scalatracker] def postPayload(payload: Seq[Payload]): String =
+    SelfDescribingData[Json](Tracker.PayloadDataSchemaKey, payload.asJson).normalize.noSpaces
 
 }
