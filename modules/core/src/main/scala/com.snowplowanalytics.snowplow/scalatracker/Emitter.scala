@@ -16,12 +16,6 @@ import java.net.URI
 
 import cats.implicits._
 
-import io.circe._
-import io.circe.syntax._
-
-import com.snowplowanalytics.iglu.core.SelfDescribingData
-import com.snowplowanalytics.iglu.core.circe.implicits._
-
 /**
  * Emitters are entities in charge of transforming events sent from tracker
  * into actual HTTP requests (IO), which includes:
@@ -195,15 +189,4 @@ object Emitter {
     ((rangeMin + (rangeMax - rangeMin) * seed) * 1000).toInt
   }
 
-  def payloadSize(payloads: Seq[Payload]): Int =
-    postPayload(payloads).getBytes.length
-
-  /**
-   * Transform List of Map[String, String] to JSON array of objects
-   *
-   * @param payload list of string-to-string maps taken from HTTP query
-   * @return JSON array represented as String
-   */
-  private[scalatracker] def postPayload(payload: Seq[Payload]): String =
-    SelfDescribingData[Json](Tracker.PayloadDataSchemaKey, payload.asJson).normalize.noSpaces
 }

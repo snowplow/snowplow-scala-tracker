@@ -12,10 +12,12 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.{LinkedBlockingQueue, TimeUnit}
+import java.util.concurrent.atomic.AtomicBoolean
 
-import scala.concurrent.ExecutionContext
-import scala.collection.mutable.ListBuffer
+import scala.collection.JavaConverters._
+import scala.concurrent.{ExecutionContext, Future, blocking}
+import scalaj.http.HttpOptions
 
 import cats.Id
 
@@ -29,83 +31,127 @@ object AsyncEmitter {
    * Backed by `java.util.concurrent.LinkedBlockingQueue`, which has
    * capacity of `Int.MaxValue` will block thread when buffer reach capacity
    *
+   * This emitter sends requests asynchronously from the tracker's meain thread of execution,
+   * but in doing so it blocks a thread on the provided execution context for
+   * each http request.
+   *
+   * The blocking calls are wrapped in scala's blocking construct (https://www.scala-lang.org/api/2.12.4/scala/concurrent/index.html#blocking)
+   * which is respected by the global execution context.
+   *
    * @param host collector host
    * @param port collector port
    * @param https should this use the https scheme
    * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
    * @param callback optional callback executed after each sent event, or failed attempt
+   * @param httpOptions Options to configure the http transaction
    * @return emitter
    */
   def createAndStart(host: String,
                      port: Option[Int] = None,
                      https: Boolean    = false,
                      bufferConfig: BufferConfig,
-                     callback: Option[Callback[Id]] = None)(implicit ec: ExecutionContext): AsyncEmitter = {
+                     callback: Option[Callback[Id]]           = None,
+                     httpOptions: Seq[HttpOptions.HttpOption] = Nil)(implicit ec: ExecutionContext): AsyncEmitter = {
     val collector = EndpointParams(host, port, Some(https))
-    val emitter   = new AsyncEmitter(ec, collector, bufferConfig, callback, RequestProcessor.defaultHttpClient)
+    val emitter =
+      new AsyncEmitter(collector, bufferConfig, callback, RequestProcessor.defaultHttpClient, httpOptions, 1000)
     emitter.startWorker()
     emitter
   }
+
 }
 
 /**
  * Asynchronous emitter using LinkedBlockingQueue
  *
- * @param ec thread pool for async event sending
  * @param collector collector preferences
  * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
  * @param callback optional callback executed after each sent event
+ * @param client executes http requests
+ * @param httpOptions Options to configure the http transaction
  */
-class AsyncEmitter private[id] (ec: ExecutionContext,
-                                collector: EndpointParams,
+class AsyncEmitter private[id] (collector: EndpointParams,
                                 bufferConfig: BufferConfig,
                                 callback: Option[Callback[Id]],
-                                client: RequestProcessor.HttpClient)
+                                client: RequestProcessor.HttpClient,
+                                httpOptions: Seq[HttpOptions.HttpOption],
+                                pollTimeoutMillis: Long)
     extends BaseEmitter {
 
-  private val buffer = ListBuffer[Payload]()
+  private val buffer       = new LinkedBlockingQueue[Payload]()
+  private val eventsToSend = new LinkedBlockingQueue[Payload]()
 
-  /** Queue of HTTP requests */
-  val queue = new LinkedBlockingQueue[Request]()
+  private val isClosing        = new AtomicBoolean(false)
+  private val suspendBuffering = new AtomicBoolean(false)
 
-  val worker = new Thread {
-    override def run(): Unit =
-      while (true) {
-        val event = queue.take()
-        RequestProcessor.submit(queue, ec, callback, collector, event, client)
-      }
+  private[id] def startWorker()(implicit ec: ExecutionContext): Unit = {
+    def nextTick(): Future[Unit] =
+      if (!isClosing.get || Option(buffer.peek).nonEmpty) {
+        workerTick().flatMap(_ => nextTick())
+      } else Future.unit
+    nextTick()
   }
 
-  worker.setDaemon(true)
-
-  /**
-   * Method called to send an event from the tracker to the emitter
-   * Adds the event to the queue
-   *
-   * @param event Fully assembled event
-   */
-  def send(event: Payload): Unit =
-    bufferConfig match {
-      case BufferConfig.NoBuffering =>
-        queue.put(Request(event))
-      case BufferConfig.EventsCardinality(size) =>
-        buffer.synchronized {
-          buffer.append(event)
-          if (buffer.size >= size) {
-            queue.put(Request(buffer.toList))
-            buffer.clear()
-          }
-        }
-      case BufferConfig.PayloadSize(bytes) =>
-        buffer.synchronized {
-          buffer.append(event)
-          if (payloadSize(buffer) >= bytes) {
-            queue.put(Request(buffer.toList))
-            buffer.clear()
-          }
-        }
+  private def pollBuffer(implicit ec: ExecutionContext): Future[Option[Payload]] =
+    Future {
+      blocking {
+        Option(buffer.poll(pollTimeoutMillis, TimeUnit.MILLISECONDS))
+      }
     }
 
-  private[id] def startWorker(): Unit =
-    worker.start()
+  private def isBufferFull(count: Int, bytes: Int): Boolean =
+    bufferConfig match {
+      case BufferConfig.NoBuffering => true
+      case BufferConfig.EventsCardinality(max) =>
+        count >= max && count > 0
+      case BufferConfig.PayloadSize(max) =>
+        bytes >= max && bytes > 0
+    }
+
+  private def workerTick()(implicit ec: ExecutionContext): Future[Unit] = {
+
+    def go(count: Int, bytes: Int): Future[Unit] =
+      if (!isBufferFull(count, bytes)) {
+        pollBuffer.flatMap {
+          case Some(event) =>
+            eventsToSend.offer(event)
+            if (count == 0)
+              go(1, Payload.sizeOf(Seq(event)))
+            else
+              go(count + 1, bytes + Payload.sizeContributionOf(event))
+          case None =>
+            if (!suspendBuffering.getAndSet(false)) {
+              go(count, bytes)
+            } else Future.unit
+        }
+      } else Future.unit
+
+    go(0, 0).flatMap { _ =>
+      drainEventsToSend() match {
+        case Nil => Future.unit
+        case single :: Nil if bufferConfig == BufferConfig.NoBuffering =>
+          RequestProcessor.sendAsync(collector, Request(single), callback, httpOptions, client)
+        case more =>
+          RequestProcessor.sendAsync(collector, Request(more), callback, httpOptions, client)
+      }
+    }
+  }
+
+  private def drainEventsToSend(): List[Payload] = {
+    val buf = new java.util.ArrayList[Payload]()
+    eventsToSend.drainTo(buf)
+    buf.asScala.toList
+  }
+
+  override def send(payload: Payload): Unit =
+    buffer.put(payload)
+
+  def flush(): Unit =
+    suspendBuffering.set(true)
+
+  def close(): Unit = {
+    suspendBuffering.set(true)
+    isClosing.set(true)
+  }
+
 }
