@@ -12,152 +12,117 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
-import java.util.concurrent.BlockingQueue
-import java.util.{Timer, TimerTask}
-
-import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException, blocking}
-import scala.concurrent.duration.Duration
-import scala.util.{Failure, Random, Success, Try}
+import scala.concurrent.{ExecutionContext, Future, blocking}
+import scala.util.{Failure, Success, Try}
+import scala.util.control.NonFatal
 
 import cats.Id
 
 import scalaj.http._
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
+import com.snowplowanalytics.snowplow.scalatracker.Payload
 
 private[id] object RequestProcessor {
 
   type HttpClient = HttpRequest => HttpResponse[Array[Byte]]
   lazy val defaultHttpClient: HttpClient = _.asBytes
 
-  /** Timer thread, responsible for adding failed payloads to queue after delay */
-  private lazy val timer = new Timer("snowplow-event-retry-timer", true)
-
-  /** RNG to generate back-off periods */
-  private lazy val rng = new Random()
-
-  /**
-   * Schedule re-adding of a failed event to queue after some delay.
-   * Delay is calculated based on number of undertaken attempts
-   */
-  def backToQueue(queue: BlockingQueue[Request], event: Request): Boolean =
-    if (event.isFailed) false
-    else {
-      val task = new TimerTask {
-        override def run(): Unit = queue.put(event)
-      }
-      val delay = getDelay(event.attempt, rng.nextDouble())
-      timer.schedule(task, delay.toLong)
-      true
-    }
-
   /**
    * Construct POST request with batch event payload
    *
    * @param collector endpoint preferences
    * @param request events enveloped with either Get or Post request
+   * @param options Options to configure the Http transaction.
    * @return HTTP request with event
    */
-  def constructRequest(collector: EndpointParams, request: Request): HttpRequest =
+  def constructRequest(collector: EndpointParams, request: Request, options: Seq[HttpOptions.HttpOption]): HttpRequest =
     request match {
       case Request.Buffered(_, payload) =>
         Http(collector.getPostUri)
-          .postData(postPayload(payload))
+          .postData(Payload.postPayload(payload))
           .header("content-type", "application/json")
+          .options(options)
       case Request.Single(_, payload) =>
-        Http(collector.getGetUri).params(payload.toMap)
+        Http(collector.getGetUri)
+          .params(payload.toMap)
+          .options(options)
     }
 
   /**
-   * Attempt a HTTP request. Return request back to queue
-   * if it was unsuccessful and invoke callback.
-   * @param ec thread pool to send HTTP requests to collector
-   * @param originQueue reference to queue, where event can be re-added
-   *                    in case of unsuccessful delivery
-   * @param collector endpoint preferences
-   * @param payload either GET or POST payload
-   */
-  def submit(
-    originQueue: BlockingQueue[Request],
-    ec: ExecutionContext,
-    callback: Option[Callback[Id]],
-    collector: EndpointParams,
-    payload: Request,
-    client: HttpClient
-  ): Unit = {
-    val finish = invokeCallback(ec, collector, callback) _
-    sendAsync(ec, collector, payload, client).onComplete { response =>
-      val result = httpToCollector(response)
-      finish(payload, result)
-      if (!result.isSuccess) {
-        val updated = payload.updateAttempt
-        val resend  = backToQueue(originQueue, updated)
-        if (!resend) finish(updated, Result.RetriesExceeded(result))
-      }
-    }(ec)
-  }
-
-  /**
-   * Asynchronously execute user-provided callback against event and collector response
+   * Executes user-provided callback against event and collector response
    * If callback fails to execute - message will be printed to stderr
    *
-   * @param ec thread pool to asynchronously execute callback
    * @param collector collector parameters
    * @param callback user-provided callback
    * @param payload latest *sent* payload
    * @param result latest result
    */
-  def invokeCallback(ec: ExecutionContext, collector: EndpointParams, callback: Option[Callback[Id]])(
-    payload: Request,
-    result: Result): Unit =
-    callback match {
-      case Some(cb) =>
-        Future(cb(collector, payload, result))(ec).failed.foreach { throwable =>
+  def invokeCallback(collector: EndpointParams, callback: Option[Callback[Id]])(payload: Request,
+                                                                                result: Result): Unit =
+    callback.foreach { cb =>
+      try {
+        cb(collector, payload, result)
+      } catch {
+        case NonFatal(throwable) =>
           val error   = Option(throwable.getMessage).getOrElse(throwable.toString)
           val message = s"Snowplow Tracker bounded to ${collector.getUri} failed to execute callback: $error"
           System.err.println(message)
-        }(ec)
-      case None => ()
+      }
     }
 
-  /**
-   * Update sent-timestamp and attempt an HTTP request
-   * @param ec thread pool to send HTTP requests to collector
-   * @param collector endpoint preferences
-   * @param payload either GET or POST payload
+  /** Sends http requests using scalaj's thread-blocking api
+   *
+   *  Uses a scala.concurrent.blocking construct, to allow the global execution pool
+   *  to create an extra thread of necessary.
+   *
    */
-  def sendAsync(ec: ExecutionContext,
-                collector: EndpointParams,
-                payload: Request,
-                client: HttpClient): Future[HttpResponse[_]] =
-    Future {
-      val deviceSentTimestamp = System.currentTimeMillis()
-      val request             = constructRequest(collector, payload.updateStm(deviceSentTimestamp))
-      blocking {
-        client(request)
-      }
-    }(ec)
-
-  def sendSync(ec: ExecutionContext,
-               duration: Duration,
-               collector: EndpointParams,
-               payload: Request,
+  def sendSync(collector: EndpointParams,
+               request: Request,
                callback: Option[Callback[Id]],
-               client: HttpClient): Unit = {
-    val response = sendAsync(ec, collector, payload, client)
-    val result = httpToCollector(
-      Try {
-        Await.result(response, duration)
-      }.recoverWith {
-        case _: TimeoutException => Failure(new TimeoutException(s"Snowplow Sync Emitter timed out after $duration"))
-      }
-    )
+               options: Seq[HttpOptions.HttpOption],
+               client: HttpClient): Result = {
 
-    callback match {
-      case None     => ()
-      case Some(cb) => cb(collector, payload, result)
-    }
+    val deviceSentTimestamp = System.currentTimeMillis()
+    val httpRequest         = constructRequest(collector, request.updateStm(deviceSentTimestamp), options)
+    val tried               = Try { blocking { client(httpRequest) } }
+    val result              = httpToCollector(tried)
+
+    invokeCallback(collector, callback)(request, result)
+    result
   }
+
+  /** Sends http requests using scalaj's thread-blocking api, until they succeed */
+  def sendSyncAndRetry(collector: EndpointParams,
+                       request: Request,
+                       callback: Option[Callback[Id]],
+                       options: Seq[HttpOptions.HttpOption],
+                       client: HttpClient): Unit = {
+    def go(payload: Request): Unit = {
+      val result = sendSync(collector, request, callback, options, client)
+      if (!result.isSuccess)
+        go(request.updateAttempt)
+    }
+    go(request)
+  }
+
+  /** Sends http requests using scalaj's thread-blocking api until they succeed.
+   *
+   *  Http calls are wrapped in Futures, using flatmapping to enable competitive yielding to other tasks on the threadpool.
+   */
+  def sendAsync(collector: EndpointParams,
+                payload: Request,
+                callback: Option[Callback[Id]],
+                options: Seq[HttpOptions.HttpOption],
+                client: HttpClient)(implicit ec: ExecutionContext): Future[Unit] =
+    Future {
+      sendSync(collector, payload, callback, options, client)
+    }.flatMap { result =>
+      if (!result.isSuccess)
+        sendAsync(collector, payload.updateAttempt, callback, options, client)
+      else
+        Future.unit
+    }
 
   /** Transform implementation-specific response into tracker-specific */
   def httpToCollector(httpResponse: Try[HttpResponse[_]]): Result = httpResponse match {

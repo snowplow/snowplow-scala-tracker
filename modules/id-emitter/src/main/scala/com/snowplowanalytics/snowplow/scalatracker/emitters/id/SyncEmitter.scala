@@ -12,58 +12,65 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
-import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
-import scala.collection.mutable.ListBuffer
+import scalaj.http.HttpOptions
 
 import cats.Id
+import cats.implicits._
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 import com.snowplowanalytics.snowplow.scalatracker.Payload
 
 /**
  * Blocking emitter.
- * This emitter blocks whole thread (from global execution context)
- * for specified amount of time. Use at own risk
+ * This emitter blocks the whole thread. Use at own risk
  * @param collector collector preferences
- * @param blockingDuration amount of time to wait (block) for response
  * @param callback optional callback executed after each sent event
- * @param ec The execution context on which to block
+ * @param client executes http requests
+ * @param httpOptions Options to configure the Http transaction. The default sets readTimeout and
+ * connTimeout to 5 seconds to guard against blocking the thread for too long.
  *
  */
 class SyncEmitter private[id] (collector: EndpointParams,
-                               blockingDuration: Duration,
                                bufferConfig: BufferConfig,
                                callback: Option[Callback[Id]],
-                               ec: ExecutionContext,
-                               client: RequestProcessor.HttpClient)
+                               client: RequestProcessor.HttpClient,
+                               httpOptions: Seq[HttpOptions.HttpOption])
     extends BaseEmitter {
 
-  private val buffer = new ListBuffer[Payload]()
+  import SyncEmitter._
 
-  def send(event: Payload): Unit =
-    bufferConfig match {
-      case BufferConfig.NoBuffering =>
-        val payload = Request(event)
-        RequestProcessor.sendSync(ec, blockingDuration, collector, payload, callback, client)
-      case BufferConfig.EventsCardinality(size) =>
-        buffer.synchronized {
-          buffer.append(event)
-          if (buffer.size >= size) {
-            val payload = Request(buffer.toList)
-            RequestProcessor.sendSync(ec, blockingDuration, collector, payload, callback, client)
-            buffer.clear()
-          }
-        }
-      case BufferConfig.PayloadSize(bytes) =>
-        buffer.synchronized {
-          buffer.append(event)
-          if (payloadSize(buffer) >= bytes) {
-            val payload = Request(buffer.toList)
-            RequestProcessor.sendSync(ec, blockingDuration, collector, payload, callback, client)
-            buffer.clear()
-          }
-        }
+  private var state = State(Nil, 0, 0)
+
+  override def send(event: Payload): Unit = {
+    val toSend = state.synchronized {
+      state = state.add(event)
+      if (state.isFull(bufferConfig)) {
+        val payloads = state.payloads
+        state = State(Nil, 0, 0)
+        payloads
+      } else {
+        Nil
+      }
+    }
+    sendEvents(toSend)
+  }
+
+  def flush(): Unit = {
+    val toSend = state.synchronized {
+      val payloads = state.payloads
+      state = State(Nil, 0, 0)
+      payloads
+    }
+    sendEvents(toSend)
+  }
+
+  private def sendEvents(events: List[Payload]): Unit =
+    events match {
+      case Nil => ()
+      case single :: Nil if bufferConfig == BufferConfig.NoBuffering =>
+        RequestProcessor.sendSyncAndRetry(collector, Request(single), callback, httpOptions, client)
+      case more =>
+        RequestProcessor.sendSyncAndRetry(collector, Request(more), callback, httpOptions, client)
     }
 }
 
@@ -77,24 +84,35 @@ object SyncEmitter {
    * @param https should this use the https scheme
    * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
    * @param callback optional callback executed after each sent event
-   * @param blockingDuration amount of time to wait (block) for response
-   * @param executionContext The execution context on which to make (blocking) http requests
+   * @param options Options to configure the Http transaction. The default sets readTimeout and
+   * connTimeout to 5 seconds to guard against blocking the thread for too long.
    * @return emitter
    */
   def createAndStart(host: String,
                      port: Option[Int] = None,
                      https: Boolean    = false,
                      bufferConfig: BufferConfig,
-                     callback: Option[Callback[Id]]     = None,
-                     blockingDuration: Duration         = 5.seconds,
-                     executionContext: ExecutionContext = ExecutionContext.global): SyncEmitter = {
+                     callback: Option[Callback[Id]]       = None,
+                     options: Seq[HttpOptions.HttpOption] = defaultHttpOptions): SyncEmitter = {
     val collector = EndpointParams(host, port, Some(https))
-    new SyncEmitter(collector,
-                    blockingDuration,
-                    bufferConfig,
-                    callback,
-                    executionContext,
-                    RequestProcessor.defaultHttpClient)
+    new SyncEmitter(collector, bufferConfig, callback, RequestProcessor.defaultHttpClient, options)
+  }
+
+  private val defaultHttpOptions = Seq(HttpOptions.readTimeout(5000), HttpOptions.connTimeout(5000))
+
+  private case class State(payloads: List[Payload], items: Int, bytes: Int) {
+
+    def add(payload: Payload): State = {
+      val nextBytes = if (items === 0) Payload.sizeOf(Seq(payload)) else bytes + Payload.sizeContributionOf(payload)
+      State(payload :: payloads, items + 1, nextBytes)
+    }
+
+    def isFull(bufferConfig: BufferConfig): Boolean =
+      bufferConfig match {
+        case BufferConfig.NoBuffering            => true
+        case BufferConfig.EventsCardinality(max) => items >= max
+        case BufferConfig.PayloadSize(max)       => bytes >= max
+      }
   }
 
 }
