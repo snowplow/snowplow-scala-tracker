@@ -44,6 +44,7 @@ object AsyncEmitter {
    * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
    * @param callback optional callback executed after each sent event, or failed attempt
    * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
+   * @param queuePolicy Configures how the emitter's `send` method behaves when the queue is full.
    * @param httpOptions Options to configure the http transaction
    * @return emitter
    */
@@ -53,12 +54,14 @@ object AsyncEmitter {
                      bufferConfig: BufferConfig,
                      callback: Option[Callback[Id]]           = None,
                      retryPolicy: RetryPolicy                 = RetryPolicy.Default,
+                     queuePolicy: EventQueuePolicy            = EventQueuePolicy.Default,
                      httpOptions: Seq[HttpOptions.HttpOption] = Nil)(implicit ec: ExecutionContext): AsyncEmitter = {
     val collector = EndpointParams(host, port, Some(https))
     val emitter = new AsyncEmitter(collector,
                                    bufferConfig,
                                    callback,
                                    retryPolicy,
+                                   queuePolicy,
                                    RequestProcessor.defaultHttpClient,
                                    httpOptions,
                                    1000)
@@ -82,12 +85,17 @@ class AsyncEmitter private[id] (collector: EndpointParams,
                                 bufferConfig: BufferConfig,
                                 callback: Option[Callback[Id]],
                                 retryPolicy: RetryPolicy,
+                                queuePolicy: EventQueuePolicy,
                                 client: RequestProcessor.HttpClient,
                                 httpOptions: Seq[HttpOptions.HttpOption],
                                 pollTimeoutMillis: Long)
     extends BaseEmitter {
 
-  private val buffer       = new LinkedBlockingQueue[Payload]()
+  private val buffer = queuePolicy.tryLimit match {
+    case None        => new LinkedBlockingQueue[Payload]()
+    case Some(limit) => new LinkedBlockingQueue[Payload](limit)
+  }
+
   private val eventsToSend = new LinkedBlockingQueue[Payload]()
 
   private val isClosing        = new AtomicBoolean(false)
@@ -153,7 +161,15 @@ class AsyncEmitter private[id] (collector: EndpointParams,
   }
 
   override def send(payload: Payload): Unit =
-    buffer.put(payload)
+    queuePolicy match {
+      case EventQueuePolicy.UnboundedQueue | EventQueuePolicy.BlockWhenFull(_) =>
+        buffer.put(payload)
+      case EventQueuePolicy.IgnoreWhenFull(_) =>
+        buffer.offer(payload)
+      case EventQueuePolicy.ErrorWhenFull(limit) =>
+        if (!buffer.offer(payload))
+          throw new EventQueuePolicy.EventQueueException(limit)
+    }
 
   def flush(): Unit =
     suspendBuffering.set(true)
