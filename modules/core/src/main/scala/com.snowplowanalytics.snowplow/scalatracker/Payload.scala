@@ -77,16 +77,6 @@ object Payload {
     }
   }
 
-  private[scalatracker] def sizeOf(payloads: Seq[Payload]): Int =
-    postPayload(payloads).getBytes.length
-
-  /* Calculates how many extra bytes one more extra payload contributes to a json post request
-   *
-   * Assumes this is not the first payload in the array, and therefore adds 1 for the comma required to separate payloads
-   */
-  private[scalatracker] def sizeContributionOf(payload: Payload): Int =
-    payload.asJson.noSpaces.getBytes.length + 1
-
   /**
    * Transform List of Map[String, String] to JSON array of objects
    *

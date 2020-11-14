@@ -61,6 +61,9 @@ object Emitter {
 
     /** Configures the emitter to buffer events until either of the inner BufferConfigs say the queue is full.  */
     final case class OneOf(left: BufferConfig, right: BufferConfig) extends BufferConfig
+
+    /** The default [[BufferConfig]]: Events are buffered until a payload size of 40 kb */
+    val Default: BufferConfig = PayloadSize(40000)
   }
 
   /** Payload (either GET or POST) ready to be send to collector */
@@ -234,6 +237,76 @@ object Emitter {
       ((rangeMin + (rangeMax - rangeMin) * seed) * 1000.0).toLong
     }
 
+  }
+
+  /** ADT for offering events to an emitter's internal queue.
+   *
+   *  An EventQueuePolicy becomes important when the queue of pending events grows
+   *  to an unexpectedly large number; for example, if the collector is unreachable
+   *  for a long period of time.
+   *
+   *  Picking an EventQueuePolicy is an opportunity to protect against excessive heap
+   *  usage by limiting the maximum size of the queue.
+   *
+   *  An EventQueuePolicy can be paired with an appropriate [[RetryPolicy]], which
+   *  controls dropping events when they cannot be sent.
+   */
+  sealed trait EventQueuePolicy extends Product with Serializable {
+
+    def tryLimit: Option[Int] = this match {
+      case EventQueuePolicy.UnboundedQueue        => None
+      case EventQueuePolicy.BlockWhenFull(limit)  => Some(limit)
+      case EventQueuePolicy.IgnoreWhenFull(limit) => Some(limit)
+      case EventQueuePolicy.ErrorWhenFull(limit)  => Some(limit)
+    }
+  }
+
+  object EventQueuePolicy {
+
+    /** An [[EventQueuePolicy]] with no upper bound on the number pending events in the emitter's queue
+     *
+     *  This [[EventQueuePolicy]] never deliberately drops events, but it comes
+     *  at the expense of potentially high heap usage if the collector is unavailable
+     *  for a long period of time.
+     */
+    case object UnboundedQueue extends EventQueuePolicy
+
+    /** An [[EventQueuePolicy]] that blocks the tracker's thread until the queue
+     *  of pending events falls below a threshold.
+     *
+     * This [[EventQueuePolicy]] never deliberately drops events, but it comes
+     * at the expense of blocking threads if the collector is unavailble for a
+     * long period of time
+     *
+     * @param limit The maximum number of events to hold in the queue
+     */
+    final case class BlockWhenFull(limit: Int) extends EventQueuePolicy
+
+    /** An [[EventQueuePolicy]] that silently drops new events when the queue
+     *  of pending events exceeds a threshold.
+     *
+     * @param limit The maximum number of events to hold in the queue
+     */
+    final case class IgnoreWhenFull(limit: Int) extends EventQueuePolicy
+
+    /** An [[EventQueuePolicy]] that raises a [[EventQueueException]] when the
+     *  queue of pending events exceeds a threshold.
+     *
+     * @param limit The maximum number of events to hold in the queue
+     */
+    final case class ErrorWhenFull(limit: Int) extends EventQueuePolicy
+
+    /** The default [[EventQueuePolicy]] has no upper bound on the number of pending
+     *  events in the emitter's queue.
+     *
+     *  It is sensible to override the default policy if high memory usage would be
+     *  detrimental to your application, if the collector is unavailable for a
+     *  long period of time.
+     */
+    val Default: EventQueuePolicy = UnboundedQueue
+
+    /** An exception that is thrown when using the [[ErrorWhenFull]] event queue policy. */
+    class EventQueueException(limit: Int) extends java.io.IOException(s"Queue of size $limit is full")
   }
 
 }
