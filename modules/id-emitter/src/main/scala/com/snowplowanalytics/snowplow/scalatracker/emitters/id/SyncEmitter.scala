@@ -15,10 +15,9 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 import scalaj.http.HttpOptions
 
 import cats.Id
-import cats.implicits._
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
-import com.snowplowanalytics.snowplow.scalatracker.Payload
+import com.snowplowanalytics.snowplow.scalatracker.{Buffer, Payload}
 
 /**
  * Blocking emitter.
@@ -39,41 +38,36 @@ class SyncEmitter private[id] (collector: EndpointParams,
                                httpOptions: Seq[HttpOptions.HttpOption])
     extends BaseEmitter {
 
-  import SyncEmitter._
-
-  private var state = State(Nil, 0, 0)
+  private var buffer = Buffer(bufferConfig)
 
   override def send(event: Payload): Unit = {
-    val toSend = state.synchronized {
-      state = state.add(event)
-      if (state.isFull(bufferConfig)) {
-        val payloads = state.payloads
-        state = State(Nil, 0, 0)
-        payloads
+    val toSend = buffer.synchronized {
+      buffer = buffer.add(event)
+      if (buffer.isFull) {
+        val request = buffer.toRequest
+        buffer = Buffer(bufferConfig)
+        request
       } else {
-        Nil
+        None
       }
     }
-    sendEvents(toSend)
+
+    toSend.foreach { request =>
+      RequestProcessor.sendSyncAndRetry(collector, request, callback, retryPolicy, httpOptions, client)
+    }
   }
 
   def flush(): Unit = {
-    val toSend = state.synchronized {
-      val payloads = state.payloads
-      state = State(Nil, 0, 0)
-      payloads
+    val toSend = buffer.synchronized {
+      val request = buffer.toRequest
+      buffer = Buffer(bufferConfig)
+      request
     }
-    sendEvents(toSend)
-  }
+    toSend.foreach { request =>
+      RequestProcessor.sendSyncAndRetry(collector, request, callback, retryPolicy, httpOptions, client)
+    }
 
-  private def sendEvents(events: List[Payload]): Unit =
-    events match {
-      case Nil => ()
-      case single :: Nil if bufferConfig == BufferConfig.NoBuffering =>
-        RequestProcessor.sendSyncAndRetry(collector, Request(single), callback, retryPolicy, httpOptions, client)
-      case more =>
-        RequestProcessor.sendSyncAndRetry(collector, Request(more), callback, retryPolicy, httpOptions, client)
-    }
+  }
 }
 
 object SyncEmitter {
@@ -90,27 +84,12 @@ object SyncEmitter {
    * @return emitter
    */
   def apply(collector: EndpointParams,
-            bufferConfig: BufferConfig,
+            bufferConfig: BufferConfig           = BufferConfig.Default,
             callback: Option[Callback[Id]]       = None,
             retryPolicy: RetryPolicy             = RetryPolicy.Default,
             options: Seq[HttpOptions.HttpOption] = defaultHttpOptions): SyncEmitter =
     new SyncEmitter(collector, bufferConfig, callback, retryPolicy, RequestProcessor.defaultHttpClient, options)
 
   private val defaultHttpOptions = Seq(HttpOptions.readTimeout(5000), HttpOptions.connTimeout(5000))
-
-  private case class State(payloads: List[Payload], items: Int, bytes: Int) {
-
-    def add(payload: Payload): State = {
-      val nextBytes = if (items === 0) Payload.sizeOf(Seq(payload)) else bytes + Payload.sizeContributionOf(payload)
-      State(payload :: payloads, items + 1, nextBytes)
-    }
-
-    def isFull(bufferConfig: BufferConfig): Boolean =
-      bufferConfig match {
-        case BufferConfig.NoBuffering            => true
-        case BufferConfig.EventsCardinality(max) => items >= max
-        case BufferConfig.PayloadSize(max)       => bytes >= max
-      }
-  }
 
 }
