@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
 import scala.concurrent.{ExecutionContext, Future, blocking}
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Random, Success, Try}
 import scala.util.control.NonFatal
 
 import cats.Id
@@ -27,6 +27,8 @@ private[id] object RequestProcessor {
 
   type HttpClient = HttpRequest => HttpResponse[Array[Byte]]
   lazy val defaultHttpClient: HttpClient = _.asBytes
+
+  private lazy val rng = new Random()
 
   /**
    * Construct POST request with batch event payload
@@ -96,12 +98,17 @@ private[id] object RequestProcessor {
   def sendSyncAndRetry(collector: EndpointParams,
                        request: Request,
                        callback: Option[Callback[Id]],
+                       retryPolicy: RetryPolicy,
                        options: Seq[HttpOptions.HttpOption],
                        client: HttpClient): Unit = {
-    def go(payload: Request): Unit = {
+    def go(request: Request): Unit = {
       val result = sendSync(collector, request, callback, options, client)
-      if (!result.isSuccess)
+      if (!result.isSuccess && !request.isFailed(retryPolicy)) {
+        blocking {
+          Thread.sleep(RetryPolicy.getDelay(request.attempt, rng.nextDouble()))
+        }
         go(request.updateAttempt)
+      }
     }
     go(request)
   }
@@ -111,16 +118,20 @@ private[id] object RequestProcessor {
    *  Http calls are wrapped in Futures, using flatmapping to enable competitive yielding to other tasks on the threadpool.
    */
   def sendAsync(collector: EndpointParams,
-                payload: Request,
+                request: Request,
                 callback: Option[Callback[Id]],
+                retryPolicy: RetryPolicy,
                 options: Seq[HttpOptions.HttpOption],
                 client: HttpClient)(implicit ec: ExecutionContext): Future[Unit] =
     Future {
-      sendSync(collector, payload, callback, options, client)
+      sendSync(collector, request, callback, options, client)
     }.flatMap { result =>
-      if (!result.isSuccess)
-        sendAsync(collector, payload.updateAttempt, callback, options, client)
-      else
+      if (!result.isSuccess && !request.isFailed(retryPolicy)) {
+        blocking {
+          Thread.sleep(RetryPolicy.getDelay(request.attempt, rng.nextDouble()))
+        }
+        sendAsync(collector, request.updateAttempt, callback, retryPolicy, options, client)
+      } else
         Future.unit
     }
 
