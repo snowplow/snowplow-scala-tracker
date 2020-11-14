@@ -41,17 +41,22 @@ object AsyncEmitter {
    * @param collector The [[EndpointParams]] for the snowplow collector
    * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
    * @param callback optional callback executed after each sent event, or failed attempt
+   * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
    * @param httpOptions Options to configure the http transaction
    * @return emitter
    */
   def createAndStart(collector: EndpointParams,
-                     port: Option[Int] = None,
-                     https: Boolean    = false,
                      bufferConfig: BufferConfig,
                      callback: Option[Callback[Id]]           = None,
+                     retryPolicy: RetryPolicy                 = RetryPolicy.Default,
                      httpOptions: Seq[HttpOptions.HttpOption] = Nil)(implicit ec: ExecutionContext): AsyncEmitter = {
-    val emitter =
-      new AsyncEmitter(collector, bufferConfig, callback, RequestProcessor.defaultHttpClient, httpOptions, 1000)
+    val emitter = new AsyncEmitter(collector,
+                                   bufferConfig,
+                                   callback,
+                                   retryPolicy,
+                                   RequestProcessor.defaultHttpClient,
+                                   httpOptions,
+                                   1000)
     emitter.startWorker()
     emitter
   }
@@ -64,12 +69,14 @@ object AsyncEmitter {
  * @param collector collector preferences
  * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
  * @param callback optional callback executed after each sent event
+ * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
  * @param client executes http requests
  * @param httpOptions Options to configure the http transaction
  */
 class AsyncEmitter private[id] (collector: EndpointParams,
                                 bufferConfig: BufferConfig,
                                 callback: Option[Callback[Id]],
+                                retryPolicy: RetryPolicy,
                                 client: RequestProcessor.HttpClient,
                                 httpOptions: Seq[HttpOptions.HttpOption],
                                 pollTimeoutMillis: Long)
@@ -127,9 +134,9 @@ class AsyncEmitter private[id] (collector: EndpointParams,
       drainEventsToSend() match {
         case Nil => Future.unit
         case single :: Nil if bufferConfig == BufferConfig.NoBuffering =>
-          RequestProcessor.sendAsync(collector, Request(single), callback, httpOptions, client)
+          RequestProcessor.sendAsync(collector, Request(single), callback, retryPolicy, httpOptions, client)
         case more =>
-          RequestProcessor.sendAsync(collector, Request(more), callback, httpOptions, client)
+          RequestProcessor.sendAsync(collector, Request(more), callback, retryPolicy, httpOptions, client)
       }
     }
   }
