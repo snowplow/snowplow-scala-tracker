@@ -25,6 +25,7 @@ import com.snowplowanalytics.snowplow.scalatracker.Payload
  * This emitter blocks the whole thread. Use at own risk
  * @param collector collector preferences
  * @param callback optional callback executed after each sent event
+ * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
  * @param client executes http requests
  * @param httpOptions Options to configure the Http transaction. The default sets readTimeout and
  * connTimeout to 5 seconds to guard against blocking the thread for too long.
@@ -33,6 +34,7 @@ import com.snowplowanalytics.snowplow.scalatracker.Payload
 class SyncEmitter private[id] (collector: EndpointParams,
                                bufferConfig: BufferConfig,
                                callback: Option[Callback[Id]],
+                               retryPolicy: RetryPolicy,
                                client: RequestProcessor.HttpClient,
                                httpOptions: Seq[HttpOptions.HttpOption])
     extends BaseEmitter {
@@ -68,9 +70,9 @@ class SyncEmitter private[id] (collector: EndpointParams,
     events match {
       case Nil => ()
       case single :: Nil if bufferConfig == BufferConfig.NoBuffering =>
-        RequestProcessor.sendSyncAndRetry(collector, Request(single), callback, httpOptions, client)
+        RequestProcessor.sendSyncAndRetry(collector, Request(single), callback, retryPolicy, httpOptions, client)
       case more =>
-        RequestProcessor.sendSyncAndRetry(collector, Request(more), callback, httpOptions, client)
+        RequestProcessor.sendSyncAndRetry(collector, Request(more), callback, retryPolicy, httpOptions, client)
     }
 }
 
@@ -82,6 +84,7 @@ object SyncEmitter {
    * @param collector The [[EndpointParams]] for the snowplow collector
    * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
    * @param callback optional callback executed after each sent event
+   * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
    * @param options Options to configure the Http transaction. The default sets readTimeout and
    * connTimeout to 5 seconds to guard against blocking the thread for too long.
    * @return emitter
@@ -89,8 +92,9 @@ object SyncEmitter {
   def apply(collector: EndpointParams,
             bufferConfig: BufferConfig,
             callback: Option[Callback[Id]]       = None,
+            retryPolicy: RetryPolicy             = RetryPolicy.Default,
             options: Seq[HttpOptions.HttpOption] = defaultHttpOptions): SyncEmitter =
-    new SyncEmitter(collector, bufferConfig, callback, RequestProcessor.defaultHttpClient, options)
+    new SyncEmitter(collector, bufferConfig, callback, retryPolicy, RequestProcessor.defaultHttpClient, options)
 
   private val defaultHttpOptions = Seq(HttpOptions.readTimeout(5000), HttpOptions.connTimeout(5000))
 

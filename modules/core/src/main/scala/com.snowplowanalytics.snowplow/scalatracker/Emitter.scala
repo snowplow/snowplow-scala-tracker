@@ -73,7 +73,11 @@ object Emitter {
     def attempt: Int
 
     /** Check if emitters should keep sending this request */
-    def isFailed: Boolean = attempt >= 10
+    def isFailed(policy: RetryPolicy): Boolean =
+      policy match {
+        case RetryPolicy.RetryForever     => false
+        case RetryPolicy.MaxAttempts(max) => attempt >= max
+      }
 
     /** Increment attempt number. Must be used whenever payload failed */
     def updateAttempt: Request = this match {
@@ -184,11 +188,52 @@ object Emitter {
     final case class RetriesExceeded(lastResponse: Result) extends Result
   }
 
-  /** Get delay with increased non-linear back-off period in millis */
-  def getDelay(attempt: Int, seed: Double): Int = {
-    val rangeMin = attempt.toDouble
-    val rangeMax = attempt.toDouble * 3
-    ((rangeMin + (rangeMax - rangeMin) * seed) * 1000).toInt
+  /** ADT for retrying failed payloads */
+  sealed trait RetryPolicy extends Product with Serializable
+
+  object RetryPolicy {
+
+    /** A [[RetryPolicy]] with no cap on maximum of attempts to send an event to the collector.
+     *
+     *  This policy might appear attractive where it is critical to avoid data loss,
+     *  because it never deliberately drops events. However, it could cause a backlog
+     *  of events in the buffered queue if the collector is unavailable for too long.
+     *
+     *  This [[RetryPolicy]] could be paired with an [[EventQueuePolicy]] that manages
+     *  the behaviour of a large backlog.
+     */
+    case object RetryForever extends RetryPolicy
+
+    /** A [[RetryPolicy]] which drops events after failing to contact the collector within a fixed number of attempts.
+     *
+     * This policy can smooth over short outages of connection to the collector.
+     * Events will be dropped only if the collector is unreachable for a relatively long span of time.
+     * Dropping events can be a safety mechanism against a growing backlog of unsent events.
+     *
+     * @param max The maximum number of http requests for a batch of events is dropped.
+     */
+    final case class MaxAttempts(max: Int) extends RetryPolicy
+
+    /** The default [[RetryPolicy]] allows a maximum of 10 attempts to send events to the collector.
+     */
+    val Default: MaxAttempts = MaxAttempts(10)
+
+    /** A [[RetryPolicy]] that drops events immediately after a failed attempt to send to the collector.
+     */
+    val NoRetry: RetryPolicy = MaxAttempts(1)
+
+    /** Get delay with increased non-linear back-off period in millis
+     *  @param attempt A counter that increases each time we attempt to send the reqeust
+     *  @param seed A scaling factor that should be randomly generated
+     *  @return Delay in milliseconds
+     *  */
+    def getDelay(attempt: Int, seed: Double): Long = {
+      val normalized = if (attempt > 10) 10 else attempt
+      val rangeMin   = normalized.toDouble
+      val rangeMax   = normalized.toDouble * 3
+      ((rangeMin + (rangeMax - rangeMin) * seed) * 1000.0).toLong
+    }
+
   }
 
 }

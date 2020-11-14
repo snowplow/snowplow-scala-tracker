@@ -18,6 +18,7 @@ import scalaj.http.{HttpRequest, HttpResponse}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Payload}
+import com.snowplowanalytics.snowplow.scalatracker.Emitter.RetryPolicy
 
 import org.specs2.Specification
 
@@ -57,7 +58,7 @@ class BatchEmitterSpec extends Specification {
 
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
-    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, processor, Nil, 10)) { emitter =>
+    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil, 10)) { emitter =>
       emitter.send(payload)
       emitter.send(payload)
 
@@ -75,7 +76,7 @@ class BatchEmitterSpec extends Specification {
 
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
-    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, processor, Nil, 10)) { emitter =>
+    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil, 10)) { emitter =>
       emitter.send(payload)
       emitter.send(payload)
       emitter.send(payload)
@@ -94,7 +95,7 @@ class BatchEmitterSpec extends Specification {
     val payloadSize  = Payload.sizeOf(Seq(payload))
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
-    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, processor, Nil, 10)) { emitter =>
+    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil, 10)) { emitter =>
       emitter.send(payload)
       emitter.send(payload)
 
@@ -109,13 +110,15 @@ class BatchEmitterSpec extends Specification {
       new HttpResponse(Array(), 200, Map())
     }
 
-    val payloadSize  = Payload.sizeOf(Seq(payload))
+    val payloadSize3 = Payload.sizeOf(Seq(payload, payload, payload))
     val params       = Emitter.EndpointParams("example.com")
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 100)
-    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, processor, Nil, 10)) { emitter =>
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize3)
+    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil, 10)) { emitter =>
       emitter.send(payload)
+      emitter.send(payload)
+      emitter.send(payload)
+      eventually(counter.get must_== 1)
     }
-    eventually(counter.get must_== 1)
   }
 
   def e5 = {
@@ -128,7 +131,7 @@ class BatchEmitterSpec extends Specification {
     val payloadSize3 = Payload.sizeOf(Seq(payload, payload, payload))
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize3)
-    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, processor, Nil, 10)) { emitter =>
+    withAsyncEmitter(new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil, 10)) { emitter =>
       emitter.send(payload)
       emitter.send(payload)
       emitter.send(payload)
@@ -148,7 +151,7 @@ class BatchEmitterSpec extends Specification {
 
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
-    val emitter      = new SyncEmitter(params, bufferConfig, None, processor, Nil)
+    val emitter      = new SyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil)
 
     emitter.send(payload)
     emitter.send(payload)
@@ -165,7 +168,7 @@ class BatchEmitterSpec extends Specification {
 
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
-    val emitter      = new SyncEmitter(params, bufferConfig, None, processor, Nil)
+    val emitter      = new SyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil)
 
     emitter.send(payload)
     emitter.send(payload)
@@ -184,7 +187,7 @@ class BatchEmitterSpec extends Specification {
     val payloadSize  = Payload.sizeOf(Seq(payload))
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
-    val emitter      = new SyncEmitter(params, bufferConfig, None, processor, Nil)
+    val emitter      = new SyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil)
 
     emitter.send(payload)
     emitter.send(payload)
@@ -202,7 +205,7 @@ class BatchEmitterSpec extends Specification {
     val payloadSize3 = Payload.sizeOf(Seq(payload, payload, payload))
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize3)
-    val emitter      = new SyncEmitter(params, bufferConfig, None, processor, Nil)
+    val emitter      = new SyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil)
 
     emitter.send(payload)
     emitter.send(payload)
@@ -222,7 +225,7 @@ class BatchEmitterSpec extends Specification {
     val payloadSize  = Payload.sizeOf(Seq(payload))
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 100)
-    val emitter      = new SyncEmitter(params, bufferConfig, None, processor, Nil)
+    val emitter      = new SyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil)
 
     emitter.send(payload)
     emitter.flush()
