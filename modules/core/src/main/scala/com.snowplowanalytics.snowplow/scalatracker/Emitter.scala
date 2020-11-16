@@ -41,6 +41,15 @@ object Emitter {
   /** User-provided callback */
   type Callback[F[_]] = (EndpointParams, Request, Result) => F[Unit]
 
+  /**
+   * An emitter for which the buffered events can be flushed early, before the buffer is full.
+   */
+  trait Flushable[F[_]] extends Emitter[F] {
+
+    def flushBuffer(): F[Unit]
+
+  }
+
   /** Emitter buffering config */
   sealed trait BufferConfig extends Product with Serializable
 

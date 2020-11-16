@@ -88,7 +88,8 @@ class AsyncEmitter private[id] (collector: EndpointParams,
                                 client: RequestProcessor.HttpClient,
                                 httpOptions: Seq[HttpOptions.HttpOption],
                                 pollTimeoutMillis: Long)
-    extends BaseEmitter {
+    extends BaseEmitter
+    with java.lang.AutoCloseable {
 
   private val queue = queuePolicy.tryLimit match {
     case None        => new LinkedBlockingQueue[Payload]()
@@ -149,10 +150,10 @@ class AsyncEmitter private[id] (collector: EndpointParams,
           throw new EventQueuePolicy.EventQueueException(limit)
     }
 
-  def flush(): Unit =
+  override def flushBuffer(): Unit =
     suspendBuffering.set(true)
 
-  def close(): Unit = {
+  override def close(): Unit = {
     suspendBuffering.set(true)
     isClosing.set(true)
   }
