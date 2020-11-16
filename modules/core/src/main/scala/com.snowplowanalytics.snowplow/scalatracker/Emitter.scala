@@ -58,6 +58,9 @@ object Emitter {
      *  @param bytes The target minimum size in bytes of a payload of batched events
      */
     case class PayloadSize(bytes: Int) extends BufferConfig
+
+    /** The default [[BufferConfig]]: Events are buffered until a payload size of 40 kb */
+    val Default: BufferConfig = PayloadSize(40000)
   }
 
   /** Payload (either GET or POST) ready to be send to collector */

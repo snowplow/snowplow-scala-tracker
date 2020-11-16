@@ -96,9 +96,9 @@ class BatchEmitterSpec extends Specification {
       new HttpResponse(Array(), 200, Map())
     }
 
-    val payloadSize  = Payload.sizeOf(Seq(payload))
+    val maxBytes     = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
     val params       = Emitter.EndpointParams("example.com", None, None)
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
     withAsyncEmitter(
       new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil, 10)) {
       emitter =>
@@ -116,9 +116,9 @@ class BatchEmitterSpec extends Specification {
       new HttpResponse(Array(), 200, Map())
     }
 
-    val payloadSize3 = Payload.sizeOf(Seq(payload, payload, payload))
+    val maxBytes     = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
     val params       = Emitter.EndpointParams("example.com", None, None)
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize3)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
     withAsyncEmitter(
       new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil, 10)) {
       emitter =>
@@ -136,20 +136,16 @@ class BatchEmitterSpec extends Specification {
       new HttpResponse(Array(), 200, Map())
     }
 
-    val payloadSize3 = Payload.sizeOf(Seq(payload, payload, payload))
+    val maxBytes     = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
     val params       = Emitter.EndpointParams("example.com", None, None)
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize3)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
     withAsyncEmitter(
       new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil, 10)) {
       emitter =>
         emitter.send(payload)
-        emitter.send(payload)
-        emitter.send(payload)
-        emitter.send(payload)
-
-        Thread.sleep(100)
-        eventually(counter.get must_== 1)
     }
+    Thread.sleep(100)
+    eventually(counter.get must_== 1)
   }
 
   def e6 = {
@@ -194,9 +190,9 @@ class BatchEmitterSpec extends Specification {
       new HttpResponse(Array(), 200, Map())
     }
 
-    val payloadSize  = Payload.sizeOf(Seq(payload))
+    val maxBytes     = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
     val params       = Emitter.EndpointParams("example.com", None, None)
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
     val emitter      = new SyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil)
 
     emitter.send(payload)
@@ -212,9 +208,9 @@ class BatchEmitterSpec extends Specification {
       new HttpResponse(Array(), 200, Map())
     }
 
-    val payloadSize3 = Payload.sizeOf(Seq(payload, payload, payload))
+    val maxBytes     = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
     val params       = Emitter.EndpointParams("example.com", None, None)
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize3)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
     val emitter      = new SyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil)
 
     emitter.send(payload)
@@ -232,9 +228,9 @@ class BatchEmitterSpec extends Specification {
       new HttpResponse(Array(), 200, Map())
     }
 
-    val payloadSize  = Payload.sizeOf(Seq(payload))
+    val maxBytes     = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
     val params       = Emitter.EndpointParams("example.com", None, None)
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 100)
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
     val emitter      = new SyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil)
 
     emitter.send(payload)
