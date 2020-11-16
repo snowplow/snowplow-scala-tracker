@@ -67,7 +67,8 @@ class MetadataSpec extends Specification with Mockito {
     """
 
   val emitter: Emitter[Id] = new Emitter[Id] {
-    override def send(event: Payload): Id[Unit] = ()
+    override def send(event: Payload): Unit = ()
+    override def flushBuffer(): Unit        = ()
   }
 
   def e1 =

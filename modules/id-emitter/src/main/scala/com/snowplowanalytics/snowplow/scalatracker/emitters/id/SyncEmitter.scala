@@ -57,7 +57,7 @@ class SyncEmitter private[id] (collector: EndpointParams,
     }
   }
 
-  def flush(): Unit = {
+  override def flushBuffer(): Unit = {
     val toSend = buffer.synchronized {
       val request = buffer.toRequest
       buffer = Buffer(bufferConfig)
