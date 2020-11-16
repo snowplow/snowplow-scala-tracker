@@ -369,8 +369,15 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
   }
 
   /**
-   * Set the Subject for the tracker
-   * The subject's configuration will be attached to every event
+   * Call the `flushBuffer` method on all emitters.
+   * This flushes any pending events to the tracker, even if the emitter's buffer is not yet full.
+   */
+  def flushEmitters(): F[Unit] =
+    emitters.traverse(_.flushBuffer()).void
+
+  /**
+   * Set the tracker's default Subject
+   * The subject's configuration will be attached to every event not already containing a subject.
    *
    * @param newSubject user which the Tracker will track
    * @return The tracker instance

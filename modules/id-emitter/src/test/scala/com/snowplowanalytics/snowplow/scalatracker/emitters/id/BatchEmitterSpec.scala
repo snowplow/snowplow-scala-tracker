@@ -234,7 +234,7 @@ class BatchEmitterSpec extends Specification {
     val emitter      = new SyncEmitter(params, bufferConfig, None, RetryPolicy.Default, processor, Nil)
 
     emitter.send(payload)
-    emitter.flush()
+    emitter.flushBuffer()
 
     counter.get must_== 1
   }

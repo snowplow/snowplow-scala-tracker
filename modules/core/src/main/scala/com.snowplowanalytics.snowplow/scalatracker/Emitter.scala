@@ -28,11 +28,18 @@ import cats.implicits._
 trait Emitter[F[_]] {
 
   /**
-   * Emits the event payload
+   * Requests the emitter to send the event to the snowplow collector
    *
+   * Depending on the emitter configuration, this could either send immediately or buffer the event
+   * in a queue to be sent at a later time
    * @param event Fully assembled event
    */
   def send(event: Payload): F[Unit]
+
+  /**
+   * Flush pending events to the collector early, before the buffer is full.
+   */
+  def flushBuffer(): F[Unit]
 
 }
 

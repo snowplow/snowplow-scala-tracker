@@ -32,6 +32,7 @@ class TrackerSpec extends Specification {
 
     val emitter = new Emitter[Id] {
       override def send(payload: Payload): Unit = lastInput = payload.toMap
+      override def flushBuffer(): Unit          = ()
     }
 
     val tracker = new Tracker(NonEmptyList.one(emitter), "mytracker", "myapp", encodeBase64 = false)
@@ -262,4 +263,36 @@ class TrackerSpec extends Specification {
       }
     }
   }
+
+  "flushEmitters" should {
+
+    "flush all pending events in all emitters" in {
+      import syntax.id._
+
+      class TestEmitter extends Emitter[Id] {
+        var flushed                = false
+        var pending: List[Payload] = Nil
+
+        override def send(payload: Payload): Unit = pending = payload :: pending
+        override def flushBuffer(): Unit          = flushed = true
+      }
+
+      val emitter1 = new TestEmitter
+      val emitter2 = new TestEmitter
+
+      val tracker = new Tracker(NonEmptyList.of(emitter1, emitter2), "mytracker", "myapp", encodeBase64 = false)
+      tracker.trackPageView("http://example.com/")
+
+      emitter1.flushed must beFalse
+      emitter2.flushed must beFalse
+
+      tracker.flushEmitters()
+
+      emitter1.flushed must beTrue
+      emitter2.flushed must beTrue
+
+    }
+
+  }
+
 }
