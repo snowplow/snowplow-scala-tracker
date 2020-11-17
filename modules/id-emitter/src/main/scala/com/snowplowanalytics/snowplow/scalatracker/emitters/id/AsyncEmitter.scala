@@ -12,8 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
-import java.util.concurrent.{LinkedBlockingQueue, TimeUnit}
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.LinkedBlockingQueue
 
 import scala.concurrent.{ExecutionContext, Future, blocking}
 import scalaj.http.HttpOptions
@@ -22,6 +21,7 @@ import cats.Id
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 import com.snowplowanalytics.snowplow.scalatracker.{Buffer, Payload}
+import com.snowplowanalytics.snowplow.scalatracker.Buffer.Action
 
 object AsyncEmitter {
   // Avoid starting thread in constructor
@@ -62,8 +62,7 @@ object AsyncEmitter {
                                    retryPolicy,
                                    queuePolicy,
                                    RequestProcessor.defaultHttpClient,
-                                   httpOptions,
-                                   1000)
+                                   httpOptions)
     emitter.startWorker()
     emitter
   }
@@ -86,76 +85,83 @@ class AsyncEmitter private[id] (collector: EndpointParams,
                                 retryPolicy: RetryPolicy,
                                 queuePolicy: EventQueuePolicy,
                                 client: RequestProcessor.HttpClient,
-                                httpOptions: Seq[HttpOptions.HttpOption],
-                                pollTimeoutMillis: Long)
+                                httpOptions: Seq[HttpOptions.HttpOption])(implicit ec: ExecutionContext)
     extends BaseEmitter
     with java.lang.AutoCloseable {
 
   private val queue = queuePolicy.tryLimit match {
-    case None        => new LinkedBlockingQueue[Payload]()
-    case Some(limit) => new LinkedBlockingQueue[Payload](limit)
+    case None        => new LinkedBlockingQueue[Action]()
+    case Some(limit) => new LinkedBlockingQueue[Action](limit)
   }
 
-  private val isClosing        = new AtomicBoolean(false)
-  private val suspendBuffering = new AtomicBoolean(false)
-
-  private[id] def startWorker()(implicit ec: ExecutionContext): Unit = {
-    def nextTick(): Future[Unit] =
-      if (!isClosing.get || Option(queue.peek).nonEmpty) {
-        workerTick().flatMap(_ => nextTick())
-      } else Future.unit
+  private[id] def startWorker(): Unit = {
+    def nextTick(): Future[WorkerStatus] =
+      workerTick().flatMap {
+        case Active       => nextTick()
+        case ShuttingDown => Future.successful(ShuttingDown)
+      }
     nextTick()
   }
 
-  private def pollQueue(implicit ec: ExecutionContext): Future[Option[Payload]] =
+  private def takeFromQueue(): Future[Action] =
     Future {
       blocking {
-        Option(queue.poll(pollTimeoutMillis, TimeUnit.MILLISECONDS))
+        queue.take()
       }
     }
 
-  private def workerTick()(implicit ec: ExecutionContext): Future[Unit] = {
+  private sealed trait WorkerStatus
+  private object ShuttingDown extends WorkerStatus
+  private object Active extends WorkerStatus
 
-    def fillBuffer(buffer: Buffer): Future[Buffer] =
-      pollQueue.flatMap {
-        case Some(event) =>
-          val next = buffer.add(event)
-          if (!next.isFull) fillBuffer(next) else Future.successful(next)
-        case None =>
-          if (!suspendBuffering.getAndSet(false)) {
-            fillBuffer(buffer)
-          } else {
-            Future.successful(buffer)
-          }
+  private def workerTick(): Future[WorkerStatus] = {
+
+    def fillBuffer(buffer: Buffer): Future[(Option[Request], WorkerStatus)] =
+      takeFromQueue().flatMap {
+        case Action.Flush =>
+          Future.successful(buffer.toRequest -> Active)
+        case Action.Terminate =>
+          Future.successful(buffer.toRequest -> ShuttingDown)
+        case Action.Enqueue(payload) =>
+          val next = buffer.add(payload)
+          if (next.isFull) Future.successful(next.toRequest -> Active)
+          else fillBuffer(next)
       }
 
     fillBuffer(Buffer(bufferConfig))
-      .map(_.toRequest)
       .flatMap {
-        case Some(request) =>
-          RequestProcessor.sendAsync(collector, request, callback, retryPolicy, httpOptions, client)
-        case None =>
-          Future.unit
+        case (Some(request), status) =>
+          RequestProcessor
+            .sendAsync(collector, request, callback, retryPolicy, httpOptions, client)
+            .map(_ => status)
+        case (None, status) =>
+          Future.successful(status)
       }
   }
 
   override def send(payload: Payload): Unit =
     queuePolicy match {
       case EventQueuePolicy.UnboundedQueue | EventQueuePolicy.BlockWhenFull(_) =>
-        queue.put(payload)
+        queue.put(Action.Enqueue(payload))
       case EventQueuePolicy.IgnoreWhenFull(_) =>
-        queue.offer(payload)
+        queue.offer(Action.Enqueue(payload))
       case EventQueuePolicy.ErrorWhenFull(limit) =>
-        if (!queue.offer(payload))
+        if (!queue.offer(Action.Enqueue(payload)))
           throw new EventQueuePolicy.EventQueueException(limit)
     }
 
   override def flushBuffer(): Unit =
-    suspendBuffering.set(true)
+    Future {
+      blocking {
+        queue.put(Action.Flush)
+      }
+    }
 
-  override def close(): Unit = {
-    suspendBuffering.set(true)
-    isClosing.set(true)
-  }
+  override def close(): Unit =
+    Future {
+      blocking {
+        queue.put(Action.Terminate)
+      }
+    }
 
 }
