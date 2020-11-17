@@ -15,22 +15,52 @@ package com.snowplowanalytics.snowplow.scalatracker
 import io.circe.syntax._
 import Emitter.{BufferConfig, Request}
 
-trait Buffer {
+/** Represents an emitter's internal state as it buffers events.
+ *
+ *  Emitters typically send events in larger batches, depending on the buffering configuration
+ */
+private[scalatracker] trait Buffer {
 
+  import Buffer._
+
+  /* Resets the internal state to an empty buffer, i.e. after sending the pending batch in a post request */
+  def reset: Buffer
+
+  /** Update the buffered state with a new payload */
   def add(payload: Payload): Buffer
 
+  /** Is the buffer full - i.e. is it time to send the buffered batch to the collector */
   def isFull: Boolean
 
+  /** Convert the pending batch to a Request.
+   *
+   *  Can return None of the batch was empty
+   */
   def toRequest: Option[Request]
+
+  /** Handle an event to update the state and possibly create a request which should be sent to the collector */
+  def handle(action: Action): (Buffer, Option[Request]) =
+    action match {
+      case Action.Terminate | Action.Flush =>
+        reset -> toRequest
+      case Action.Enqueue(payload) =>
+        val next = add(payload)
+        if (next.isFull)
+          reset -> next.toRequest
+        else
+          next -> None
+    }
 }
 
-object Buffer {
+private[scalatracker] object Buffer {
 
   def apply(config: BufferConfig): Buffer =
     BufferImpl(Nil, 0, 0, config)
 
   private final case class BufferImpl(toList: List[Payload], count: Int, bytes: Int, config: BufferConfig)
       extends Buffer {
+
+    override def reset: Buffer = Buffer(config)
 
     override def add(payload: Payload): Buffer = {
       val newBytes =
@@ -55,6 +85,14 @@ object Buffer {
       }
   }
 
+  /** ADT of actions the emitter needs to handle */
+  sealed trait Action
+  object Action {
+    final case class Enqueue(payload: Payload) extends Action
+    case object Flush extends Action
+    case object Terminate extends Action
+  }
+
   private def isFull(payloads: List[Payload], count: Int, bytes: Int, config: BufferConfig): Boolean =
     config match {
       case BufferConfig.NoBuffering =>
@@ -66,4 +104,5 @@ object Buffer {
       case BufferConfig.OneOf(left, right) =>
         isFull(payloads, count, bytes, left) || isFull(payloads, count, bytes, right)
     }
+
 }
