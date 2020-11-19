@@ -21,6 +21,7 @@ object Dependencies {
     val circe       = "0.13.0"
     val circeOptics = "0.13.0"
     val catsEffect  = "2.2.0"
+    val http4s      = "0.21.9"
 
     // Scala (test only)
     val specs2      = "4.10.5"
@@ -34,11 +35,12 @@ object Dependencies {
     val igluCoreCirce  = "com.snowplowanalytics" %% "iglu-core-circe" % V.igluCore
     val circe          = "io.circe"              %% "circe-parser"    % V.circe
     val catsEffect     = "org.typelevel"         %% "cats-effect"     % V.catsEffect
+    val http4sClient   = "org.http4s"            %% "http4s-client"   % V.http4s
 
     // Scala (test only)
-    val specs2        = "org.specs2"             %% "specs2-core"     % V.specs2      % "test"
-    val specs2Mock    = "org.specs2"             %% "specs2-mock"     % V.specs2      % "test"
-    val scalaCheck    = "org.scalacheck"         %% "scalacheck"      % V.scalaCheck  % "test"
-    val circeOptics   = "io.circe"               %% "circe-optics"    % V.circeOptics % "test"
+    val specs2        = "org.specs2"             %% "specs2-core"         % V.specs2      % "test"
+    val specs2Mock    = "org.specs2"             %% "specs2-mock"         % V.specs2      % "test"
+    val scalaCheck    = "org.scalacheck"         %% "scalacheck"          % V.scalaCheck  % "test"
+    val circeOptics   = "io.circe"               %% "circe-optics"        % V.circeOptics % "test"
   }
 }
