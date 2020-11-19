@@ -36,7 +36,7 @@ import scala.concurrent.duration._
 final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyList[Emitter[F]],
                                                            namespace: String,
                                                            appId: String,
-                                                           subject: Subject                     = Subject(),
+                                                           defaultSubject: Subject              = Subject(),
                                                            encodeBase64: Boolean                = true,
                                                            metadata: Option[SelfDescribingJson] = None) {
   import Tracker._
@@ -68,11 +68,13 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @param payload constructed event map
    * @param contexts list of additional contexts
    * @param timestamp optional user-provided timestamp (ms) for the event
+   * @param subject optionally override the tracker's default subject
    * @return payload with additional data
    */
   private def completePayload(payload: Payload,
                               contexts: Seq[SelfDescribingJson],
-                              timestamp: Option[Timestamp]): F[Payload] =
+                              timestamp: Option[Timestamp],
+                              subject: Option[Subject]): F[Payload] =
     for {
       uuid   <- implicitly[UUIDProvider[F]].generateUUID
       millis <- implicitly[Clock[F]].realTime(MILLISECONDS)
@@ -82,7 +84,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
         .add("tv", Version)
         .add("tna", namespace)
         .add("aid", appId)
-        .addDict(subject.subjectInformation)
+        .addDict(subject.getOrElse(defaultSubject).subjectInformation)
 
       val payloadWithTimestamp = if (!newPayload.toMap.contains("dtm")) {
         timestamp match {
@@ -120,18 +122,20 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @param unstructEvent self-describing JSON for the event
    * @param contexts list of additional contexts
    * @param timestamp optional user-provided timestamp (ms) for the event
+   * @param subject optionally override the tracker's default subject
    * @return The tracker instance
    */
   def trackSelfDescribingEvent(unstructEvent: SelfDescribingJson,
                                contexts: Seq[SelfDescribingJson] = Nil,
-                               timestamp: Option[Timestamp]      = None): F[Unit] = {
+                               timestamp: Option[Timestamp]      = None,
+                               subject: Option[Subject]          = None): F[Unit] = {
 
     val envelope = SelfDescribingData(SelfDescribingEventSchemaKey, unstructEvent.normalize)
     val payload = Payload()
       .add("e", "ue")
       .addJson(envelope.normalize, encodeBase64, "ue_px", "ue_pr")
 
-    completePayload(payload, contexts, timestamp)
+    completePayload(payload, contexts, timestamp, subject)
       .flatMap(track)
   }
 
@@ -145,6 +149,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @param value optional object value mapped to se_va
    * @param contexts list of additional contexts
    * @param timestamp optional user-provided timestamp (ms) for the event
+   * @param subject optionally override the tracker's default subject
    * @return the tracker instance
    */
   def trackStructEvent(category: String,
@@ -153,7 +158,8 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
                        property: Option[String]          = None,
                        value: Option[Double]             = None,
                        contexts: Seq[SelfDescribingJson] = Nil,
-                       timestamp: Option[Timestamp]      = None): F[Unit] = {
+                       timestamp: Option[Timestamp]      = None,
+                       subject: Option[Subject]          = None): F[Unit] = {
 
     val payload = Payload()
       .add("e", "se")
@@ -163,7 +169,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
       .add("se_pr", property)
       .add("se_va", value.map(_.toString))
 
-    completePayload(payload, contexts, timestamp)
+    completePayload(payload, contexts, timestamp, subject)
       .flatMap(track)
   }
 
@@ -175,13 +181,15 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @param referrer referrer URL
    * @param contexts list of additional contexts
    * @param timestamp optional user-provided timestamp (ms) for the event
+   * @param subject optionally override the tracker's default subject
    * @return the tracker instance
    */
   def trackPageView(pageUrl: String,
                     pageTitle: Option[String]         = None,
                     referrer: Option[String]          = None,
                     contexts: Seq[SelfDescribingJson] = Nil,
-                    timestamp: Option[Timestamp]      = None): F[Unit] = {
+                    timestamp: Option[Timestamp]      = None,
+                    subject: Option[Subject]          = None): F[Unit] = {
 
     val payload = Payload()
       .add("e", "pv")
@@ -189,7 +197,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
       .add("page", pageTitle)
       .add("refr", referrer)
 
-    completePayload(payload, contexts, timestamp)
+    completePayload(payload, contexts, timestamp, subject)
       .flatMap(track)
   }
 
@@ -207,6 +215,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @param currency Currency
    * @param contexts list of additional contexts
    * @param timestamp optional user-provided timestamp (ms) for the event
+   * @param subject optionally override the tracker's default subject
    * @return the tracker instance
    */
   def trackTransaction(orderId: String,
@@ -219,7 +228,8 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
                        country: Option[String]           = None,
                        currency: Option[String]          = None,
                        contexts: Seq[SelfDescribingJson] = Nil,
-                       timestamp: Option[Timestamp]      = None): F[Unit] = {
+                       timestamp: Option[Timestamp]      = None,
+                       subject: Option[Subject]          = None): F[Unit] = {
 
     val payload = Payload()
       .add("e", "tr")
@@ -233,7 +243,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
       .add("tr_co", country)
       .add("tr_cu", currency)
 
-    completePayload(payload, contexts, timestamp)
+    completePayload(payload, contexts, timestamp, subject)
       .flatMap(track)
   }
 
@@ -247,6 +257,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @param currency The currency the price is expressed in
    * @param contexts Custom context relating to the event
    * @param timestamp optional user-provided timestamp (ms) for the event
+   * @param subject optionally override the tracker's default subject
    * @return the tracker instance
    */
   def trackTransactionItem(orderId: String,
@@ -257,7 +268,8 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
                            quantity: Int,
                            currency: Option[String]           = None,
                            contexts: List[SelfDescribingJson] = Nil,
-                           timestamp: Option[Timestamp]       = None): F[Unit] = {
+                           timestamp: Option[Timestamp]       = None,
+                           subject: Option[Subject]           = None): F[Unit] = {
 
     val payload = Payload()
       .add("e", "ti")
@@ -269,7 +281,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
       .add("ti_qu", quantity.toString)
       .add("ti_cu", currency)
 
-    completePayload(payload, contexts, timestamp)
+    completePayload(payload, contexts, timestamp, subject)
       .flatMap(track)
   }
 
@@ -284,6 +296,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @param currency Optional. Product price currency.
    * @param contexts Optional. Context relating to the event.
    * @param timestamp optional user-provided timestamp (ms) for the event
+   * @param subject optionally override the tracker's default subject
    * @return the tracker instance
    */
   def trackAddToCart(sku: String,
@@ -323,6 +336,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @param currency Optional. Product price currency.
    * @param contexts Optional. Context relating to the event.
    * @param timestamp optional user-provided timestamp (ms) for the event
+   * @param subject optionally override the tracker's default subject
    * @return the tracker instance
    */
   def trackRemoveFromCart(sku: String,
@@ -332,7 +346,8 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
                           quantity: Double,
                           currency: Option[String]           = None,
                           contexts: List[SelfDescribingJson] = Nil,
-                          timestamp: Option[Timestamp]       = None): F[Unit] = {
+                          timestamp: Option[Timestamp]       = None,
+                          subject: Option[Subject]           = None): F[Unit] = {
 
     val eventJson = JsonUtils.jsonObjectWithoutNulls(
       "sku" := sku,
@@ -348,7 +363,9 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
         SchemaKey("com.snowplowanalytics.snowplow", "remove_from_cart", "jsonschema", SchemaVer.Full(1, 0, 0)),
         eventJson),
       contexts,
-      timestamp)
+      timestamp,
+      subject
+    )
   }
 
   /**
@@ -358,19 +375,21 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @param error exception thrown by application code
    * @param contexts Optional. Context relating to the event.
    * @param timestamp optional user-provided timestamp (ms) for the event
+   * @param subject optionally override the tracker's default subject
    * @return the tracker instance
    */
   def trackError(error: Throwable,
                  contexts: List[SelfDescribingJson] = Nil,
-                 timestamp: Option[Timestamp]       = None): F[Unit] = {
+                 timestamp: Option[Timestamp]       = None,
+                 subject: Option[Subject]           = None): F[Unit] = {
     val payload = ErrorTracking.toData(error)
     val event   = SelfDescribingData(ErrorTracking.ApplicationErrorSchemaKey, payload)
-    trackSelfDescribingEvent(event, contexts, timestamp)
+    trackSelfDescribingEvent(event, contexts, timestamp, subject)
   }
 
   /**
-   * Set the Subject for the tracker
-   * The subject's configuration will be attached to every event
+   * Set the tracker's default Subject
+   * The subject's configuration will be attached to every event not already containing a subject.
    *
    * @param newSubject user which the Tracker will track
    * @return The tracker instance

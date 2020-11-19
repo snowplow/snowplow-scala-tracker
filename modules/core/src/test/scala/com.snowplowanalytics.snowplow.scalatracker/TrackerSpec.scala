@@ -75,7 +75,7 @@ class TrackerSpec extends Specification {
 
   "setSubject" should {
 
-    "add the Subject's data to all events" in new DummyTracker {
+    "add the default Subject's data to events without an alternative subject" in new DummyTracker {
       val subject = Subject()
         .setPlatform(Mobile)
         .setUserId("sabnis")
@@ -108,6 +108,55 @@ class TrackerSpec extends Specification {
       event("ua") must_== "Mozilla/5.0 (Windows NT 5.1; rv:24.0) Gecko/20100101 Firefox/24.0"
       event("tnuid") must_== "id"
       event("url") must_== "some-url"
+    }
+
+    "allow overriding the default Subject for specific events" in new DummyTracker {
+      val subject1 = Subject()
+        .setPlatform(Mobile)
+        .setUserId("user1")
+        .setScreenResolution(200, 300)
+        .setViewport(50, 100)
+        .setColorDepth(24)
+        .setTimezone("Europe London")
+        .setLang("en")
+        .setDomainUserId("17")
+        .setIpAddress("255.255.255.255")
+        .setUseragent("Mozilla/5.0 (Windows NT 5.1; rv:24.0) Gecko/20100101 Firefox/24.0")
+        .setNetworkUserId("id")
+        .setPageUrl("some-url")
+
+      val subject2 = Subject()
+        .setPlatform(Web)
+        .setUserId("user2")
+        .setScreenResolution(400, 600)
+        .setViewport(100, 200)
+        .setColorDepth(48)
+        .setTimezone("Europe Rome")
+        .setLang("zh")
+        .setDomainUserId("170")
+        .setIpAddress("255.255.0.0")
+        .setUseragent("Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/24.0")
+        .setNetworkUserId("id2")
+        .setPageUrl("some-url2")
+
+      tracker
+        .setSubject(subject1)
+        .trackSelfDescribingEvent(unstructEventJson, subject = Some(subject2))
+
+      val event = lastInput
+
+      event("p") must_== "web"
+      event("uid") must_== "user2"
+      event("res") must_== "400x600"
+      event("vp") must_== "100x200"
+      event("cd") must_== "48"
+      event("tz") must_== "Europe Rome"
+      event("lang") must_== "zh"
+      event("duid") must_== "170"
+      event("ip") must_== "255.255.0.0"
+      event("ua") must_== "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/24.0"
+      event("tnuid") must_== "id2"
+      event("url") must_== "some-url2"
     }
   }
 
