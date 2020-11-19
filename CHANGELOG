@@ -1,3 +1,19 @@
+Version 1.0.0 (2020-11-??)
+--------------------------
+Add from URI constructors to emitters (#116)
+UUIDProviders for Id and Sync (#112)
+Merge the single and batch id-emitters (#142)
+Refactor thread usage for the id-emitters (#143)
+Add ADT for retry policy on failed http requests (#144)
+Add ADT for event queue size policy (#145)
+Add a Buffer class (#146)
+Add ability to flush Emitter cache (#119)
+Use a Action ADT to signal different messages to the Emitter (#147)
+Allow subject to be set for specific events (#148)
+Tracker method to set metadata after initialisation (#149)
+Add a http4s emitter (#115)
+Reduce MetadataSpec's flakiness (#110)
+
 Version 0.7.0 (2020-10-23)
 --------------------------
 Add support for Scala 2.13 (#126)
