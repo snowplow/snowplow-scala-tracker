@@ -21,13 +21,14 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
     Dependencies.Libraries.specs2,
     Dependencies.Libraries.scalaCheck,
-    Dependencies.Libraries.circeOptics
+    Dependencies.Libraries.circeOptics,
+    compilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
   )
 ) ++ BuildSettings.buildSettings ++ BuildSettings.formattingSettings
 
 lazy val root = project
   .in(file("."))
-  .aggregate(core, idEmitter, metadata)
+  .aggregate(core, idEmitter, metadata, http4sEmitter)
   .settings(Seq(
     skip in publish := true
   ))
@@ -65,6 +66,17 @@ lazy val metadata = project
     libraryDependencies ++= Seq(
       Dependencies.Libraries.scalajHttp,
       Dependencies.Libraries.specs2Mock
+    )
+  ))
+  .dependsOn(core % "test->test;compile->compile")
+
+lazy val http4sEmitter = project
+  .in(file("modules/http4s-emitter"))
+  .settings(commonSettings)
+  .settings(Seq(
+    name := "snowplow-scala-tracker-emitter-http4s",
+    libraryDependencies ++= List(
+      Dependencies.Libraries.http4sClient
     )
   ))
   .dependsOn(core % "test->test;compile->compile")
