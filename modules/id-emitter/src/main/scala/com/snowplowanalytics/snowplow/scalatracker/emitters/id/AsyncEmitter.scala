@@ -27,15 +27,13 @@ object AsyncEmitter {
    * Backed by `java.util.concurrent.LinkedBlockingQueue`, which has
    * capacity of `Int.MaxValue` will block thread when buffer reach capacity
    *
-   * @param host collector host
-   * @param port collector port
-   * @param https should this use the https scheme
+   * @param collector The [[EndpointParams]] for the snowplow collector
+   * @param callback optional callback executed after each sent event
    * @return emitter
    */
-  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback])(
+  def createAndStart(collector: EndpointParams, callback: Option[Callback])(
     implicit ec: ExecutionContext): AsyncEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
-    val emitter   = new AsyncEmitter(ec, collector, callback)
+    val emitter = new AsyncEmitter(ec, collector, callback)
     emitter.startWorker()
     emitter
   }
@@ -48,10 +46,10 @@ object AsyncEmitter {
  * @param collector collector preferences
  * @param callback optional callback executed after each sent event
  */
-class AsyncEmitter private (ec: ExecutionContext,
-                            collector: CollectorParams,
-                            callback: Option[Callback],
-                            private val processor: RequestProcessor = new RequestProcessor)
+class AsyncEmitter private[id] (ec: ExecutionContext,
+                                collector: EndpointParams,
+                                callback: Option[Callback],
+                                private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
   /** Queue of HTTP requests */
@@ -76,6 +74,6 @@ class AsyncEmitter private (ec: ExecutionContext,
   def send(event: EmitterPayload): Unit =
     queue.put(GetCollectorRequest(1, event))
 
-  private def startWorker(): Unit =
+  private[id] def startWorker(): Unit =
     worker.start()
 }
