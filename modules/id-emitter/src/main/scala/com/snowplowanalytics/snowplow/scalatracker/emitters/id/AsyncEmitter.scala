@@ -34,7 +34,7 @@ object AsyncEmitter {
    */
   def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback])(
     implicit ec: ExecutionContext): AsyncEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+    val collector = EndpointParams(host, port, Some(https))
     val emitter   = new AsyncEmitter(ec, collector, callback)
     emitter.startWorker()
     emitter
@@ -48,10 +48,10 @@ object AsyncEmitter {
  * @param collector collector preferences
  * @param callback optional callback executed after each sent event
  */
-class AsyncEmitter private (ec: ExecutionContext,
-                            collector: CollectorParams,
-                            callback: Option[Callback],
-                            private val processor: RequestProcessor = new RequestProcessor)
+class AsyncEmitter private[id] (ec: ExecutionContext,
+                                collector: EndpointParams,
+                                callback: Option[Callback],
+                                private val processor: RequestProcessor = new RequestProcessor)
     extends BaseEmitter {
 
   /** Queue of HTTP requests */
@@ -76,6 +76,6 @@ class AsyncEmitter private (ec: ExecutionContext,
   def send(event: EmitterPayload): Unit =
     queue.put(GetCollectorRequest(1, event))
 
-  private def startWorker(): Unit =
+  private[id] def startWorker(): Unit =
     worker.start()
 }

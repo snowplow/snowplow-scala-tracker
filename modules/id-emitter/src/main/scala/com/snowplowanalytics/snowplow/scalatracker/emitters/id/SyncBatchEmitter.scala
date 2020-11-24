@@ -19,7 +19,7 @@ import scala.concurrent.duration._
 
 import cats.Id
 
-import com.snowplowanalytics.snowplow.scalatracker.Emitter.EmitterPayload
+import com.snowplowanalytics.snowplow.scalatracker.Emitter.{EmitterPayload, EndpointParams}
 import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor._
 
 /**
@@ -33,7 +33,7 @@ import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor.
  * @param bufferSize quantity of events in a batch request
  * @param callback optional callback executed after each sent event
  */
-class SyncBatchEmitter(collector: CollectorParams,
+class SyncBatchEmitter(collector: EndpointParams,
                        blockingDuration: Duration,
                        bufferSize: Int,
                        callback: Option[Callback],
@@ -75,7 +75,7 @@ object SyncBatchEmitter {
                      bufferSize: Int            = 50,
                      callback: Option[Callback] = None,
                      blockingDuration: Duration = 5.seconds): SyncBatchEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+    val collector = EndpointParams(host, port, Some(https))
     new SyncBatchEmitter(collector, blockingDuration, bufferSize, callback)
   }
 }

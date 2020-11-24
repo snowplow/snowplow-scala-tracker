@@ -26,9 +26,10 @@ import RequestProcessor._
  * @param collector collector preferences
  * @param blockingDuration amount of time to wait (block) for response
  * @param callback optional callback executed after each sent event
+ * @param ec The execution context on which to block
  *
  */
-class SyncEmitter(collector: CollectorParams,
+class SyncEmitter(collector: EndpointParams,
                   blockingDuration: Duration,
                   callback: Option[Callback],
                   private val processor: RequestProcessor = new RequestProcessor)
@@ -56,7 +57,7 @@ object SyncEmitter {
                      https: Boolean             = false,
                      callback: Option[Callback] = None,
                      blockingDuration: Duration = 5.seconds): SyncEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+    val collector = EndpointParams(host, port, Some(https))
     new SyncEmitter(collector, blockingDuration, callback)
   }
 }
