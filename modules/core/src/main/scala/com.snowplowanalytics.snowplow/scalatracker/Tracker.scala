@@ -396,6 +396,16 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    */
   def setSubject(newSubject: Subject): Tracker[F] =
     new Tracker[F](emitters, namespace, appId, newSubject, encodeBase64, metadata)
+
+  /**
+   * Set the tracker's metadata context for the running instance
+   * The context will be attached to every event.
+   *
+   * @param newMetadata context which the Tracker will track
+   * @return The tracker instance
+   */
+  def setMetadata(newMetadata: SelfDescribingJson): Tracker[F] =
+    new Tracker[F](emitters, namespace, appId, defaultSubject, encodeBase64, Some(newMetadata))
 }
 
 object Tracker {
