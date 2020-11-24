@@ -12,9 +12,11 @@
  */
 package com.snowplowanalytics.snowplow
 
+import cats.Id
+import cats.effect.Clock
 import cats.syntax.either._
-
 import io.circe.Json
+import java.util.UUID
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SelfDescribingData}
 
@@ -35,4 +37,22 @@ package object scalatracker {
               s"Invalid SchemaKey $key, ${e.code}. Use com.snowplowanalytics.iglu.core.SchemaKey")),
         data)
   }
+
+  /** Implicits required by the [[Tracker]] to help out users of the id-emitters
+   */
+  object idimplicits {
+
+    implicit val idClock: Clock[Id] = new Clock[Id] {
+      import concurrent.duration._
+
+      override def realTime(unit: TimeUnit): Id[Long] = unit.convert(System.currentTimeMillis(), MILLISECONDS)
+
+      override def monotonic(unit: TimeUnit): Id[Long] = unit.convert(System.nanoTime(), NANOSECONDS)
+    }
+
+    implicit val uuidProvider: UUIDProvider[Id] = new UUIDProvider[Id] {
+      override def generateUUID: Id[UUID] = UUID.randomUUID()
+    }
+  }
+
 }

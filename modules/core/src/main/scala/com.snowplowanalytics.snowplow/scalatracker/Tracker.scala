@@ -30,6 +30,7 @@ import scala.concurrent.duration._
  * @param emitters Sequence of emitters to which events are passed
  * @param namespace Tracker namespace
  * @param appId ID of the application
+ * @param subject Subject to attach to every snowplow event
  * @param encodeBase64 Whether to encode JSONs
  * @param metadata optionally a json containing the metadata context for the running instance
  */
