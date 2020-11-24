@@ -13,23 +13,23 @@
 package com.snowplowanalytics.snowplow.scalatracker.metadata
 
 import java.net.{SocketTimeoutException, UnknownHostException}
+import java.util.concurrent.Executors
 
 import cats.Id
-import cats.data.NonEmptyList
 import cats.effect.{ContextShift, IO}
-import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Payload, Tracker}
+import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Payload}
 import org.specs2.Specification
-import org.specs2.mock.Mockito
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
+import scalaj.http.HttpResponse
 
-class MetadataSpec extends Specification with Mockito {
-  import com.snowplowanalytics.snowplow.scalatracker.syntax.id._
+class MetadataSpec extends Specification {
 
-  implicit def contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-  implicit val timer                          = IO.timer(ExecutionContext.global)
+  // Use enough threads to support the Thread.sleep calls, and still allow concurrent timeouts.
+  val ec: ExecutionContext                    = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(5))
+  implicit def contextShift: ContextShift[IO] = IO.contextShift(ec)
+  implicit val timer                          = IO.timer(ec)
 
-  val ec2Response = IO.pure("""
+  val ec2Response = """
       |{
       |    "devpayProductCodes" : null,
       |    "marketplaceProductCodes" : [ "1abc2defghijklm3nopqrs4tu" ],
@@ -47,22 +47,20 @@ class MetadataSpec extends Specification with Mockito {
       |    "ramdiskId" : null,
       |    "region" : "us-west-2"
       |}
-    """.stripMargin)
+    """.stripMargin
 
-  val gceResponse = IO.pure("""{ "foo": "bar" }""")
-
-  val ec2Spy =
-    spy(new Ec2Metadata[IO]).getContent(anyString).returns(ec2Response).getMock[Ec2Metadata[IO]]
-  val gceSpy =
-    spy(new GceMetadata[IO]).getString(anyString).returns(gceResponse).getMock[GceMetadata[IO]]
+  val gceResponse = """{ "foo": "bar" }"""
 
   def is = s2"""
 
-    ec2 extension method should make a request and throw an exception $e1
-    gce extension method should make a request and throw an exception $e2
+    ec2 method should make a request and return json $e1
+    gce method should make a request and return json $e2
 
-    ec2 timeout method must work correctly                            $e3
-    gce timeout method must work correctly                            $e4
+    ec2 method should make a request and throw an exception $e3
+    gce method should make a request and throw an exception $e4
+
+    ec2 timeout method must work correctly                            $e5
+    gce timeout method must work correctly                            $e6
 
     """
 
@@ -70,36 +68,63 @@ class MetadataSpec extends Specification with Mockito {
     override def send(event: Payload): Id[Unit] = ()
   }
 
-  def e1 =
-    Tracker(NonEmptyList.of(emitter), "foo", "foo")
-      .enableEc2Context[IO]
-      .unsafeRunSync() must throwA[SocketTimeoutException]
+  def e1 = {
+    val client: HttpClient = { _ =>
+      new HttpResponse(ec2Response, 200, Map.empty)
+    }
 
-  def e2 =
-    Tracker(NonEmptyList.of(emitter), "foo", "foo")
-      .enableGceContext[IO]
-      .unsafeRunSync() must throwA[UnknownHostException]
+    new Ec2Metadata[IO](client).getInstanceContext
+      .unsafeRunSync()
+      .schema
+      .vendor must beEqualTo("com.amazon.aws.ec2")
+  }
+
+  def e2 = {
+    val client: HttpClient = { _ =>
+      new HttpResponse(gceResponse, 200, Map.empty)
+    }
+
+    new GceMetadata[IO](client).getInstanceContext
+      .unsafeRunSync()
+      .schema
+      .vendor must beEqualTo("com.google.cloud.gce")
+  }
 
   def e3 = {
-    ec2Spy.getInstanceContextBlocking.unsafeRunSync() must beSome
-
-    val blockingInstance = spy(new Ec2Metadata[IO])
-      .getContent(anyString)
-      .returns(IO.sleep(5.seconds).map(_ => "foo"))
-      .getMock[Ec2Metadata[IO]]
-
-    blockingInstance.getInstanceContextBlocking.unsafeRunSync() must beNone
+    val client: HttpClient = { _ =>
+      throw new SocketTimeoutException()
+    }
+    new Ec2Metadata[IO](client).getInstanceContext
+      .unsafeRunSync() must throwA[SocketTimeoutException]
   }
 
   def e4 = {
-    gceSpy.getInstanceContextBlocking.unsafeRunSync() must beSome
+    val client: HttpClient = { _ =>
+      throw new UnknownHostException()
+    }
+    new GceMetadata[IO](client).getInstanceContext
+      .unsafeRunSync() must throwA[UnknownHostException]
+  }
 
-    val blockingInstance = spy(new GceMetadata[IO])
-      .getString(anyString)
-      .returns(IO.sleep(5.seconds).map(_ => "foo"))
-      .getMock[GceMetadata[IO]]
+  def e5 = {
 
-    blockingInstance.getInstanceContextBlocking.unsafeRunSync() must beNone
+    val client: HttpClient = { _ =>
+      Thread.sleep(5000)
+      new HttpResponse(ec2Response, 200, Map.empty)
+    }
+
+    new Ec2Metadata[IO](client).getInstanceContextBlocking
+      .unsafeRunSync() must beNone
+  }
+
+  def e6 = {
+    val client: HttpClient = { _ =>
+      Thread.sleep(5000)
+      new HttpResponse(gceResponse, 200, Map.empty)
+    }
+
+    new GceMetadata[IO](client).getInstanceContextBlocking
+      .unsafeRunSync() must beNone
   }
 
 }

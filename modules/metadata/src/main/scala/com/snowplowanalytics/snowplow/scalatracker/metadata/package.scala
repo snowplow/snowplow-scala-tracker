@@ -15,8 +15,11 @@ package com.snowplowanalytics.snowplow.scalatracker
 import cats._
 import cats.implicits._
 import cats.effect.{Clock, Sync}
+import scalaj.http.{HttpRequest, HttpResponse}
 
 package object metadata {
+
+  private[metadata] type HttpClient = HttpRequest => HttpResponse[String]
 
   implicit class TrackerMetadataOps[F[_]](val tracker: Tracker[F]) extends AnyVal {
 
