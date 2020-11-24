@@ -12,23 +12,8 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import java.util.UUID
 import java.net.URI
 import cats.implicits._
-
-/**
- * This trait is needed here because `Tracker` is referentially transparent, and we leave it up for the emitters
- * to decide whether `F` will be referentially transparent also.
- */
-trait UUIDProvider[F[_]] {
-
-  /**
-   * Returns a random UUID. Most likely it will be `UUID.randomUUID()` wrapped in `F`
-   * @return current time in milliseconds
-   */
-  def generateUUID: F[UUID]
-
-}
 
 /**
  * Emitters are entities in charge of transforming events sent from tracker
