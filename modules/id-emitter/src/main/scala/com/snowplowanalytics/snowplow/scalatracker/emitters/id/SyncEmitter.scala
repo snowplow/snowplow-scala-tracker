@@ -26,9 +26,10 @@ import RequestProcessor._
  * @param collector collector preferences
  * @param blockingDuration amount of time to wait (block) for response
  * @param callback optional callback executed after each sent event
+ * @param ec The execution context on which to block
  *
  */
-class SyncEmitter(collector: CollectorParams,
+class SyncEmitter(collector: EndpointParams,
                   blockingDuration: Duration,
                   callback: Option[Callback],
                   private val processor: RequestProcessor = new RequestProcessor)
@@ -43,20 +44,15 @@ class SyncEmitter(collector: CollectorParams,
 object SyncEmitter {
 
   /**
-   * Aux constructor for sync emitter
+   * Create the sync emitter
    *
-   * @param host collector host name
-   * @param port collector port number, default 80 for http and 443 for https
-   * @param https should this use the https scheme
+   * @param collector The [[EndpointParams]] for the snowplow collector
    * @param callback optional callback executed after each sent event
    * @return emitter
    */
-  def createAndStart(host: String,
-                     port: Option[Int]          = None,
-                     https: Boolean             = false,
-                     callback: Option[Callback] = None,
-                     blockingDuration: Duration = 5.seconds): SyncEmitter = {
-    val collector = CollectorParams.construct(host, port, https)
+  def apply(collector: EndpointParams,
+            callback: Option[Callback] = None,
+            blockingDuration: Duration = 5.seconds): SyncEmitter =
     new SyncEmitter(collector, blockingDuration, callback)
-  }
+
 }

@@ -79,14 +79,14 @@ class RequestProcessor {
    * @param request events enveloped with either Get or Post request
    * @return HTTP request with event
    */
-  private[scalatracker] def constructRequest(collector: CollectorParams, request: CollectorRequest): HttpRequest =
+  private[scalatracker] def constructRequest(collector: EndpointParams, request: CollectorRequest): HttpRequest =
     request match {
       case PostCollectorRequest(_, payload) =>
-        Http(s"${collector.getUri}/com.snowplowanalytics.snowplow/tp2")
+        Http(collector.getPostUri)
           .postData(postPayload(payload))
           .header("content-type", "application/json")
       case GetCollectorRequest(_, payload) =>
-        Http(s"${collector.getUri}/i").params(payload)
+        Http(collector.getGetUri).params(payload.toMap)
     }
 
   /**
@@ -102,7 +102,7 @@ class RequestProcessor {
     originQueue: BlockingQueue[CollectorRequest],
     ec: ExecutionContext,
     callback: Option[Callback],
-    collector: CollectorParams,
+    collector: EndpointParams,
     payload: CollectorRequest
   ): Unit = {
     val finish = invokeCallback(ec, collector, callback) _
@@ -129,7 +129,7 @@ class RequestProcessor {
    * @param payload latest *sent* payload
    * @param result latest result
    */
-  def invokeCallback(ec: ExecutionContext, collector: CollectorParams, callback: Option[Callback])(
+  def invokeCallback(ec: ExecutionContext, collector: EndpointParams, callback: Option[Callback])(
     payload: CollectorRequest,
     result: CollectorResponse): Unit =
     callback match {
@@ -148,12 +148,12 @@ class RequestProcessor {
    * @param collector endpoint preferences
    * @param payload either GET or POST payload
    */
-  def sendAsync(ec: ExecutionContext, collector: CollectorParams, payload: CollectorRequest): Future[HttpResponse[_]] =
+  def sendAsync(ec: ExecutionContext, collector: EndpointParams, payload: CollectorRequest): Future[HttpResponse[_]] =
     Future(constructRequest(collector, payload.updateStm).asBytes)(ec)
 
   def sendSync(ec: ExecutionContext,
                duration: Duration,
-               collector: CollectorParams,
+               collector: EndpointParams,
                payload: CollectorRequest,
                callback: Option[Callback]): Unit = {
     val response = sendAsync(ec, collector, payload)
@@ -197,7 +197,7 @@ object RequestProcessor {
   final case class RetriesExceeded(lastResponse: CollectorResponse) extends CollectorResponse
 
   /** User-provided callback */
-  type Callback = (CollectorParams, CollectorRequest, CollectorResponse) => Unit
+  type Callback = (EndpointParams, CollectorRequest, CollectorResponse) => Unit
 
   /** Payload (either GET or POST) ready to be send to collector */
   sealed trait CollectorRequest extends Product with Serializable {
@@ -234,21 +234,4 @@ object RequestProcessor {
   /** Multiple events, supposed to passed with POST-request */
   final case class PostCollectorRequest(attempt: Int, payload: List[EmitterPayload]) extends CollectorRequest
 
-  /** Collector preferences */
-  case class CollectorParams(host: String, port: Int, https: Boolean) {
-
-    /** Return stringified collector representation, e.g. `https://splw.acme.com:80/` */
-    def getUri: String = s"${if (https) "https" else "http"}://$host:$port"
-  }
-
-  object CollectorParams {
-
-    /** Construct collector preferences with correct default port */
-    def construct(host: String, port: Option[Int] = None, https: Boolean = false): CollectorParams =
-      port match {
-        case Some(p)       => CollectorParams(host, p, https)
-        case None if https => CollectorParams(host, 443, https = true)
-        case None          => CollectorParams(host, 80, https = false)
-      }
-  }
 }

@@ -24,7 +24,7 @@ import io.circe.parser.parse
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.scalatracker.Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
-import com.snowplowanalytics.snowplow.scalatracker.{SelfDescribingJson, Tracker}
+import com.snowplowanalytics.snowplow.scalatracker.{Emitter, SelfDescribingJson, Tracker}
 
 import RequestProcessor._
 
@@ -203,8 +203,7 @@ object StressTest {
    * @param threads amount of parallel threads
    * @return list of threads
    */
-  def testAsyncBatch(collector: String,
-                     port: Int,
+  def testAsyncBatch(collector: Emitter.EndpointParams,
                      dir: String,
                      cardinality: Int,
                      threads: Int = 1,
@@ -217,7 +216,7 @@ object StressTest {
     }
     println(s"Writing to files completed. ${files.mkString(", ")}")
 
-    val emitter = AsyncBatchEmitter.createAndStart(collector, Some(port), bufferSize = 10)
+    val emitter = AsyncEmitter.createAndStart(collector, callback = None)
     val tracker = new Tracker(NonEmptyList.of(emitter), "test-tracker-ns", "test-app")
 
     files.map(file => new TrackerThread(file, tracker).getWorker)
