@@ -30,7 +30,7 @@ import scalaj.http.Http
  *
  * @see http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
  */
-class Ec2Metadata[F[_]: Sync] {
+class Ec2Metadata[F[_]: Sync](client: HttpClient = _.asString) {
 
   val InstanceIdentitySchema =
     SchemaKey("com.amazon.aws.ec2", "instance_identity_document", "jsonschema", SchemaVer.Full(1, 0, 0))
@@ -65,7 +65,7 @@ class Ec2Metadata[F[_]: Sync] {
       parse(resp).toOption
         .flatMap(_.asObject)
         .map(jsonObject => prepareOrThrow(jsonObject))
-        .getOrElse(Sync[F].raiseError(new RuntimeException("Document can not be parsed")))
+        .getOrElse(Sync[F].raiseError(new RuntimeException(s"Document can not be parsed: $resp")))
     }
   }
 
@@ -122,7 +122,7 @@ class Ec2Metadata[F[_]: Sync] {
    * @return value wrapped delayed inside F
    */
   private[metadata] def getContent(url: String): F[String] =
-    Sync[F].delay(Http(url).asString.body)
+    Sync[F].delay(client(Http(url)).body)
 
   /**
    * Get content of node-link

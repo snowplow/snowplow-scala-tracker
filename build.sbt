@@ -64,8 +64,7 @@ lazy val metadata = project
   .settings(Seq(
     name := "snowplow-scala-tracker-metadata",
     libraryDependencies ++= Seq(
-      Dependencies.Libraries.scalajHttp,
-      Dependencies.Libraries.specs2Mock
+      Dependencies.Libraries.scalajHttp
     )
   ))
   .dependsOn(core % "test->test;compile->compile")
