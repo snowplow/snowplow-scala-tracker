@@ -29,7 +29,7 @@ class PayloadSpec extends Specification {
         .add("e", "se")
         .add("tna", "mytracker")
 
-      payload.get must_== Map("e" -> "se", "tna" -> "mytracker")
+      payload.toMap must_== Map("e" -> "se", "tna" -> "mytracker")
     }
   }
 
@@ -40,7 +40,7 @@ class PayloadSpec extends Specification {
       val payload = Payload()
         .addDict(Map("e" -> "se", "tna" -> "mytracker"))
 
-      payload.get must_== Map("e" -> "se", "tna" -> "mytracker")
+      payload.toMap must_== Map("e" -> "se", "tna" -> "mytracker")
     }
   }
 
@@ -51,7 +51,7 @@ class PayloadSpec extends Specification {
       val payload = Payload()
         .addJson(Json.obj("k" := "v"), false, "enc", "plain")
 
-      payload.get must_== Map("plain" -> """{"k":"v"}""")
+      payload.toMap must_== Map("plain" -> """{"k":"v"}""")
     }
 
     "stringify and encode a JSON and add it to the payload" in {
@@ -59,7 +59,7 @@ class PayloadSpec extends Specification {
       val payload = Payload()
         .addJson(Json.obj("k" := "v"), true, "enc", "plain")
 
-      payload.get must_== Map("enc" -> "eyJrIjoidiJ9")
+      payload.toMap must_== Map("enc" -> "eyJrIjoidiJ9")
     }
   }
 }

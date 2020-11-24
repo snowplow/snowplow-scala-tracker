@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import cats._
+import cats.Monad
 import cats.data.NonEmptyList
 import cats.implicits._
 import cats.effect.Clock
@@ -30,7 +30,6 @@ import scala.concurrent.duration._
  * @param emitters Sequence of emitters to which events are passed
  * @param namespace Tracker namespace
  * @param appId ID of the application
- * @param subject Subject to attach to every snowplow event
  * @param encodeBase64 Whether to encode JSONs
  * @param metadata optionally a json containing the metadata context for the running instance
  */
@@ -60,10 +59,8 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    *
    * @param payload constructed event map
    */
-  private def send(payload: Payload): F[Unit] = {
-    val event = payload.get
-    emitters.traverse(e => e.send(event)).map(x => ())
-  }
+  private def send(payload: Payload): F[Unit] =
+    emitters.traverse_(e => e.send(payload))
 
   /**
    * Add contexts and timestamp to the payload
@@ -87,7 +84,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
         .add("aid", appId)
         .addDict(subject.subjectInformation)
 
-      val payloadWithTimestamp = if (!newPayload.get.contains("dtm")) {
+      val payloadWithTimestamp = if (!newPayload.toMap.contains("dtm")) {
         timestamp match {
           case Some(DeviceCreatedTimestamp(dtm)) => newPayload.add("dtm", dtm.toString)
           case Some(TrueTimestamp(ttm))          => newPayload.add("ttm", ttm.toString)

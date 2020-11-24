@@ -13,7 +13,14 @@
 package com.snowplowanalytics.snowplow.scalatracker
 
 import java.net.URI
+
 import cats.implicits._
+
+import io.circe._
+import io.circe.syntax._
+
+import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
 /**
  * Emitters are entities in charge of transforming events sent from tracker
@@ -25,21 +32,92 @@ import cats.implicits._
  *
  */
 trait Emitter[F[_]] {
-  import Emitter._
 
   /**
    * Emits the event payload
    *
    * @param event Fully assembled event
    */
-  def send(event: EmitterPayload): F[Unit]
+  def send(event: Payload): F[Unit]
 
 }
 
 object Emitter {
 
-  /** Low-level representation of event */
-  type EmitterPayload = Map[String, String]
+  /** User-provided callback */
+  type Callback[F[_]] = (EndpointParams, Request, Result) => F[Unit]
+
+  /** Emitter buffering config */
+  sealed trait BufferConfig extends Product with Serializable
+
+  object BufferConfig {
+
+    /** Configures the emitter to send events immediately to the collector, without buffering for larger batches */
+    case object NoBuffering extends BufferConfig
+
+    /** Configures the emitter to buffer events and send batched payloads comprising a fixed number of events
+     *  @param size The number of events after which the emitter sends the buffered events to the collector
+     */
+    final case class EventsCardinality(size: Int) extends BufferConfig
+
+    /** Configures the emitter to buffer events and send batched payloads of a minimum size in bytes
+     *  @param bytes The target minimum size in bytes of a payload of batched events
+     */
+    final case class PayloadSize(bytes: Int) extends BufferConfig
+
+    /** Configures the emitter to buffer events until either of the inner BufferConfigs say the queue is full.  */
+    final case class OneOf(left: BufferConfig, right: BufferConfig) extends BufferConfig
+  }
+
+  /** Payload (either GET or POST) ready to be send to collector */
+  sealed trait Request extends Product with Serializable {
+
+    /** A counter of how many attempts are made to send a payload.
+     *
+     *  This is a 1-based counter, so if `attempt == 1` then this represents the first and only attempt to send.
+     */
+    def attempt: Int
+
+    /** Check if emitters should keep sending this request */
+    def isFailed: Boolean = attempt >= 10
+
+    /** Increment attempt number. Must be used whenever payload failed */
+    def updateAttempt: Request = this match {
+      case g: Request.Single   => g.copy(attempt = attempt + 1)
+      case p: Request.Buffered => p.copy(attempt = attempt + 1)
+    }
+
+    /**
+     * Return same payload, but with updated stm
+     * Must be used right before payload goes to collector
+     */
+    def updateStm(deviceSentTimestamp: Long): Request = {
+      val stm = deviceSentTimestamp.toString
+      this match {
+        case Request.Single(_, payload) =>
+          Request.Single(attempt, payload.add("stm", stm))
+        case Request.Buffered(_, list) =>
+          Request.Buffered(attempt, list.map(_.add("stm", stm)))
+      }
+    }
+  }
+
+  object Request {
+
+    /** Single event, supposed to passed with GET-request */
+    final case class Single(attempt: Int, payload: Payload) extends Request
+
+    /** Multiple events, supposed to passed with POST-request */
+    final case class Buffered(attempt: Int, payload: List[Payload]) extends Request
+
+    /** Initial GET */
+    private[scalatracker] def apply(payload: Payload): Request =
+      Single(1, payload)
+
+    /** Initial POST */
+    private[scalatracker] def apply(payload: List[Payload]): Request =
+      Buffered(1, payload)
+  }
 
   /** Collector preferences */
   final case class EndpointParams(host: String, port: Int, https: Boolean) {
@@ -87,4 +165,47 @@ object Emitter {
     }
   }
 
+  /** ADT for possible track results */
+  sealed trait Result extends Product with Serializable {
+
+    def isSuccess: Boolean =
+      this match {
+        case Result.Success(_) => true
+        case _                 => false
+      }
+  }
+
+  object Result {
+
+    /** Success. Collector accepted an event */
+    final case class Success(code: Int) extends Result
+
+    /** Collector refused an event. Probably wrong endpoint or outage */
+    final case class Failure(code: Int) extends Result
+
+    /** Other failure. Timeout or network unavailability */
+    final case class TrackerFailure(throwable: Throwable) extends Result
+
+    /** Emitter cannot continue retrying. Note that this is not *response* */
+    final case class RetriesExceeded(lastResponse: Result) extends Result
+  }
+
+  /** Get delay with increased non-linear back-off period in millis */
+  def getDelay(attempt: Int, seed: Double): Int = {
+    val rangeMin = attempt.toDouble
+    val rangeMax = attempt.toDouble * 3
+    ((rangeMin + (rangeMax - rangeMin) * seed) * 1000).toInt
+  }
+
+  def payloadSize(payloads: Seq[Payload]): Int =
+    postPayload(payloads).getBytes.length
+
+  /**
+   * Transform List of Map[String, String] to JSON array of objects
+   *
+   * @param payload list of string-to-string maps taken from HTTP query
+   * @return JSON array represented as String
+   */
+  private[scalatracker] def postPayload(payload: Seq[Payload]): String =
+    SelfDescribingData[Json](Tracker.PayloadDataSchemaKey, payload.asJson).normalize.noSpaces
 }
