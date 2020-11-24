@@ -20,7 +20,6 @@ lazy val commonSettings = Seq(
   javacOptions ++= BuildSettings.javaCompilerOptions,
   libraryDependencies ++= Seq(
     Dependencies.Libraries.specs2,
-    Dependencies.Libraries.specs2Mock,
     Dependencies.Libraries.scalaCheck,
     Dependencies.Libraries.circeOptics
   )
@@ -65,6 +64,7 @@ lazy val metadata = project
     name := "snowplow-scala-tracker-metadata",
     libraryDependencies ++= Seq(
       Dependencies.Libraries.scalajHttp,
+      Dependencies.Libraries.specs2Mock
     )
   ))
   .dependsOn(core % "test->test;compile->compile")

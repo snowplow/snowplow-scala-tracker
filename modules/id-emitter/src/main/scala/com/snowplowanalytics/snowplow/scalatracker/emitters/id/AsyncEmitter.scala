@@ -15,10 +15,12 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 import java.util.concurrent.LinkedBlockingQueue
 
 import scala.concurrent.ExecutionContext
+import scala.collection.mutable.ListBuffer
+
+import cats.Id
 
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
-
-import RequestProcessor._
+import com.snowplowanalytics.snowplow.scalatracker.Payload
 
 object AsyncEmitter {
   // Avoid starting thread in constructor
@@ -30,12 +32,17 @@ object AsyncEmitter {
    * @param host collector host
    * @param port collector port
    * @param https should this use the https scheme
+   * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
+   * @param callback optional callback executed after each sent event, or failed attempt
    * @return emitter
    */
-  def createAndStart(host: String, port: Option[Int] = None, https: Boolean = false, callback: Option[Callback])(
-    implicit ec: ExecutionContext): AsyncEmitter = {
+  def createAndStart(host: String,
+                     port: Option[Int] = None,
+                     https: Boolean    = false,
+                     bufferConfig: BufferConfig,
+                     callback: Option[Callback[Id]] = None)(implicit ec: ExecutionContext): AsyncEmitter = {
     val collector = EndpointParams(host, port, Some(https))
-    val emitter   = new AsyncEmitter(ec, collector, callback)
+    val emitter   = new AsyncEmitter(ec, collector, bufferConfig, callback, RequestProcessor.defaultHttpClient)
     emitter.startWorker()
     emitter
   }
@@ -46,22 +53,26 @@ object AsyncEmitter {
  *
  * @param ec thread pool for async event sending
  * @param collector collector preferences
+ * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
  * @param callback optional callback executed after each sent event
  */
 class AsyncEmitter private[id] (ec: ExecutionContext,
                                 collector: EndpointParams,
-                                callback: Option[Callback],
-                                private val processor: RequestProcessor = new RequestProcessor)
+                                bufferConfig: BufferConfig,
+                                callback: Option[Callback[Id]],
+                                client: RequestProcessor.HttpClient)
     extends BaseEmitter {
 
+  private val buffer = ListBuffer[Payload]()
+
   /** Queue of HTTP requests */
-  val queue = new LinkedBlockingQueue[CollectorRequest]()
+  val queue = new LinkedBlockingQueue[Request]()
 
   val worker = new Thread {
     override def run(): Unit =
       while (true) {
         val event = queue.take()
-        processor.submit(queue, ec, callback, collector, event)
+        RequestProcessor.submit(queue, ec, callback, collector, event, client)
       }
   }
 
@@ -73,8 +84,27 @@ class AsyncEmitter private[id] (ec: ExecutionContext,
    *
    * @param event Fully assembled event
    */
-  def send(event: EmitterPayload): Unit =
-    queue.put(GetCollectorRequest(1, event))
+  def send(event: Payload): Unit =
+    bufferConfig match {
+      case BufferConfig.NoBuffering =>
+        queue.put(Request(event))
+      case BufferConfig.EventsCardinality(size) =>
+        buffer.synchronized {
+          buffer.append(event)
+          if (buffer.size >= size) {
+            queue.put(Request(buffer.toList))
+            buffer.clear()
+          }
+        }
+      case BufferConfig.PayloadSize(bytes) =>
+        buffer.synchronized {
+          buffer.append(event)
+          if (payloadSize(buffer) >= bytes) {
+            queue.put(Request(buffer.toList))
+            buffer.clear()
+          }
+        }
+    }
 
   private[id] def startWorker(): Unit =
     worker.start()
