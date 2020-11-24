@@ -34,7 +34,7 @@ import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
  * Unlike EC2 instance document, GCE does not provide an excerpt, but instead
  * this module collect only meaningful properties
  */
-class GceMetadata[F[_]: Sync] {
+class GceMetadata[F[_]: Sync](client: HttpClient = _.asString) {
 
   val InstanceMetadataSchema: SchemaKey =
     SchemaKey("com.google.cloud.gce", "instance_metadata", "jsonschema", SchemaVer.Full(1, 0, 0))
@@ -87,7 +87,7 @@ class GceMetadata[F[_]: Sync] {
     Http(InstanceMetadataUri + path).header("Metadata-Flavor", "Google")
 
   private[metadata] def getString(path: String): F[String] =
-    Sync[F].delay(request(path).asString.body)
+    Sync[F].delay(client(request(path)).body)
 
   private def getJson(path: String): F[Json] =
     getString(path)
