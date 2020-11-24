@@ -31,7 +31,7 @@ class TrackerSpec extends Specification {
     var lastInput = Map[String, String]()
 
     val emitter = new Emitter[Id] {
-      override def send(event: Map[String, String]): Unit = lastInput = event
+      override def send(payload: Payload): Unit = lastInput = payload.toMap
     }
 
     val tracker = new Tracker(NonEmptyList.one(emitter), "mytracker", "myapp", encodeBase64 = false)

@@ -15,62 +15,41 @@ package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 import java.util.concurrent.BlockingQueue
 import java.util.{Timer, TimerTask}
 
-import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException}
+import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException, blocking}
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Random, Success, Try}
 
-import io.circe._
-import io.circe.syntax._
+import cats.Id
 
 import scalaj.http._
 
-import com.snowplowanalytics.snowplow.scalatracker.Tracker
 import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
-class RequestProcessor {
+private[id] object RequestProcessor {
 
-  import RequestProcessor._
-
-  // JSON object with Iglu URI to Schema for payload
-  private val payloadBatchStub: JsonObject =
-    JsonObject("schema" := Tracker.PayloadDataSchemaKey.toSchemaUri)
+  type HttpClient = HttpRequest => HttpResponse[Array[Byte]]
+  lazy val defaultHttpClient: HttpClient = _.asBytes
 
   /** Timer thread, responsible for adding failed payloads to queue after delay */
-  private val timer = new Timer("snowplow-event-retry-timer", true)
+  private lazy val timer = new Timer("snowplow-event-retry-timer", true)
 
   /** RNG to generate back-off periods */
-  private val rng = new Random()
+  private lazy val rng = new Random()
 
   /**
    * Schedule re-adding of a failed event to queue after some delay.
    * Delay is calculated based on number of undertaken attempts
    */
-  def backToQueue(queue: BlockingQueue[CollectorRequest], event: CollectorRequest): Boolean =
+  def backToQueue(queue: BlockingQueue[Request], event: Request): Boolean =
     if (event.isFailed) false
     else {
       val task = new TimerTask {
         override def run(): Unit = queue.put(event)
       }
-      val delay = getDelay(event.attempt)
+      val delay = getDelay(event.attempt, rng.nextDouble())
       timer.schedule(task, delay.toLong)
       true
     }
-
-  /** Get delay with increased non-linear back-off period */
-  private def getDelay(attempt: Int): Int = {
-    val rangeMin = attempt.toDouble
-    val rangeMax = attempt.toDouble * 3
-    ((rangeMin + (rangeMax - rangeMin) * rng.nextDouble()) * 1000).toInt
-  }
-
-  /**
-   * Transform List of Map[String, String] to JSON array of objects
-   *
-   * @param payload list of string-to-string maps taken from HTTP query
-   * @return JSON array represented as String
-   */
-  private def postPayload(payload: Seq[Map[String, String]]): String =
-    payloadBatchStub.add("data", payload.asJson).asJson.noSpaces
 
   /**
    * Construct POST request with batch event payload
@@ -79,13 +58,13 @@ class RequestProcessor {
    * @param request events enveloped with either Get or Post request
    * @return HTTP request with event
    */
-  private[scalatracker] def constructRequest(collector: EndpointParams, request: CollectorRequest): HttpRequest =
+  def constructRequest(collector: EndpointParams, request: Request): HttpRequest =
     request match {
-      case PostCollectorRequest(_, payload) =>
+      case Request.Buffered(_, payload) =>
         Http(collector.getPostUri)
           .postData(postPayload(payload))
           .header("content-type", "application/json")
-      case GetCollectorRequest(_, payload) =>
+      case Request.Single(_, payload) =>
         Http(collector.getGetUri).params(payload.toMap)
     }
 
@@ -99,22 +78,21 @@ class RequestProcessor {
    * @param payload either GET or POST payload
    */
   def submit(
-    originQueue: BlockingQueue[CollectorRequest],
+    originQueue: BlockingQueue[Request],
     ec: ExecutionContext,
-    callback: Option[Callback],
+    callback: Option[Callback[Id]],
     collector: EndpointParams,
-    payload: CollectorRequest
+    payload: Request,
+    client: HttpClient
   ): Unit = {
     val finish = invokeCallback(ec, collector, callback) _
-    sendAsync(ec, collector, payload).onComplete { response =>
+    sendAsync(ec, collector, payload, client).onComplete { response =>
       val result = httpToCollector(response)
       finish(payload, result)
-      result match {
-        case CollectorSuccess(_) => ()
-        case failure =>
-          val updated = payload.updateAttempt
-          val resend  = backToQueue(originQueue, updated)
-          if (!resend) finish(updated, RetriesExceeded(failure))
+      if (!result.isSuccess) {
+        val updated = payload.updateAttempt
+        val resend  = backToQueue(originQueue, updated)
+        if (!resend) finish(updated, Result.RetriesExceeded(result))
       }
     }(ec)
   }
@@ -129,9 +107,9 @@ class RequestProcessor {
    * @param payload latest *sent* payload
    * @param result latest result
    */
-  def invokeCallback(ec: ExecutionContext, collector: EndpointParams, callback: Option[Callback])(
-    payload: CollectorRequest,
-    result: CollectorResponse): Unit =
+  def invokeCallback(ec: ExecutionContext, collector: EndpointParams, callback: Option[Callback[Id]])(
+    payload: Request,
+    result: Result): Unit =
     callback match {
       case Some(cb) =>
         Future(cb(collector, payload, result))(ec).failed.foreach { throwable =>
@@ -148,21 +126,32 @@ class RequestProcessor {
    * @param collector endpoint preferences
    * @param payload either GET or POST payload
    */
-  def sendAsync(ec: ExecutionContext, collector: EndpointParams, payload: CollectorRequest): Future[HttpResponse[_]] =
-    Future(constructRequest(collector, payload.updateStm).asBytes)(ec)
+  def sendAsync(ec: ExecutionContext,
+                collector: EndpointParams,
+                payload: Request,
+                client: HttpClient): Future[HttpResponse[_]] =
+    Future {
+      val deviceSentTimestamp = System.currentTimeMillis()
+      val request             = constructRequest(collector, payload.updateStm(deviceSentTimestamp))
+      blocking {
+        client(request)
+      }
+    }(ec)
 
   def sendSync(ec: ExecutionContext,
                duration: Duration,
                collector: EndpointParams,
-               payload: CollectorRequest,
-               callback: Option[Callback]): Unit = {
-    val response = sendAsync(ec, collector, payload)
-    val result =
-      Await
-        .ready(response, duration)
-        .value
-        .map(httpToCollector)
-        .getOrElse(TrackerFailure(new TimeoutException(s"Snowplow Sync Emitter timed out after $duration")))
+               payload: Request,
+               callback: Option[Callback[Id]],
+               client: HttpClient): Unit = {
+    val response = sendAsync(ec, collector, payload, client)
+    val result = httpToCollector(
+      Try {
+        Await.result(response, duration)
+      }.recoverWith {
+        case _: TimeoutException => Failure(new TimeoutException(s"Snowplow Sync Emitter timed out after $duration"))
+      }
+    )
 
     callback match {
       case None     => ()
@@ -171,67 +160,10 @@ class RequestProcessor {
   }
 
   /** Transform implementation-specific response into tracker-specific */
-  def httpToCollector(httpResponse: Try[HttpResponse[_]]): CollectorResponse = httpResponse match {
-    case Success(s) if s.code >= 200 && s.code < 300 => CollectorSuccess(s.code)
-    case Success(s)                                  => CollectorFailure(s.code)
-    case Failure(e)                                  => TrackerFailure(e)
+  def httpToCollector(httpResponse: Try[HttpResponse[_]]): Result = httpResponse match {
+    case Success(s) if s.code >= 200 && s.code < 300 => Result.Success(s.code)
+    case Success(s)                                  => Result.Failure(s.code)
+    case Failure(e)                                  => Result.TrackerFailure(e)
   }
-
-}
-
-object RequestProcessor {
-
-  /** ADT for possible track results */
-  sealed trait CollectorResponse extends Product with Serializable
-
-  /** Success. Collector accepted an event */
-  final case class CollectorSuccess(code: Int) extends CollectorResponse
-
-  /** Collector refused an event. Probably wrong endpoint or outage */
-  final case class CollectorFailure(code: Int) extends CollectorResponse
-
-  /** Other failure. Timeout or network unavailability */
-  final case class TrackerFailure(throwable: Throwable) extends CollectorResponse
-
-  /** Emitter cannot continue retrying. Note that this is not *response* */
-  final case class RetriesExceeded(lastResponse: CollectorResponse) extends CollectorResponse
-
-  /** User-provided callback */
-  type Callback = (EndpointParams, CollectorRequest, CollectorResponse) => Unit
-
-  /** Payload (either GET or POST) ready to be send to collector */
-  sealed trait CollectorRequest extends Product with Serializable {
-
-    /** Attempt to send */
-    def attempt: Int
-
-    /** Check if emitters should keep sending this request */
-    def isFailed: Boolean = attempt >= 10
-
-    /** Increment attempt number. Must be used whenever payload failed */
-    def updateAttempt: CollectorRequest = this match {
-      case g: GetCollectorRequest  => g.copy(attempt = attempt + 1)
-      case p: PostCollectorRequest => p.copy(attempt = attempt + 1)
-    }
-
-    /**
-     * Return same payload, but with updated stm
-     * **Must** be used right before payload goes to collector
-     */
-    def updateStm: CollectorRequest = this match {
-      case GetCollectorRequest(_, map) =>
-        val stm = System.currentTimeMillis().toString
-        GetCollectorRequest(attempt, map.updated("stm", stm))
-      case PostCollectorRequest(_, list) =>
-        val stm = System.currentTimeMillis().toString
-        PostCollectorRequest(attempt, list.map(_.updated("stm", stm)))
-    }
-  }
-
-  /** Single event, supposed to passed with GET-request */
-  final case class GetCollectorRequest(attempt: Int, payload: EmitterPayload) extends CollectorRequest
-
-  /** Multiple events, supposed to passed with POST-request */
-  final case class PostCollectorRequest(attempt: Int, payload: List[EmitterPayload]) extends CollectorRequest
 
 }

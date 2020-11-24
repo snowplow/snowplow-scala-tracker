@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.scalatracker
 import java.util.UUID
 
 import cats.Id
-import cats.effect.Clock
+import cats.effect.{Clock, Sync}
 
 object syntax {
   object id {
@@ -31,6 +31,13 @@ object syntax {
     implicit val uuidProvider: UUIDProvider[Id] = new UUIDProvider[Id] {
 
       override def generateUUID: Id[UUID] = UUID.randomUUID()
+    }
+  }
+
+  object sync {
+    implicit def uuidProvider[F[_]: Sync]: UUIDProvider[F] = new UUIDProvider[F] {
+
+      override def generateUUID: F[UUID] = Sync[F].delay(UUID.randomUUID())
     }
   }
 
