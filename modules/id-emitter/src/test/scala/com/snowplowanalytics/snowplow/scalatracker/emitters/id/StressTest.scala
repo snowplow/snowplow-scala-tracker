@@ -25,8 +25,7 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.scalatracker.Tracker.{DeviceCreatedTimestamp, Timestamp, TrueTimestamp}
 import com.snowplowanalytics.snowplow.scalatracker.{Emitter, SelfDescribingJson, Tracker}
-
-import RequestProcessor._
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 
 import org.scalacheck.Gen
 
@@ -53,15 +52,21 @@ object StressTest {
   }
 
   implicit val sdJsonsRead = new Read[List[SelfDescribingJson]] {
+    def parseJson(json: Json): SelfDescribingData[Json] =
+      json.asObject
+        .flatMap { obj =>
+          val schemaKeyOpt = obj.toMap.get("schema").flatMap(_.asString).flatMap(SchemaKey.fromUri(_).toOption)
+          val dataOpt      = obj.toMap.get("data")
+
+          (schemaKeyOpt, dataOpt).mapN((key, data) => SelfDescribingData(key, data))
+        }
+        .getOrElse(throw new RuntimeException("Failed the test while parsing JSON"))
+
     def reads(line: String): List[SelfDescribingJson] = parse(line).toOption match {
-      case Some(json) =>
-        json.asArray
-          .getOrElse(Vector.empty)
-          .map(json => SelfDescribingData.parse(json).valueOr(e => throw new RuntimeException(e.code)))
-          .toList
-      case None =>
-        Nil
+      case Some(json) => json.asArray.getOrElse(Vector.empty).map(parseJson).toList
+      case None       => Nil
     }
+
   }
 
   implicit val tstmpRead = new Read[Option[Timestamp]] {
@@ -207,7 +212,7 @@ object StressTest {
                      dir: String,
                      cardinality: Int,
                      threads: Int = 1,
-                     callback: Option[Callback]) = {
+                     callback: Option[Callback[Id]]) = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     val files = List.fill(threads)(dir).zipWithIndex.map { case (path, i) => s"$path/events-$i.tsv" }
@@ -216,7 +221,7 @@ object StressTest {
     }
     println(s"Writing to files completed. ${files.mkString(", ")}")
 
-    val emitter = AsyncEmitter.createAndStart(collector, callback = None)
+    val emitter = AsyncEmitter.createAndStart(collector, BufferConfig.EventsCardinality(50))
     val tracker = new Tracker(NonEmptyList.of(emitter), "test-tracker-ns", "test-app")
 
     files.map(file => new TrackerThread(file, tracker).getWorker)

@@ -12,124 +12,186 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
-import java.util.concurrent.BlockingQueue
+import java.util.concurrent.atomic.AtomicInteger
 
+import scalaj.http.{HttpRequest, HttpResponse}
 import scala.concurrent.duration._
-import com.snowplowanalytics.snowplow.scalatracker.Emitter.EndpointParams
-import com.snowplowanalytics.snowplow.scalatracker.emitters.id.RequestProcessor.{Callback, CollectorRequest}
-import org.specs2.Specification
-import org.specs2.mock.Mockito
-
 import scala.concurrent.ExecutionContext
 
-class BatchEmitterSpec extends Specification with Mockito {
+import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Payload}
+
+import org.specs2.Specification
+
+class BatchEmitterSpec extends Specification {
 
   override def is = s2"""
 
-    AsyncBatchEmitter's buffer should not flush before reaching bufferSize $e1
-    AsyncBatchEmitter's buffer should flush after reaching bufferSize      $e2
-    SyncBatchEmitter's buffer should not flush before reaching bufferSize  $e3
-    SyncBatchEmitter's buffer should flush after reaching bufferSize       $e4
+    AsyncEmitter's buffer should not flush before reaching buffer's event cardinality limit $e1
+    AsyncEmitter's buffer should flush after reaching buffer's event cardinality limit      $e2
+    AsyncEmitter's buffer should not flush before reaching buffer's payload size limit      $e3
+    AsyncEmitter's buffer should flush after reaching buffer's payload size limit           $e4
+    SyncEmitter's buffer should not flush before reaching buffer's event cardinality limit  $e5
+    SyncEmitter's buffer should flush after reaching buffer's event cardinality limit       $e6
+    SyncEmitter's buffer should not flush before reaching buffer's payload size limit       $e7
+    SyncEmitter's buffer should flush after reaching buffer's payload size limit            $e8
 
   """
 
-  val payload = Map("foo" -> "bar", "bar" -> "foo")
+  val payload = Payload(Map("foo" -> "bar", "bar" -> "foo"))
 
   def e1 = {
-    val processor = spy(new RequestProcessor)
-    doNothing
-      .when(processor)
-      .submit(
-        any[BlockingQueue[CollectorRequest]](),
-        any[ExecutionContext](),
-        any[Option[Callback]](),
-        any[EndpointParams](),
-        any[CollectorRequest]()
-      )
+    val counter = new AtomicInteger(0)
+    def processor(request: HttpRequest): HttpResponse[Array[Byte]] = {
+      counter.getAndIncrement
+      new HttpResponse(Array(), 200, Map())
+    }
 
-    val params  = EndpointParams("example.com")
-    val emitter = new AsyncBatchEmitter(scala.concurrent.ExecutionContext.global, params, 3, None, processor)
+    val params       = Emitter.EndpointParams("example.com")
+    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+    val emitter      = new AsyncEmitter(scala.concurrent.ExecutionContext.global, params, bufferConfig, None, processor)
     emitter.startWorker()
 
     emitter.send(payload)
     emitter.send(payload)
 
     Thread.sleep(100)
-    there were noCallsTo(processor)
+    counter.get must_== 0
   }
 
   def e2 = {
-    val processor = spy(new RequestProcessor)
-    doNothing
-      .when(processor)
-      .submit(
-        any[BlockingQueue[CollectorRequest]](),
-        any[ExecutionContext](),
-        any[Option[Callback]](),
-        any[EndpointParams](),
-        any[CollectorRequest]()
-      )
+    val counter = new AtomicInteger(0)
+    def processor(request: HttpRequest): HttpResponse[Array[Byte]] = {
+      counter.getAndIncrement
+      new HttpResponse(Array(), 200, Map())
+    }
 
-    val params  = EndpointParams("example.com")
-    val emitter = new AsyncBatchEmitter(scala.concurrent.ExecutionContext.global, params, 3, None, processor)
+    val params       = Emitter.EndpointParams("example.com")
+    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+    val emitter      = new AsyncEmitter(scala.concurrent.ExecutionContext.global, params, bufferConfig, None, processor)
     emitter.startWorker()
 
     emitter.send(payload)
     emitter.send(payload)
     emitter.send(payload)
 
-    eventually(
-      there was one(processor).submit(
-        any[BlockingQueue[CollectorRequest]](),
-        any[ExecutionContext](),
-        any[Option[Callback]](),
-        any[EndpointParams](),
-        any[CollectorRequest]()
-      ))
+    eventually(counter.get must_== 1)
   }
 
   def e3 = {
-    val processor = spy(new RequestProcessor)
-    doNothing
-      .when(processor)
-      .sendSync(any[ExecutionContext](),
-                any[Duration](),
-                any[EndpointParams](),
-                any[CollectorRequest](),
-                any[Option[Callback]]())
+    val counter = new AtomicInteger(0)
+    def processor(request: HttpRequest): HttpResponse[Array[Byte]] = {
+      counter.getAndIncrement
+      new HttpResponse(Array(), 200, Map())
+    }
 
-    val params  = EndpointParams("example.com")
-    val emitter = new SyncBatchEmitter(params, 1.second, 3, None, processor)
+    val payloadSize  = Emitter.payloadSize(Seq(payload))
+    val params       = Emitter.EndpointParams("example.com")
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
+    val emitter      = new AsyncEmitter(scala.concurrent.ExecutionContext.global, params, bufferConfig, None, processor)
+    emitter.startWorker()
 
     emitter.send(payload)
     emitter.send(payload)
 
     Thread.sleep(100)
-    there were noCallsTo(processor)
+    counter.get must_== 0
   }
 
   def e4 = {
-    val processor = spy(new RequestProcessor)
-    doNothing
-      .when(processor)
-      .sendSync(any[ExecutionContext](),
-                any[Duration](),
-                any[EndpointParams](),
-                any[CollectorRequest](),
-                any[Option[Callback]]())
+    val counter = new AtomicInteger(0)
+    def processor(request: HttpRequest): HttpResponse[Array[Byte]] = {
+      counter.getAndIncrement
+      new HttpResponse(Array(), 200, Map())
+    }
 
-    val params  = EndpointParams("example.com")
-    val emitter = new SyncBatchEmitter(params, 1.second, 3, None, processor)
+    val payloadSize3 = Emitter.payloadSize(Seq(payload, payload, payload))
+    val params       = Emitter.EndpointParams("example.com")
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize3)
+    val emitter      = new AsyncEmitter(scala.concurrent.ExecutionContext.global, params, bufferConfig, None, processor)
+    emitter.startWorker()
+
+    emitter.send(payload)
+    emitter.send(payload)
+    emitter.send(payload)
+    emitter.send(payload)
+
+    Thread.sleep(100)
+    eventually(counter.get must_== 1)
+  }
+
+  def e5 = {
+    val counter = new AtomicInteger(0)
+    def processor(request: HttpRequest): HttpResponse[Array[Byte]] = {
+      counter.getAndIncrement
+      new HttpResponse(Array(), 200, Map())
+    }
+
+    val params       = Emitter.EndpointParams("example.com")
+    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+    val emitter      = new SyncEmitter(params, 1.second, bufferConfig, None, ExecutionContext.global, processor)
+
+    emitter.send(payload)
+    emitter.send(payload)
+
+    Thread.sleep(100)
+    counter.get must_== 0
+  }
+
+  def e6 = {
+    val counter = new AtomicInteger(0)
+    def processor(request: HttpRequest): HttpResponse[Array[Byte]] = {
+      counter.getAndIncrement
+      new HttpResponse(Array(), 200, Map())
+    }
+
+    val params       = Emitter.EndpointParams("example.com")
+    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+    val emitter      = new SyncEmitter(params, 1.second, bufferConfig, None, ExecutionContext.global, processor)
 
     emitter.send(payload)
     emitter.send(payload)
     emitter.send(payload)
 
-    eventually(
-      there was one(processor).sendSync(any[ExecutionContext](),
-                                        any[Duration](),
-                                        any[EndpointParams](),
-                                        any[CollectorRequest](),
-                                        any[Option[Callback]]()))
+    eventually(counter.get must_== 1)
+  }
+
+  def e7 = {
+    val counter = new AtomicInteger(0)
+    def processor(request: HttpRequest): HttpResponse[Array[Byte]] = {
+      counter.getAndIncrement
+      new HttpResponse(Array(), 200, Map())
+    }
+
+    val payloadSize  = Emitter.payloadSize(Seq(payload))
+    val params       = Emitter.EndpointParams("example.com")
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize * 3)
+    val emitter      = new SyncEmitter(params, 1.second, bufferConfig, None, ExecutionContext.global, processor)
+
+    emitter.send(payload)
+    emitter.send(payload)
+
+    Thread.sleep(100)
+    counter.get must_== 0
+  }
+
+  def e8 = {
+    val counter = new AtomicInteger(0)
+    def processor(request: HttpRequest): HttpResponse[Array[Byte]] = {
+      counter.getAndIncrement
+      new HttpResponse(Array(), 200, Map())
+    }
+
+    val payloadSize3 = Emitter.payloadSize(Seq(payload, payload, payload))
+    val params       = Emitter.EndpointParams("example.com")
+    val bufferConfig = Emitter.BufferConfig.PayloadSize(payloadSize3)
+    val emitter      = new SyncEmitter(params, 1.second, bufferConfig, None, ExecutionContext.global, processor)
+
+    emitter.send(payload)
+    emitter.send(payload)
+    emitter.send(payload)
+    emitter.send(payload)
+
+    Thread.sleep(100)
+    eventually(counter.get must_== 1)
   }
 }
