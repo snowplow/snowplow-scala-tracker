@@ -20,6 +20,7 @@ import fs2.concurrent.{Dequeue, Enqueue, Queue}
 import org.http4s.client.Client
 import org.http4s.headers.`Content-Type`
 import org.http4s.{MediaType, Method, Request => HttpRequest, Uri}
+import org.slf4j.LoggerFactory
 import scala.concurrent.duration._
 import scala.util.Random
 
@@ -183,13 +184,21 @@ object Http4sEmitter {
         .handleError(Result.TrackerFailure(_))
     }
 
-  private def invokeCallback[F[_]: MonadError[?[_], Throwable]](callback: Option[Callback[F]],
-                                                                collector: EndpointParams,
-                                                                request: Request,
-                                                                result: Result): F[Unit] =
+  lazy val logger = LoggerFactory.getLogger(getClass.getName)
+
+  private def invokeCallback[F[_]: Sync](callback: Option[Callback[F]],
+                                         collector: EndpointParams,
+                                         request: Request,
+                                         result: Result): F[Unit] =
     callback match {
       case Some(cb) =>
-        cb(collector, request, result).handleError(_ => ())
+        cb(collector, request, result).handleErrorWith { throwable =>
+          if (logger.isWarnEnabled)
+            Sync[F].delay(
+              logger.warn(s"Snowplow Tracker bounded to ${collector.getUri} failed to execute callback", throwable))
+          else
+            Sync[F].unit
+        }
       case None => Monad[F].unit
     }
 

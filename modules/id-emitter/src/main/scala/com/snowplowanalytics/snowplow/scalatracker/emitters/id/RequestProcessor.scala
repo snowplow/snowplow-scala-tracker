@@ -12,6 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.id
 
+import org.slf4j.LoggerFactory
 import scala.concurrent.{ExecutionContext, Future, blocking}
 import scala.util.{Failure, Random, Success, Try}
 import scala.util.control.NonFatal
@@ -51,6 +52,8 @@ private[id] object RequestProcessor {
           .options(options)
     }
 
+  lazy val logger = LoggerFactory.getLogger(getClass.getName)
+
   /**
    * Executes user-provided callback against event and collector response
    * If callback fails to execute - message will be printed to stderr
@@ -67,9 +70,8 @@ private[id] object RequestProcessor {
         cb(collector, payload, result)
       } catch {
         case NonFatal(throwable) =>
-          val error   = Option(throwable.getMessage).getOrElse(throwable.toString)
-          val message = s"Snowplow Tracker bounded to ${collector.getUri} failed to execute callback: $error"
-          System.err.println(message)
+          if (logger.isWarnEnabled)
+            logger.warn(s"Snowplow Tracker bounded to ${collector.getUri} failed to execute callback", throwable)
       }
     }
 
