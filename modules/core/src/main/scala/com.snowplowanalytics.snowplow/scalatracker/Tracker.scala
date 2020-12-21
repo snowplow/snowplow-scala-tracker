@@ -31,28 +31,15 @@ import scala.concurrent.duration._
  * @param namespace Tracker namespace
  * @param appId ID of the application
  * @param encodeBase64 Whether to encode JSONs
- * @param metadata optionally a json containing the metadata context for the running instance
+ * @param globalContexts Contexts to attach to every payload
  */
-final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyList[Emitter[F]],
-                                                           namespace: String,
-                                                           appId: String,
-                                                           defaultSubject: Subject              = Subject(),
-                                                           encodeBase64: Boolean                = true,
-                                                           metadata: Option[SelfDescribingJson] = None) {
+class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyList[Emitter[F]],
+                                                namespace: String,
+                                                appId: String,
+                                                defaultSubject: Subject                  = Subject(),
+                                                encodeBase64: Boolean                    = true,
+                                                globalContexts: List[SelfDescribingJson] = Nil) {
   import Tracker._
-
-  /**
-   * Send assembled payload to emitters or schedule it as callback of getting context
-   *
-   * @param payload constructed event map
-   */
-  private def track(payload: Payload): F[Unit] = {
-    val payloadToSend = metadata
-      .map(context => addContexts(payload, List(context)))
-      .getOrElse(payload)
-
-    send(payloadToSend)
-  }
 
   /**
    * Pass the assembled payload to every emitter
@@ -96,7 +83,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
         newPayload
       }
 
-      addContexts(payloadWithTimestamp, contexts)
+      addContexts(payloadWithTimestamp, globalContexts ++ contexts)
     }
 
   /**
@@ -136,7 +123,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
       .addJson(envelope.normalize, encodeBase64, "ue_px", "ue_pr")
 
     completePayload(payload, contexts, timestamp, subject)
-      .flatMap(track)
+      .flatMap(send)
   }
 
   /**
@@ -170,7 +157,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
       .add("se_va", value.map(_.toString))
 
     completePayload(payload, contexts, timestamp, subject)
-      .flatMap(track)
+      .flatMap(send)
   }
 
   /**
@@ -198,7 +185,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
       .add("refr", referrer)
 
     completePayload(payload, contexts, timestamp, subject)
-      .flatMap(track)
+      .flatMap(send)
   }
 
   /**
@@ -244,7 +231,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
       .add("tr_cu", currency)
 
     completePayload(payload, contexts, timestamp, subject)
-      .flatMap(track)
+      .flatMap(send)
   }
 
   /**
@@ -282,7 +269,7 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
       .add("ti_cu", currency)
 
     completePayload(payload, contexts, timestamp, subject)
-      .flatMap(track)
+      .flatMap(send)
   }
 
   /**
@@ -402,13 +389,22 @@ final case class Tracker[F[_]: Monad: Clock: UUIDProvider](emitters: NonEmptyLis
    * @return The tracker instance
    */
   def setSubject(newSubject: Subject): Tracker[F] =
-    new Tracker[F](emitters, namespace, appId, newSubject, encodeBase64, metadata)
+    new Tracker[F](emitters, namespace, appId, newSubject, encodeBase64, globalContexts)
+
+  /**
+   * Add a global context.
+   *
+   * @param newContext The global context to attach to every event.
+   * @return The tracker instance
+   */
+  def addContext(newContext: SelfDescribingJson): Tracker[F] =
+    new Tracker[F](emitters, namespace, appId, defaultSubject, encodeBase64, newContext :: globalContexts)
 }
 
 object Tracker {
 
   def apply[F[_]: Monad: Clock: UUIDProvider](emitter: Emitter[F], namespace: String, appId: String): Tracker[F] =
-    Tracker(NonEmptyList.one(emitter), namespace, appId)
+    new Tracker(NonEmptyList.one(emitter), namespace, appId)
 
   /** Tracker's version */
   val Version = s"scala-${generated.ProjectSettings.version}"
