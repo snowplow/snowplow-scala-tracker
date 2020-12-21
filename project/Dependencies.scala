@@ -23,6 +23,9 @@ object Dependencies {
     val catsEffect  = "2.2.0"
     val http4s      = "0.21.14"
 
+    // Java
+    val slf4j       = "1.7.30"
+
     // Scala (test only)
     val specs2      = "4.10.5"
     val scalaCheck  = "1.14.3"
@@ -36,6 +39,9 @@ object Dependencies {
     val circe          = "io.circe"              %% "circe-parser"    % V.circe
     val catsEffect     = "org.typelevel"         %% "cats-effect"     % V.catsEffect
     val http4sClient   = "org.http4s"            %% "http4s-client"   % V.http4s
+
+    // Java
+    val slf4jApi = "org.slf4j" % "slf4j-api" % V.slf4j
 
     // Scala (test only)
     val specs2        = "org.specs2"             %% "specs2-core"         % V.specs2      % "test"
