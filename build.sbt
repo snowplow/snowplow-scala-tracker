@@ -13,7 +13,6 @@
 
 lazy val commonSettings = Seq(
   organization := "com.snowplowanalytics",
-  version := "1.0.0",
   scalaVersion := "2.13.6",
   crossScalaVersions := Seq("2.12.14", "2.13.6"),
   scalacOptions := BuildSettings.compilerOptions(scalaVersion.value),
@@ -22,12 +21,14 @@ lazy val commonSettings = Seq(
     Dependencies.Libraries.specs2,
     Dependencies.Libraries.scalaCheck,
     Dependencies.Libraries.circeOptics
-  )
-) ++ BuildSettings.buildSettings
+  ),
+  ThisBuild / dynverVTagPrefix := false
+) ++ BuildSettings.publishSettings // Otherwise git tags required to have v-prefix
 
 lazy val root = project
   .in(file("."))
   .aggregate(core, idEmitter, metadata, http4sEmitter)
+  .settings(commonSettings)
   .settings(Seq(
     publish / skip := true
   ))
