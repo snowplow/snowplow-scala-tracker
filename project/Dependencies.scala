@@ -26,7 +26,7 @@ object Dependencies {
     val slf4j       = "1.7.32"
 
     // Scala (test only)
-    val specs2      = "4.10.5"
+    val specs2      = "4.12.3"
     val scalaCheck  = "1.14.3"
   }
 
