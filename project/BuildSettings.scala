@@ -15,6 +15,13 @@ import Keys._
 
 import scala.Seq
 
+// dynver plugin
+import sbtdynver.DynVerPlugin.autoImport._
+
+// Mima plugin
+import com.typesafe.tools.mima.plugin.MimaKeys._
+import com.typesafe.tools.mima.plugin.MimaPlugin
+
 object BuildSettings {
 
   // Makes our SBT settings available in runtime
@@ -72,6 +79,21 @@ object BuildSettings {
         url("https://snowplowanalytics.com")
       )
     )
+  )
+
+  // If a new version introduces breaking changes,
+  // clear `mimaBinaryIssueFilters` and `mimaPreviousVersions`.
+  // Otherwise, add previous version to the set without
+  // removing older versions.
+  val mimaPreviousVersions = Set("1.0.0")
+  val mimaSettings = Seq(
+    mimaPreviousArtifacts := mimaPreviousVersions.map { organization.value %% name.value % _ },
+    ThisBuild / mimaFailOnNoPrevious := false,
+    mimaBinaryIssueFilters ++= Seq(),
+    Test / test := {
+      mimaReportBinaryIssues.value
+      (Test / test).value
+    }
   )
   
 }
