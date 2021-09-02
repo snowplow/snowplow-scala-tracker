@@ -17,7 +17,13 @@ jobs:
           java-version: 11
 
       - name: Run sbt
-        run: sbt ++2.13.6 test
+        run: sbt +test
+
+      - name: Check assets can be published
+        run: sbt +publishLocal
+      
+      - name: Check binary compatibility
+        run: sbt +mimaReportBinaryIssues
 
       - name: Publish snowplow-scala-tracker to Maven Central
         run: sbt ci-release

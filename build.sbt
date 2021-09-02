@@ -35,7 +35,9 @@ lazy val root = project
 
 lazy val core = project
   .in(file("modules/core"))
+  .enablePlugins(MimaPlugin)
   .settings(commonSettings)
+  .settings(BuildSettings.mimaSettings)
   .settings(Seq(
     description := "Scala tracker for Snowplow",
     name := "snowplow-scala-tracker-core",
@@ -49,7 +51,9 @@ lazy val core = project
 
 lazy val idEmitter = project
   .in(file("modules/id-emitter"))
+  .enablePlugins(MimaPlugin)
   .settings(commonSettings)
+  .settings(BuildSettings.mimaSettings)
   .settings(Seq(
     name := "snowplow-scala-tracker-emitter-id",
     libraryDependencies ++= Seq(
@@ -61,7 +65,9 @@ lazy val idEmitter = project
 
 lazy val metadata = project
   .in(file("modules/metadata"))
+  .enablePlugins(MimaPlugin)
   .settings(commonSettings)
+  .settings(BuildSettings.mimaSettings)
   .settings(Seq(
     name := "snowplow-scala-tracker-metadata",
     libraryDependencies ++= Seq(
@@ -72,7 +78,9 @@ lazy val metadata = project
 
 lazy val http4sEmitter = project
   .in(file("modules/http4s-emitter"))
+  .enablePlugins(MimaPlugin)
   .settings(commonSettings)
+  .settings(BuildSettings.mimaSettings)
   .settings(Seq(
     name := "snowplow-scala-tracker-emitter-http4s",
     libraryDependencies ++= List(
