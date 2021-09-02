@@ -17,7 +17,7 @@ jobs:
           java-version: 11
 
       - name: Run sbt
-        run: sbt ++2.13.3 test
+        run: sbt ++2.13.6 test
 
       - name: Get tag and tracker version information
         id: version
