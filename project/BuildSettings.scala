@@ -17,9 +17,6 @@ import Keys._
 
 import scala.Seq
 
-// Scalafmt plugin
-import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin.autoImport._
-
 object BuildSettings {
 
   // Makes our SBT settings available in runtime
@@ -87,8 +84,4 @@ object BuildSettings {
 
   lazy val buildSettings = publishSettings ++ mavenCentralExtras
 
-  lazy val formattingSettings = Seq(
-    scalafmtOnCompile := true,
-    scalafmtTestOnCompile := true
-  )
 }

@@ -13,9 +13,9 @@
 package com.snowplowanalytics.snowplow.scalatracker
 
 /**
- * Class for an event subject, where we view events as of the form
- * Subject -> Verb -> Object
- */
+  * Class for an event subject, where we view events as of the form
+  * Subject -> Verb -> Object
+  */
 final case class Subject(subjectInformation: Map[String, String] = Map("p" -> Server.abbreviation)) {
 
   def setPlatform(platform: Platform): Subject =
@@ -55,10 +55,10 @@ final case class Subject(subjectInformation: Map[String, String] = Map("p" -> Se
     Subject(subjectInformation + ("url" -> url))
 
   /**
-   * Retrieve the configured information as an immutable map
-   *
-   * @return Data map
-   */
+    * Retrieve the configured information as an immutable map
+    *
+    * @return Data map
+    */
   @deprecated("The underlying map is now immutable - use subjectInformation field instead", "0.6.0")
   def getSubjectInformation(): Map[String, String] = subjectInformation
 }

@@ -16,9 +16,9 @@ import io.circe.syntax._
 import Emitter.{BufferConfig, Request}
 
 /** Represents an emitter's internal state as it buffers events.
- *
- *  Emitters typically send events in larger batches, depending on the buffering configuration
- */
+  *
+  *  Emitters typically send events in larger batches, depending on the buffering configuration
+  */
 private[scalatracker] trait Buffer {
 
   import Buffer._
@@ -33,9 +33,9 @@ private[scalatracker] trait Buffer {
   def isFull: Boolean
 
   /** Convert the pending batch to a Request.
-   *
-   *  Can return None of the batch was empty
-   */
+    *
+    *  Can return None of the batch was empty
+    */
   def toRequest: Option[Request]
 
   /** Handle an event to update the state and possibly create a request which should be sent to the collector */
@@ -57,7 +57,7 @@ private[scalatracker] object Buffer {
   def apply(config: BufferConfig): Buffer =
     BufferImpl(Nil, 0, 0, config)
 
-  private final case class BufferImpl(toList: List[Payload], count: Int, bytes: Int, config: BufferConfig)
+  final private case class BufferImpl(toList: List[Payload], count: Int, bytes: Int, config: BufferConfig)
       extends Buffer {
 
     override def reset: Buffer = Buffer(config)

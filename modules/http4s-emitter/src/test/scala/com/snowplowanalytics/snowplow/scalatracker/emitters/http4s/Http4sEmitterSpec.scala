@@ -53,13 +53,10 @@ class Http4sEmitterSpec extends Specification {
     Http4sEmitter
       .build[IO](collector, client, bufferConfig)
       .use { emitter =>
-        List
-          .fill(2)(emitter.send(payload))
-          .sequence
-          .map { _ =>
-            Thread.sleep(100)
-            counter.get must_== 0
-          }
+        List.fill(2)(emitter.send(payload)).sequence.map { _ =>
+          Thread.sleep(100)
+          counter.get must_== 0
+        }
       }
       .unsafeRunSync()
   }
@@ -77,12 +74,9 @@ class Http4sEmitterSpec extends Specification {
     Http4sEmitter
       .build[IO](collector, client, bufferConfig)
       .use { emitter =>
-        List
-          .fill(3)(emitter.send(payload))
-          .sequence
-          .map { _ =>
-            eventually(counter.get must_== 1)
-          }
+        List.fill(3)(emitter.send(payload)).sequence.map { _ =>
+          eventually(counter.get must_== 1)
+        }
       }
       .unsafeRunSync()
   }
@@ -101,13 +95,10 @@ class Http4sEmitterSpec extends Specification {
     Http4sEmitter
       .build[IO](collector, client, bufferConfig)
       .use { emitter =>
-        List
-          .fill(2)(emitter.send(payload))
-          .sequence
-          .map { _ =>
-            Thread.sleep(100)
-            counter.get must_== 0
-          }
+        List.fill(2)(emitter.send(payload)).sequence.map { _ =>
+          Thread.sleep(100)
+          counter.get must_== 0
+        }
       }
       .unsafeRunSync()
   }
@@ -126,12 +117,9 @@ class Http4sEmitterSpec extends Specification {
     Http4sEmitter
       .build[IO](collector, client, bufferConfig)
       .use { emitter =>
-        List
-          .fill(3)(emitter.send(payload))
-          .sequence
-          .map { _ =>
-            eventually(counter.get must_== 1)
-          }
+        List.fill(3)(emitter.send(payload)).sequence.map { _ =>
+          eventually(counter.get must_== 1)
+        }
       }
       .unsafeRunSync()
 

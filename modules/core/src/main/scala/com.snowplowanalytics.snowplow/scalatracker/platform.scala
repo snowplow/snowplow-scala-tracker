@@ -13,8 +13,8 @@
 package com.snowplowanalytics.snowplow.scalatracker
 
 /**
- * Trait for all acceptable Snowplow platforms
- */
+  * Trait for all acceptable Snowplow platforms
+  */
 sealed trait Platform {
   val abbreviation: String
 }

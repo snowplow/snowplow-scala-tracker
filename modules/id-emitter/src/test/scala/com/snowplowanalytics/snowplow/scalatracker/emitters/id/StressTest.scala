@@ -30,19 +30,20 @@ import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 import org.scalacheck.Gen
 
 /**
- * Ad-hoc load testing
- */
+  * Ad-hoc load testing
+  */
 object StressTest {
   import com.snowplowanalytics.snowplow.scalatracker.syntax.id._
 
   /** ADT for all possible event types Tracker can accept */
   sealed trait EventArguments
-  case class PageView(url: String,
-                      title: Option[String],
-                      referrer: Option[String],
-                      contexts: Option[List[SelfDescribingJson]],
-                      timestamp: Option[Timestamp])
-      extends EventArguments
+  case class PageView(
+    url: String,
+    title: Option[String],
+    referrer: Option[String],
+    contexts: Option[List[SelfDescribingJson]],
+    timestamp: Option[Timestamp]
+  ) extends EventArguments
 
   // Parser typeclass. Useless so far
   trait Read[A] { def reads(line: String): A }
@@ -53,7 +54,8 @@ object StressTest {
 
   implicit val sdJsonsRead = new Read[List[SelfDescribingJson]] {
     def parseJson(json: Json): SelfDescribingData[Json] =
-      json.asObject
+      json
+        .asObject
         .flatMap { obj =>
           val schemaKeyOpt = obj.toMap.get("schema").flatMap(_.asString).flatMap(SchemaKey.fromUri(_).toOption)
           val dataOpt      = obj.toMap.get("data")
@@ -112,7 +114,8 @@ object StressTest {
     data = Json.obj("latitude" := latitude, "longitude" := longitude)
     sd = SelfDescribingData[Json](
       SchemaKey("com.snowplowanalytics.snowplow", "geolocation_context", "jsonschema", SchemaVer.Full(1, 1, 0)),
-      data)
+      data
+    )
   } yield sd
 
   // Generate timestamp
@@ -142,9 +145,9 @@ object StressTest {
   }
 
   def writeEvent(event: PageView) =
-    s"pv\t${event.url}\t${event.title.getOrElse("")}\t${event.referrer.getOrElse("")}\t${event.contexts
-      .map(writeContext)
-      .getOrElse("")}\t${event.timestamp.map(writeTimestamp).getOrElse("")}"
+    s"pv\t${event.url}\t${event.title.getOrElse("")}\t${event
+      .referrer
+      .getOrElse("")}\t${event.contexts.map(writeContext).getOrElse("")}\t${event.timestamp.map(writeTimestamp).getOrElse("")}"
 
   def write(path: String, cardinality: Int): Unit = {
     var i  = 0
@@ -160,9 +163,9 @@ object StressTest {
   }
 
   /**
-   * Thread imitating application's work thread that has access to tracker
-   * Constructor blocks until events are not loaded into memory
-   */
+    * Thread imitating application's work thread that has access to tracker
+    * Constructor blocks until events are not loaded into memory
+    */
   class TrackerThread(path: String, tracker: Tracker[Id]) {
     // It can take some time
     val events = scala.io.Source.fromFile(path).getLines().map(Read[EventArguments].reads).toList
@@ -191,28 +194,30 @@ object StressTest {
   }
 
   /**
-   * Main method. Starts specified amount of separate threads sharing a tracker,
-   * each reading its own file and sending events via the same tracker.
-   * All threads should be prepared (parse events and store them in memory) during
-   * construction. When function returns - its ready to be started by foreach(_.run())
-   * ```
-   * println(System.currentTimeMillis)
-   * res0.foreach(_.run())
-   * res0.foreach(_.join())
-   * println(System.currentTimeMillis)
-   * ```
-   *
-   * @param collector single collector for all threads
-   * @param dir directory with temporary event TSVs
-   * @param cardinality amount of events in each TSV
-   * @param threads amount of parallel threads
-   * @return list of threads
-   */
-  def testAsyncBatch(collector: Emitter.EndpointParams,
-                     dir: String,
-                     cardinality: Int,
-                     threads: Int = 1,
-                     callback: Option[Callback[Id]]) = {
+    * Main method. Starts specified amount of separate threads sharing a tracker,
+    * each reading its own file and sending events via the same tracker.
+    * All threads should be prepared (parse events and store them in memory) during
+    * construction. When function returns - its ready to be started by foreach(_.run())
+    * ```
+    * println(System.currentTimeMillis)
+    * res0.foreach(_.run())
+    * res0.foreach(_.join())
+    * println(System.currentTimeMillis)
+    * ```
+    *
+    * @param collector single collector for all threads
+    * @param dir directory with temporary event TSVs
+    * @param cardinality amount of events in each TSV
+    * @param threads amount of parallel threads
+    * @return list of threads
+    */
+  def testAsyncBatch(
+    collector: Emitter.EndpointParams,
+    dir: String,
+    cardinality: Int,
+    threads: Int = 1,
+    callback: Option[Callback[Id]]
+  ) = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     val files = List.fill(threads)(dir).zipWithIndex.map { case (path, i) => s"$path/events-$i.tsv" }

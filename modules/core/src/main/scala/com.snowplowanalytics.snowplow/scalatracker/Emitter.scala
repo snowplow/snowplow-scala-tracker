@@ -17,28 +17,28 @@ import java.net.URI
 import cats.implicits._
 
 /**
- * Emitters are entities in charge of transforming events sent from tracker
- * into actual HTTP requests (IO), which includes:
- * + Async/Multi-threading
- * + Queuing `EmitterPayload`
- * + Transforming `EmitterPayload` into Bytes
- * + Backup queue and callbacks
- *
- */
+  * Emitters are entities in charge of transforming events sent from tracker
+  * into actual HTTP requests (IO), which includes:
+  * + Async/Multi-threading
+  * + Queuing `EmitterPayload`
+  * + Transforming `EmitterPayload` into Bytes
+  * + Backup queue and callbacks
+  *
+  */
 trait Emitter[F[_]] {
 
   /**
-   * Requests the emitter to send the event to the snowplow collector
-   *
-   * Depending on the emitter configuration, this could either send immediately or buffer the event
-   * in a queue to be sent at a later time
-   * @param event Fully assembled event
-   */
+    * Requests the emitter to send the event to the snowplow collector
+    *
+    * Depending on the emitter configuration, this could either send immediately or buffer the event
+    * in a queue to be sent at a later time
+    * @param event Fully assembled event
+    */
   def send(event: Payload): F[Unit]
 
   /**
-   * Flush pending events to the collector early, before the buffer is full.
-   */
+    * Flush pending events to the collector early, before the buffer is full.
+    */
   def flushBuffer(): F[Unit]
 
 }
@@ -57,13 +57,13 @@ object Emitter {
     case object NoBuffering extends BufferConfig
 
     /** Configures the emitter to buffer events and send batched payloads comprising a fixed number of events
-     *  @param size The number of events after which the emitter sends the buffered events to the collector
-     */
+      *  @param size The number of events after which the emitter sends the buffered events to the collector
+      */
     final case class EventsCardinality(size: Int) extends BufferConfig
 
     /** Configures the emitter to buffer events and send batched payloads of a minimum size in bytes
-     *  @param bytes The target minimum size in bytes of a payload of batched events
-     */
+      *  @param bytes The target minimum size in bytes of a payload of batched events
+      */
     final case class PayloadSize(bytes: Int) extends BufferConfig
 
     /** Configures the emitter to buffer events until either of the inner BufferConfigs say the queue is full.  */
@@ -77,9 +77,9 @@ object Emitter {
   sealed trait Request extends Product with Serializable {
 
     /** A counter of how many attempts are made to send a payload.
-     *
-     *  This is a 1-based counter, so if `attempt == 1` then this represents the first and only attempt to send.
-     */
+      *
+      *  This is a 1-based counter, so if `attempt == 1` then this represents the first and only attempt to send.
+      */
     def attempt: Int
 
     /** Check if emitters should keep sending this request */
@@ -96,9 +96,9 @@ object Emitter {
     }
 
     /**
-     * Return same payload, but with updated stm
-     * Must be used right before payload goes to collector
-     */
+      * Return same payload, but with updated stm
+      * Must be used right before payload goes to collector
+      */
     def updateStm(deviceSentTimestamp: Long): Request = {
       val stm = deviceSentTimestamp.toString
       this match {
@@ -204,39 +204,39 @@ object Emitter {
   object RetryPolicy {
 
     /** A [[RetryPolicy]] with no cap on maximum of attempts to send an event to the collector.
-     *
-     *  This policy might appear attractive where it is critical to avoid data loss,
-     *  because it never deliberately drops events. However, it could cause a backlog
-     *  of events in the buffered queue if the collector is unavailable for too long.
-     *
-     *  This [[RetryPolicy]] could be paired with an [[EventQueuePolicy]] that manages
-     *  the behaviour of a large backlog.
-     */
+      *
+      *  This policy might appear attractive where it is critical to avoid data loss,
+      *  because it never deliberately drops events. However, it could cause a backlog
+      *  of events in the buffered queue if the collector is unavailable for too long.
+      *
+      *  This [[RetryPolicy]] could be paired with an [[EventQueuePolicy]] that manages
+      *  the behaviour of a large backlog.
+      */
     case object RetryForever extends RetryPolicy
 
     /** A [[RetryPolicy]] which drops events after failing to contact the collector within a fixed number of attempts.
-     *
-     * This policy can smooth over short outages of connection to the collector.
-     * Events will be dropped only if the collector is unreachable for a relatively long span of time.
-     * Dropping events can be a safety mechanism against a growing backlog of unsent events.
-     *
-     * @param max The maximum number of http requests for a batch of events is dropped.
-     */
+      *
+      * This policy can smooth over short outages of connection to the collector.
+      * Events will be dropped only if the collector is unreachable for a relatively long span of time.
+      * Dropping events can be a safety mechanism against a growing backlog of unsent events.
+      *
+      * @param max The maximum number of http requests for a batch of events is dropped.
+      */
     final case class MaxAttempts(max: Int) extends RetryPolicy
 
     /** The default [[RetryPolicy]] allows a maximum of 10 attempts to send events to the collector.
-     */
+      */
     val Default: MaxAttempts = MaxAttempts(10)
 
     /** A [[RetryPolicy]] that drops events immediately after a failed attempt to send to the collector.
-     */
+      */
     val NoRetry: RetryPolicy = MaxAttempts(1)
 
     /** Get delay with increased non-linear back-off period in millis
-     *  @param attempt A counter that increases each time we attempt to send the reqeust
-     *  @param seed A scaling factor that should be randomly generated
-     *  @return Delay in milliseconds
-     *  */
+      *  @param attempt A counter that increases each time we attempt to send the reqeust
+      *  @param seed A scaling factor that should be randomly generated
+      *  @return Delay in milliseconds
+      *  */
     def getDelay(attempt: Int, seed: Double): Long = {
       val normalized = if (attempt > 10) 10 else attempt
       val rangeMin   = normalized.toDouble
@@ -247,17 +247,17 @@ object Emitter {
   }
 
   /** ADT for offering events to an emitter's internal queue.
-   *
-   *  An EventQueuePolicy becomes important when the queue of pending events grows
-   *  to an unexpectedly large number; for example, if the collector is unreachable
-   *  for a long period of time.
-   *
-   *  Picking an EventQueuePolicy is an opportunity to protect against excessive heap
-   *  usage by limiting the maximum size of the queue.
-   *
-   *  An EventQueuePolicy can be paired with an appropriate [[RetryPolicy]], which
-   *  controls dropping events when they cannot be sent.
-   */
+    *
+    *  An EventQueuePolicy becomes important when the queue of pending events grows
+    *  to an unexpectedly large number; for example, if the collector is unreachable
+    *  for a long period of time.
+    *
+    *  Picking an EventQueuePolicy is an opportunity to protect against excessive heap
+    *  usage by limiting the maximum size of the queue.
+    *
+    *  An EventQueuePolicy can be paired with an appropriate [[RetryPolicy]], which
+    *  controls dropping events when they cannot be sent.
+    */
   sealed trait EventQueuePolicy extends Product with Serializable {
 
     def tryLimit: Option[Int] = this match {
@@ -271,45 +271,45 @@ object Emitter {
   object EventQueuePolicy {
 
     /** An [[EventQueuePolicy]] with no upper bound on the number pending events in the emitter's queue
-     *
-     *  This [[EventQueuePolicy]] never deliberately drops events, but it comes
-     *  at the expense of potentially high heap usage if the collector is unavailable
-     *  for a long period of time.
-     */
+      *
+      *  This [[EventQueuePolicy]] never deliberately drops events, but it comes
+      *  at the expense of potentially high heap usage if the collector is unavailable
+      *  for a long period of time.
+      */
     case object UnboundedQueue extends EventQueuePolicy
 
     /** An [[EventQueuePolicy]] that blocks the tracker's thread until the queue
-     *  of pending events falls below a threshold.
-     *
-     * This [[EventQueuePolicy]] never deliberately drops events, but it comes
-     * at the expense of blocking threads if the collector is unavailble for a
-     * long period of time
-     *
-     * @param limit The maximum number of events to hold in the queue
-     */
+      *  of pending events falls below a threshold.
+      *
+      * This [[EventQueuePolicy]] never deliberately drops events, but it comes
+      * at the expense of blocking threads if the collector is unavailble for a
+      * long period of time
+      *
+      * @param limit The maximum number of events to hold in the queue
+      */
     final case class BlockWhenFull(limit: Int) extends EventQueuePolicy
 
     /** An [[EventQueuePolicy]] that silently drops new events when the queue
-     *  of pending events exceeds a threshold.
-     *
-     * @param limit The maximum number of events to hold in the queue
-     */
+      *  of pending events exceeds a threshold.
+      *
+      * @param limit The maximum number of events to hold in the queue
+      */
     final case class IgnoreWhenFull(limit: Int) extends EventQueuePolicy
 
     /** An [[EventQueuePolicy]] that raises a [[EventQueueException]] when the
-     *  queue of pending events exceeds a threshold.
-     *
-     * @param limit The maximum number of events to hold in the queue
-     */
+      *  queue of pending events exceeds a threshold.
+      *
+      * @param limit The maximum number of events to hold in the queue
+      */
     final case class ErrorWhenFull(limit: Int) extends EventQueuePolicy
 
     /** The default [[EventQueuePolicy]] has no upper bound on the number of pending
-     *  events in the emitter's queue.
-     *
-     *  It is sensible to override the default policy if high memory usage would be
-     *  detrimental to your application, if the collector is unavailable for a
-     *  long period of time.
-     */
+      *  events in the emitter's queue.
+      *
+      *  It is sensible to override the default policy if high memory usage would be
+      *  detrimental to your application, if the collector is unavailable for a
+      *  long period of time.
+      */
     val Default: EventQueuePolicy = UnboundedQueue
 
     /** An exception that is thrown when using the [[ErrorWhenFull]] event queue policy. */

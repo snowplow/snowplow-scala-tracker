@@ -34,12 +34,15 @@ package object scalatracker {
           .fromUri(key)
           .valueOr(e =>
             throw new RuntimeException(
-              s"Invalid SchemaKey $key, ${e.code}. Use com.snowplowanalytics.iglu.core.SchemaKey")),
-        data)
+              s"Invalid SchemaKey $key, ${e.code}. Use com.snowplowanalytics.iglu.core.SchemaKey"
+            )
+          ),
+        data
+      )
   }
 
   /** Implicits required by the [[Tracker]] to help out users of the id-emitters
-   */
+    */
   object idimplicits {
 
     implicit val idClock: Clock[Id] = new Clock[Id] {
