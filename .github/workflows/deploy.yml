@@ -19,23 +19,10 @@ jobs:
       - name: Run sbt
         run: sbt ++2.13.6 test
 
-      - name: Get tag and tracker version information
-        id: version
-        run: |
-          echo ::set-output name=TAG_VERSION::${GITHUB_REF#refs/*/}
-          echo "##[set-output name=TRACKER_VERSION;]$(sbt 'project core' version -Dsbt.log.noformat=true | perl -ne 'print "$1\n" if /info.*(\d+\.\d+\.\d+[^\r\n]*)/' | tail -n 1 | tr -d '\n')"
-      - name: Fail if version mismatch
-        if: ${{ steps.version.outputs.TAG_VERSION != steps.version.outputs.TRACKER_VERSION }}
-        run: |
-          echo "Tag version (${{ steps.version.outputs.TAG_VERSION }}) doesn't match version in project (${{ steps.version.outputs.TRACKER_VERSION }})"
-          exit 1
-
-      - name: Publish
+      - name: Publish snowplow-scala-tracker to Maven Central
+        run: sbt ci-release
         env:
-          BINTRAY_USER: ${{ secrets.BINTRAY_SNOWPLOW_MAVEN_USER }}
-          BINTRAY_PASS: ${{ secrets.BINTRAY_SNOWPLOW_MAVEN_API_KEY }}
-          SONA_USER: ${{ secrets.SONA_USER }}
-          SONA_PASS: ${{ secrets.SONA_PASS }}
-        run: |
-          sbt +publish
-          sbt +bintraySyncMavenCentral
+          PGP_PASSPHRASE: ${{ secrets.SONA_PGP_PASSPHRASE }}
+          PGP_SECRET: ${{ secrets.SONA_PGP_SECRET }}
+          SONATYPE_USERNAME: ${{ secrets.SONA_USER }}
+          SONATYPE_PASSWORD: ${{ secrets.SONA_PASS }}

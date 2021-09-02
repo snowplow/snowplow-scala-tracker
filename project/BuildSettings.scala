@@ -10,8 +10,6 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-import bintray.BintrayPlugin._
-import bintray.BintrayKeys._
 import sbt._
 import Keys._
 
@@ -59,29 +57,21 @@ object BuildSettings {
       case _                              => false
     }
 
-  // Bintray publishing settings
-  lazy val publishSettings = bintraySettings ++ Seq[Setting[_]](
+  // Maven publishing settings
+  lazy val publishSettings = Seq[Setting[_]](
+    publishArtifact := true,
+    Test / publishArtifact := false,
     licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
-    bintrayOrganization := Some("snowplow"),
-    bintrayRepository := "snowplow-maven"
-  )
-
-  // Maven Central publishing settings
-  lazy val mavenCentralExtras = Seq[Setting[_]](
     pomIncludeRepository := { _ => false },
     homepage := Some(url("http://snowplowanalytics.com")),
-    scmInfo := Some(ScmInfo(url("https://github.com/snowplow/snowplow-scala-tracker"), "scm:git@github.com:snowplow/snowplow-scala-tracker.git")),
-    pomExtra := (
-      <developers>
-        <developer>
-          <name>Snowplow Analytics Ltd</name>
-          <email>support@snowplowanalytics.com</email>
-          <organization>Snowplow Analytics Ltd</organization>
-          <organizationUrl>http://snowplowanalytics.com</organizationUrl>
-        </developer>
-      </developers>)
+    developers := List(
+      Developer(
+        "Snowplow Analytics Ltd",
+        "Snowplow Analytics Ltd",
+        "support@snowplowanalytics.com",
+        url("https://snowplowanalytics.com")
+      )
+    )
   )
-
-  lazy val buildSettings = publishSettings ++ mavenCentralExtras
-
+  
 }
