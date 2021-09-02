@@ -24,7 +24,7 @@ lazy val commonSettings = Seq(
     Dependencies.Libraries.circeOptics,
     compilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
   )
-) ++ BuildSettings.buildSettings ++ BuildSettings.formattingSettings
+) ++ BuildSettings.buildSettings
 
 lazy val root = project
   .in(file("."))

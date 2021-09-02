@@ -20,8 +20,8 @@ import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 /**
- * Contains the map of key-value pairs making up an event
- */
+  * Contains the map of key-value pairs making up an event
+  */
 final case class Payload(toMap: Map[String, String] = Map.empty) extends AnyVal
 
 object Payload {
@@ -29,23 +29,23 @@ object Payload {
   implicit val payloadEncoder: Encoder[Payload] =
     Encoder.encodeMap[String, String].contramap[Payload](_.toMap)
 
-  private[scalatracker] implicit class PayloadSyntax(payload: Payload) {
+  implicit private[scalatracker] class PayloadSyntax(payload: Payload) {
 
     /**
-     * Add a key-value pair
-     *
-     * @param name parameter name
-     * @param value parameter value
-     */
+      * Add a key-value pair
+      *
+      * @param name parameter name
+      * @param value parameter value
+      */
     def add(name: String, value: String): Payload =
       payload.addDict(Map(name -> value))
 
     /**
-     * Overloaded add function for Option. Don't modify payload for None
-     *
-     * @param name parameter name
-     * @param value optional parameter value
-     */
+      * Overloaded add function for Option. Don't modify payload for None
+      *
+      * @param name parameter name
+      * @param value optional parameter value
+      */
     def add(name: String, value: Option[String]): Payload =
       value match {
         case Some(v) => payload.add(name, v)
@@ -59,13 +59,13 @@ object Payload {
     }
 
     /**
-     * Stringify a JSON and add it
-     *
-     * @param json JSON object to encode
-     * @param encodeBase64 Whether to base 64 encode the JSON
-     * @param typeWhenEncoded Key to use if encodeBase64 is true
-     * @param typeWhenNotEncoded Key to use if encodeBase64 is false
-     */
+      * Stringify a JSON and add it
+      *
+      * @param json JSON object to encode
+      * @param encodeBase64 Whether to base 64 encode the JSON
+      * @param typeWhenEncoded Key to use if encodeBase64 is true
+      * @param typeWhenNotEncoded Key to use if encodeBase64 is false
+      */
     def addJson(json: Json, encodeBase64: Boolean, typeWhenEncoded: String, typeWhenNotEncoded: String): Payload = {
       val jsonString = json.noSpaces
 
@@ -78,11 +78,11 @@ object Payload {
   }
 
   /**
-   * Transform List of Map[String, String] to JSON array of objects
-   *
-   * @param payload list of string-to-string maps taken from HTTP query
-   * @return JSON array represented as String
-   */
+    * Transform List of Map[String, String] to JSON array of objects
+    *
+    * @param payload list of string-to-string maps taken from HTTP query
+    * @return JSON array represented as String
+    */
   private[scalatracker] def postPayload(payload: Seq[Payload]): String =
     SelfDescribingData[Json](Tracker.PayloadDataSchemaKey, payload.asJson).normalize.noSpaces
 

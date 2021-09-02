@@ -20,23 +20,24 @@ import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 import com.snowplowanalytics.snowplow.scalatracker.{Buffer, Payload}
 
 /**
- * Blocking emitter.
- * This emitter blocks the whole thread. Use at own risk
- * @param collector collector preferences
- * @param callback optional callback executed after each sent event
- * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
- * @param client executes http requests
- * @param httpOptions Options to configure the Http transaction. The default sets readTimeout and
- * connTimeout to 5 seconds to guard against blocking the thread for too long.
- *
- */
-class SyncEmitter private[id] (collector: EndpointParams,
-                               bufferConfig: BufferConfig,
-                               callback: Option[Callback[Id]],
-                               retryPolicy: RetryPolicy,
-                               client: RequestProcessor.HttpClient,
-                               httpOptions: Seq[HttpOptions.HttpOption])
-    extends BaseEmitter {
+  * Blocking emitter.
+  * This emitter blocks the whole thread. Use at own risk
+  * @param collector collector preferences
+  * @param callback optional callback executed after each sent event
+  * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
+  * @param client executes http requests
+  * @param httpOptions Options to configure the Http transaction. The default sets readTimeout and
+  * connTimeout to 5 seconds to guard against blocking the thread for too long.
+  *
+  */
+class SyncEmitter private[id] (
+  collector: EndpointParams,
+  bufferConfig: BufferConfig,
+  callback: Option[Callback[Id]],
+  retryPolicy: RetryPolicy,
+  client: RequestProcessor.HttpClient,
+  httpOptions: Seq[HttpOptions.HttpOption]
+) extends BaseEmitter {
 
   private var buffer = Buffer(bufferConfig)
 
@@ -73,21 +74,23 @@ class SyncEmitter private[id] (collector: EndpointParams,
 object SyncEmitter {
 
   /**
-   * Create the sync emitter
-   *
-   * @param collector The [[EndpointParams]] for the snowplow collector
-   * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
-   * @param callback optional callback executed after each sent event
-   * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
-   * @param options Options to configure the Http transaction. The default sets readTimeout and
-   * connTimeout to 5 seconds to guard against blocking the thread for too long.
-   * @return emitter
-   */
-  def apply(collector: EndpointParams,
-            bufferConfig: BufferConfig           = BufferConfig.Default,
-            callback: Option[Callback[Id]]       = None,
-            retryPolicy: RetryPolicy             = RetryPolicy.Default,
-            options: Seq[HttpOptions.HttpOption] = defaultHttpOptions): SyncEmitter =
+    * Create the sync emitter
+    *
+    * @param collector The [[EndpointParams]] for the snowplow collector
+    * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
+    * @param callback optional callback executed after each sent event
+    * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
+    * @param options Options to configure the Http transaction. The default sets readTimeout and
+    * connTimeout to 5 seconds to guard against blocking the thread for too long.
+    * @return emitter
+    */
+  def apply(
+    collector: EndpointParams,
+    bufferConfig: BufferConfig           = BufferConfig.Default,
+    callback: Option[Callback[Id]]       = None,
+    retryPolicy: RetryPolicy             = RetryPolicy.Default,
+    options: Seq[HttpOptions.HttpOption] = defaultHttpOptions
+  ): SyncEmitter =
     new SyncEmitter(collector, bufferConfig, callback, retryPolicy, RequestProcessor.defaultHttpClient, options)
 
   private val defaultHttpOptions = Seq(HttpOptions.readTimeout(5000), HttpOptions.connTimeout(5000))

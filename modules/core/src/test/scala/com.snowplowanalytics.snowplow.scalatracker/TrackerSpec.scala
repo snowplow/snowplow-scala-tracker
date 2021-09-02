@@ -41,15 +41,18 @@ class TrackerSpec extends Specification {
   val unstructEventJson =
     SelfDescribingData[Json](
       SchemaKey("com.snowplowanalytics.snowplow", "myevent", "jsonschema", SchemaVer.Full(1, 0, 0)),
-      Json.obj("k1" := "v1", "k2" := "v2"))
+      Json.obj("k1" := "v1", "k2" := "v2")
+    )
 
   val contexts = List(
     SelfDescribingData[Json](
       SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
-      Json.obj("number" := 20)),
+      Json.obj("number" := 20)
+    ),
     SelfDescribingData[Json](
       SchemaKey("com.snowplowanalytics.snowplow", "context1", "jsonschema", SchemaVer.Full(1, 0, 0)),
-      Json.obj("letters" := List("a", "b", "c")))
+      Json.obj("letters" := List("a", "b", "c"))
+    )
   )
 
   "trackUnstructEvent" should {
@@ -91,9 +94,7 @@ class TrackerSpec extends Specification {
         .setNetworkUserId("id")
         .setPageUrl("some-url")
 
-      tracker
-        .setSubject(subject)
-        .trackSelfDescribingEvent(unstructEventJson)
+      tracker.setSubject(subject).trackSelfDescribingEvent(unstructEventJson)
 
       val event = lastInput
 
@@ -140,9 +141,7 @@ class TrackerSpec extends Specification {
         .setNetworkUserId("id2")
         .setPageUrl("some-url2")
 
-      tracker
-        .setSubject(subject1)
-        .trackSelfDescribingEvent(unstructEventJson, subject = Some(subject2))
+      tracker.setSubject(subject1).trackSelfDescribingEvent(unstructEventJson, subject = Some(subject2))
 
       val event = lastInput
 
@@ -219,15 +218,17 @@ class TrackerSpec extends Specification {
   "trackTransaction" should {
 
     "set the transaction parameters accordingly" in new DummyTracker {
-      tracker.trackTransaction("orderId",
-                               Some("affiliation"),
-                               99.99,
-                               Some(7.99),
-                               Some(5.99),
-                               Some("city"),
-                               Some("state"),
-                               Some("country"),
-                               Some("USD"))
+      tracker.trackTransaction(
+        "orderId",
+        Some("affiliation"),
+        99.99,
+        Some(7.99),
+        Some(5.99),
+        Some("city"),
+        Some("state"),
+        Some("country"),
+        Some("USD")
+      )
 
       val event = lastInput
 
@@ -276,7 +277,8 @@ class TrackerSpec extends Specification {
       val data = root.data.data
 
       root.data.schema.string.getOption(json) must beSome(
-        "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1")
+        "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1"
+      )
       data.message.string.getOption(json) must beSome("boom!")
       data.stackTrace.string.getOption(json) must beSome.which(_.contains("java.lang.RuntimeException: boom!"))
       data.threadName.string.getOption(json) must not(beSome.which(_.isEmpty))

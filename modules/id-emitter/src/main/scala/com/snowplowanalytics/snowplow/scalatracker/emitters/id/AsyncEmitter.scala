@@ -26,38 +26,42 @@ import com.snowplowanalytics.snowplow.scalatracker.Buffer.Action
 object AsyncEmitter {
   // Avoid starting thread in constructor
   /**
-   * Start async emitter with single event payload
-   * Backed by `java.util.concurrent.LinkedBlockingQueue`, which has
-   * capacity of `Int.MaxValue` will block thread when buffer reach capacity
-   *
-   * This emitter sends requests asynchronously from the tracker's main thread of execution,
-   * but in doing so it blocks a thread on the provided execution context for
-   * each http request.
-   *
-   * The blocking calls are wrapped in scala's blocking construct (https://www.scala-lang.org/api/2.12.4/scala/concurrent/index.html#blocking)
-   * which is respected by the global execution context.
-   *
-   * @param collector The [[EndpointParams]] for the snowplow collector
-   * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
-   * @param callback optional callback executed after each sent event, or failed attempt
-   * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
-   * @param queuePolicy Configures how the emitter's `send` method behaves when the queue is full.
-   * @param httpOptions Options to configure the http transaction
-   * @return emitter
-   */
-  def createAndStart(collector: EndpointParams,
-                     bufferConfig: BufferConfig               = BufferConfig.Default,
-                     callback: Option[Callback[Id]]           = None,
-                     retryPolicy: RetryPolicy                 = RetryPolicy.Default,
-                     queuePolicy: EventQueuePolicy            = EventQueuePolicy.Default,
-                     httpOptions: Seq[HttpOptions.HttpOption] = Nil)(implicit ec: ExecutionContext): AsyncEmitter = {
-    val emitter = new AsyncEmitter(collector,
-                                   bufferConfig,
-                                   callback,
-                                   retryPolicy,
-                                   queuePolicy,
-                                   RequestProcessor.defaultHttpClient,
-                                   httpOptions)
+    * Start async emitter with single event payload
+    * Backed by `java.util.concurrent.LinkedBlockingQueue`, which has
+    * capacity of `Int.MaxValue` will block thread when buffer reach capacity
+    *
+    * This emitter sends requests asynchronously from the tracker's main thread of execution,
+    * but in doing so it blocks a thread on the provided execution context for
+    * each http request.
+    *
+    * The blocking calls are wrapped in scala's blocking construct (https://www.scala-lang.org/api/2.12.4/scala/concurrent/index.html#blocking)
+    * which is respected by the global execution context.
+    *
+    * @param collector The [[EndpointParams]] for the snowplow collector
+    * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
+    * @param callback optional callback executed after each sent event, or failed attempt
+    * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
+    * @param queuePolicy Configures how the emitter's `send` method behaves when the queue is full.
+    * @param httpOptions Options to configure the http transaction
+    * @return emitter
+    */
+  def createAndStart(
+    collector: EndpointParams,
+    bufferConfig: BufferConfig               = BufferConfig.Default,
+    callback: Option[Callback[Id]]           = None,
+    retryPolicy: RetryPolicy                 = RetryPolicy.Default,
+    queuePolicy: EventQueuePolicy            = EventQueuePolicy.Default,
+    httpOptions: Seq[HttpOptions.HttpOption] = Nil
+  )(implicit ec: ExecutionContext): AsyncEmitter = {
+    val emitter = new AsyncEmitter(
+      collector,
+      bufferConfig,
+      callback,
+      retryPolicy,
+      queuePolicy,
+      RequestProcessor.defaultHttpClient,
+      httpOptions
+    )
     emitter.startWorker()
     emitter
   }
@@ -65,22 +69,24 @@ object AsyncEmitter {
 }
 
 /**
- * Asynchronous emitter using LinkedBlockingQueue
- *
- * @param collector collector preferences
- * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
- * @param callback optional callback executed after each sent event
- * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
- * @param client executes http requests
- * @param httpOptions Options to configure the http transaction
- */
-class AsyncEmitter private[id] (collector: EndpointParams,
-                                bufferConfig: BufferConfig,
-                                callback: Option[Callback[Id]],
-                                retryPolicy: RetryPolicy,
-                                queuePolicy: EventQueuePolicy,
-                                client: RequestProcessor.HttpClient,
-                                httpOptions: Seq[HttpOptions.HttpOption])(implicit ec: ExecutionContext)
+  * Asynchronous emitter using LinkedBlockingQueue
+  *
+  * @param collector collector preferences
+  * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
+  * @param callback optional callback executed after each sent event
+  * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
+  * @param client executes http requests
+  * @param httpOptions Options to configure the http transaction
+  */
+class AsyncEmitter private[id] (
+  collector: EndpointParams,
+  bufferConfig: BufferConfig,
+  callback: Option[Callback[Id]],
+  retryPolicy: RetryPolicy,
+  queuePolicy: EventQueuePolicy,
+  client: RequestProcessor.HttpClient,
+  httpOptions: Seq[HttpOptions.HttpOption]
+)(implicit ec: ExecutionContext)
     extends BaseEmitter
     with java.lang.AutoCloseable {
 
@@ -105,7 +111,7 @@ class AsyncEmitter private[id] (collector: EndpointParams,
       }
     }
 
-  private sealed trait WorkerStatus
+  sealed private trait WorkerStatus
   private object ShuttingDown extends WorkerStatus
   private object Active extends WorkerStatus
 
@@ -123,15 +129,12 @@ class AsyncEmitter private[id] (collector: EndpointParams,
           else fillBuffer(next)
       }
 
-    fillBuffer(Buffer(bufferConfig))
-      .flatMap {
-        case (Some(request), status) =>
-          RequestProcessor
-            .sendAsync(collector, request, callback, retryPolicy, httpOptions, client)
-            .map(_ => status)
-        case (None, status) =>
-          Future.successful(status)
-      }
+    fillBuffer(Buffer(bufferConfig)).flatMap {
+      case (Some(request), status) =>
+        RequestProcessor.sendAsync(collector, request, callback, retryPolicy, httpOptions, client).map(_ => status)
+      case (None, status) =>
+        Future.successful(status)
+    }
   }
 
   override def send(payload: Payload): Unit =

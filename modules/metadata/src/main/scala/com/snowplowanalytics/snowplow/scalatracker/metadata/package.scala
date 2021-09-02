@@ -23,20 +23,18 @@ package object metadata {
   implicit class TrackerMetadataOps[F[_]](val tracker: Tracker[F]) extends AnyVal {
 
     /**
-     * Adds EC2 context to each sent event
-     * Blocks event queue until either context resolved or timed out
-     */
+      * Adds EC2 context to each sent event
+      * Blocks event queue until either context resolved or timed out
+      */
     def enableEc2Context[G[_]: Sync](): G[Tracker[F]] =
-      new Ec2Metadata[G]().getInstanceContext
-        .map(metadata => tracker.addContext(metadata))
+      new Ec2Metadata[G]().getInstanceContext.map(metadata => tracker.addContext(metadata))
 
     /**
-     * Adds GCP context to each sent event
-     * Blocks event queue until either context resolved or timed out
-     */
+      * Adds GCP context to each sent event
+      * Blocks event queue until either context resolved or timed out
+      */
     def enableGceContext[G[_]: Sync](): G[Tracker[F]] =
-      new GceMetadata[G]().getInstanceContext
-        .map(metadata => tracker.addContext(metadata))
+      new GceMetadata[G]().getInstanceContext.map(metadata => tracker.addContext(metadata))
 
   }
 

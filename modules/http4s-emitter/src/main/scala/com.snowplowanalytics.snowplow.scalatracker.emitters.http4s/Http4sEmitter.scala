@@ -31,24 +31,26 @@ import com.snowplowanalytics.snowplow.scalatracker.Buffer.Action
 object Http4sEmitter {
 
   /** Build an emitter which uses an fs2 stream for internal event processing.
-   *
-   * @param collector The [[EndpointParams]] for the snowplow collector
-   * @param client An http4s client used to send events.
-   * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
-   * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
-   * @param queuePolicy Configures how the emitter's `send` method behaves when the queue is full.
-   * @param callback optional callback executed after each sent event, or failed attempt
-   * @param shutdownTimeout A timeout triggered when the `Resource` returned by this function is closed.
-   * Pending events not sent within this timeout will be dropped. `None` means to wait indefinitely for sending
-   * pending events when shutting down.
-   */
-  def build[F[_]: Concurrent: Timer](collector: EndpointParams,
-                                     client: Client[F],
-                                     bufferConfig: BufferConfig              = BufferConfig.Default,
-                                     retryPolicy: RetryPolicy                = RetryPolicy.Default,
-                                     queuePolicy: EventQueuePolicy           = EventQueuePolicy.Default,
-                                     callback: Option[Callback[F]]           = None,
-                                     shutdownTimeout: Option[FiniteDuration] = None): Resource[F, Emitter[F]] =
+    *
+    * @param collector The [[EndpointParams]] for the snowplow collector
+    * @param client An http4s client used to send events.
+    * @param bufferConfig Configures buffering of events, before they are sent to the collector in larger batches.
+    * @param retryPolicy Configures how the emiiter retries sending events to the collector in case of failure.
+    * @param queuePolicy Configures how the emitter's `send` method behaves when the queue is full.
+    * @param callback optional callback executed after each sent event, or failed attempt
+    * @param shutdownTimeout A timeout triggered when the `Resource` returned by this function is closed.
+    * Pending events not sent within this timeout will be dropped. `None` means to wait indefinitely for sending
+    * pending events when shutting down.
+    */
+  def build[F[_]: Concurrent: Timer](
+    collector: EndpointParams,
+    client: Client[F],
+    bufferConfig: BufferConfig              = BufferConfig.Default,
+    retryPolicy: RetryPolicy                = RetryPolicy.Default,
+    queuePolicy: EventQueuePolicy           = EventQueuePolicy.Default,
+    callback: Option[Callback[F]]           = None,
+    shutdownTimeout: Option[FiniteDuration] = None
+  ): Resource[F, Emitter[F]] =
     Resource {
       for {
         queue <- queueForPolicy[F](queuePolicy)
@@ -57,7 +59,8 @@ object Http4sEmitter {
     }
 
   private def instance[F[_]](queue: Enqueue[F, Action], queuePolicy: EventQueuePolicy)(
-    implicit F: MonadError[F, Throwable]): Emitter[F] =
+    implicit F: MonadError[F, Throwable]
+  ): Emitter[F] =
     new Emitter[F] {
       override def send(event: Payload): F[Unit] =
         queuePolicy match {
@@ -82,17 +85,21 @@ object Http4sEmitter {
       case None      => Queue.unbounded
     }
 
-  private def shutdown[F[_]: Concurrent: Timer](fiber: Fiber[F, Unit],
-                                                queue: Enqueue[F, Action],
-                                                timeout: Option[FiniteDuration]): F[Unit] =
+  private def shutdown[F[_]: Concurrent: Timer](
+    fiber: Fiber[F, Unit],
+    queue: Enqueue[F, Action],
+    timeout: Option[FiniteDuration]
+  ): F[Unit] =
     timeout match {
       case Some(t) => shutdownWithTimeout(fiber, queue, t)
       case None    => queue.enqueue1(Action.Terminate) *> fiber.join
     }
 
-  private def shutdownWithTimeout[F[_]: Concurrent: Timer](fiber: Fiber[F, Unit],
-                                                           queue: Enqueue[F, Action],
-                                                           timeout: FiniteDuration): F[Unit] =
+  private def shutdownWithTimeout[F[_]: Concurrent: Timer](
+    fiber: Fiber[F, Unit],
+    queue: Enqueue[F, Action],
+    timeout: FiniteDuration
+  ): F[Unit] =
     // First try to enqueue the terminate event. This will block if the queue is full.
     Concurrent[F].racePair(queue.enqueue1(Action.Terminate), Timer[F].sleep(timeout)).flatMap {
       case Left((_, timerFiber)) =>
@@ -113,14 +120,17 @@ object Http4sEmitter {
         fiber.cancel
     }
 
-  private def drainQueue[F[_]: Sync: Timer](queue: Dequeue[F, Action],
-                                            client: Client[F],
-                                            collector: EndpointParams,
-                                            bufferConfig: BufferConfig,
-                                            retryPolicy: RetryPolicy,
-                                            callback: Option[Callback[F]]): F[Unit] =
+  private def drainQueue[F[_]: Sync: Timer](
+    queue: Dequeue[F, Action],
+    client: Client[F],
+    collector: EndpointParams,
+    bufferConfig: BufferConfig,
+    retryPolicy: RetryPolicy,
+    callback: Option[Callback[F]]
+  ): F[Unit] =
     Sync[F].delay(new Random()).flatMap { rng =>
-      queue.dequeue
+      queue
+        .dequeue
         .takeThrough(_ != Action.Terminate)
         .through(bufferEvents(bufferConfig))
         .evalMap(sendRequest(client, collector, retryPolicy, rng, callback))
@@ -135,15 +145,16 @@ object Http4sEmitter {
       case (_, Some(flushed)) => flushed
     }
 
-  private def sendRequest[F[_]: Sync: Timer](client: Client[F],
-                                             collector: EndpointParams,
-                                             retryPolicy: RetryPolicy,
-                                             rng: Random,
-                                             callback: Option[Callback[F]]): Request => F[Unit] =
+  private def sendRequest[F[_]: Sync: Timer](
+    client: Client[F],
+    collector: EndpointParams,
+    retryPolicy: RetryPolicy,
+    rng: Random,
+    callback: Option[Callback[F]]
+  ): Request => F[Unit] =
     Sync[F].tailRecM(_) { request =>
-      attemptSend(client, collector, request)
-        .flatTap(invokeCallback(callback, collector, request, _))
-        .flatMap { result =>
+      attemptSend(client, collector, request).flatTap(invokeCallback(callback, collector, request, _)).flatMap {
+        result =>
           if (result.isSuccess || request.isFailed(retryPolicy)) {
             Sync[F].pure(Right(()))
           } else {
@@ -152,12 +163,14 @@ object Http4sEmitter {
               _    <- Timer[F].sleep(RetryPolicy.getDelay(request.attempt, seed).millis)
             } yield request.updateAttempt.asLeft
           }
-        }
+      }
     }
 
-  private def attemptSend[F[_]: MonadError[?[_], Throwable]: Timer](client: Client[F],
-                                                                    collector: EndpointParams,
-                                                                    request: Request): F[Result] =
+  private def attemptSend[F[_]: MonadError[?[_], Throwable]: Timer](
+    client: Client[F],
+    collector: EndpointParams,
+    request: Request
+  ): F[Result] =
     Timer[F].clock.realTime(MILLISECONDS).flatMap { dtm =>
       val httpRequest = request.updateStm(dtm) match {
         case Request.Buffered(_, payload) =>
@@ -167,11 +180,9 @@ object Http4sEmitter {
             .withContentType(`Content-Type`(MediaType.application.json))
         case Request.Single(_, payload) =>
           val uri =
-            Uri
-              .unsafeFromString(collector.getGetUri)
-              .setQueryParams {
-                payload.toMap.map { case (k, v) => k -> List(v) }
-              }
+            Uri.unsafeFromString(collector.getGetUri).setQueryParams {
+              payload.toMap.map { case (k, v) => k -> List(v) }
+            }
           HttpRequest[F](Method.GET, uri)
       }
 
@@ -186,16 +197,19 @@ object Http4sEmitter {
 
   lazy val logger = LoggerFactory.getLogger(getClass.getName)
 
-  private def invokeCallback[F[_]: Sync](callback: Option[Callback[F]],
-                                         collector: EndpointParams,
-                                         request: Request,
-                                         result: Result): F[Unit] =
+  private def invokeCallback[F[_]: Sync](
+    callback: Option[Callback[F]],
+    collector: EndpointParams,
+    request: Request,
+    result: Result
+  ): F[Unit] =
     callback match {
       case Some(cb) =>
         cb(collector, request, result).handleErrorWith { throwable =>
           if (logger.isWarnEnabled)
             Sync[F].delay(
-              logger.warn(s"Snowplow Tracker bounded to ${collector.getUri} failed to execute callback", throwable))
+              logger.warn(s"Snowplow Tracker bounded to ${collector.getUri} failed to execute callback", throwable)
+            )
           else
             Sync[F].unit
         }

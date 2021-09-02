@@ -27,7 +27,8 @@ class EmitterSpec extends Specification {
       EndpointParams.fromUri(new URI("http://example.com")) must beRight(EndpointParams("example.com", 80, false))
       EndpointParams.fromUri(new URI("https://example.com")) must beRight(EndpointParams("example.com", 443, true))
       EndpointParams.fromUri(new URI("http://example.com:9090")) must beRight(
-        EndpointParams("example.com", 9090, false))
+        EndpointParams("example.com", 9090, false)
+      )
     }
 
     "reject invalid collector URIs" in {

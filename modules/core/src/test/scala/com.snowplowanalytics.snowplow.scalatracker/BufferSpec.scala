@@ -19,9 +19,7 @@ class BufferSpec extends Specification {
 
     "correctly report when it is full" in {
 
-      val payload = Payload()
-        .add("e", "se")
-        .add("tna", "mytracker")
+      val payload = Payload().add("e", "se").add("tna", "mytracker")
 
       val maxBytes = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
 

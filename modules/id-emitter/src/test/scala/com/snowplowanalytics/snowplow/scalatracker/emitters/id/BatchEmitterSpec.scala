@@ -59,13 +59,13 @@ class BatchEmitterSpec extends Specification {
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
     withAsyncEmitter(
-      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)) {
-      emitter =>
-        emitter.send(payload)
-        emitter.send(payload)
+      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)
+    ) { emitter =>
+      emitter.send(payload)
+      emitter.send(payload)
 
-        Thread.sleep(100)
-        counter.get must_== 0
+      Thread.sleep(100)
+      counter.get must_== 0
     }
   }
 
@@ -79,13 +79,13 @@ class BatchEmitterSpec extends Specification {
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
     withAsyncEmitter(
-      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)) {
-      emitter =>
-        emitter.send(payload)
-        emitter.send(payload)
-        emitter.send(payload)
+      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)
+    ) { emitter =>
+      emitter.send(payload)
+      emitter.send(payload)
+      emitter.send(payload)
 
-        eventually(counter.get must_== 1)
+      eventually(counter.get must_== 1)
     }
   }
 
@@ -100,13 +100,13 @@ class BatchEmitterSpec extends Specification {
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
     withAsyncEmitter(
-      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)) {
-      emitter =>
-        emitter.send(payload)
-        emitter.send(payload)
+      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)
+    ) { emitter =>
+      emitter.send(payload)
+      emitter.send(payload)
 
-        Thread.sleep(100)
-        counter.get must_== 0
+      Thread.sleep(100)
+      counter.get must_== 0
     }
   }
   def e4 = {
@@ -120,12 +120,12 @@ class BatchEmitterSpec extends Specification {
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
     withAsyncEmitter(
-      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)) {
-      emitter =>
-        emitter.send(payload)
-        emitter.send(payload)
-        emitter.send(payload)
-        eventually(counter.get must_== 1)
+      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)
+    ) { emitter =>
+      emitter.send(payload)
+      emitter.send(payload)
+      emitter.send(payload)
+      eventually(counter.get must_== 1)
     }
   }
 
@@ -140,9 +140,9 @@ class BatchEmitterSpec extends Specification {
     val params       = Emitter.EndpointParams("example.com")
     val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
     withAsyncEmitter(
-      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)) {
-      emitter =>
-        emitter.send(payload)
+      new AsyncEmitter(params, bufferConfig, None, RetryPolicy.Default, EventQueuePolicy.Default, processor, Nil)
+    ) { emitter =>
+      emitter.send(payload)
     }
     Thread.sleep(100)
     eventually(counter.get must_== 1)

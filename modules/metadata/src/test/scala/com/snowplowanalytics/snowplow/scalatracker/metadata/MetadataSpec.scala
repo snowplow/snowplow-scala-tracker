@@ -30,23 +30,23 @@ class MetadataSpec extends Specification {
   implicit val timer                          = IO.timer(ec)
 
   val ec2Response = """
-      |{
-      |    "devpayProductCodes" : null,
-      |    "marketplaceProductCodes" : [ "1abc2defghijklm3nopqrs4tu" ],
-      |    "availabilityZone" : "us-west-2b",
-      |    "privateIp" : "10.158.112.84",
-      |    "version" : "2017-09-30",
-      |    "instanceId" : "i-1234567890abcdef0",
-      |    "billingProducts" : null,
-      |    "instanceType" : "t2.micro",
-      |    "accountId" : "123456789012",
-      |    "imageId" : "ami-5fb8c835",
-      |    "pendingTime" : "2016-11-19T16:32:11Z",
-      |    "architecture" : "x86_64",
-      |    "kernelId" : null,
-      |    "ramdiskId" : null,
-      |    "region" : "us-west-2"
-      |}
+                      |{
+                      |    "devpayProductCodes" : null,
+                      |    "marketplaceProductCodes" : [ "1abc2defghijklm3nopqrs4tu" ],
+                      |    "availabilityZone" : "us-west-2b",
+                      |    "privateIp" : "10.158.112.84",
+                      |    "version" : "2017-09-30",
+                      |    "instanceId" : "i-1234567890abcdef0",
+                      |    "billingProducts" : null,
+                      |    "instanceType" : "t2.micro",
+                      |    "accountId" : "123456789012",
+                      |    "imageId" : "ami-5fb8c835",
+                      |    "pendingTime" : "2016-11-19T16:32:11Z",
+                      |    "architecture" : "x86_64",
+                      |    "kernelId" : null,
+                      |    "ramdiskId" : null,
+                      |    "region" : "us-west-2"
+                      |}
     """.stripMargin
 
   val gceResponse = """{ "foo": "bar" }"""
@@ -74,10 +74,7 @@ class MetadataSpec extends Specification {
       new HttpResponse(ec2Response, 200, Map.empty)
     }
 
-    new Ec2Metadata[IO](client).getInstanceContext
-      .unsafeRunSync()
-      .schema
-      .vendor must beEqualTo("com.amazon.aws.ec2")
+    new Ec2Metadata[IO](client).getInstanceContext.unsafeRunSync().schema.vendor must beEqualTo("com.amazon.aws.ec2")
   }
 
   def e2 = {
@@ -85,26 +82,21 @@ class MetadataSpec extends Specification {
       new HttpResponse(gceResponse, 200, Map.empty)
     }
 
-    new GceMetadata[IO](client).getInstanceContext
-      .unsafeRunSync()
-      .schema
-      .vendor must beEqualTo("com.google.cloud.gce")
+    new GceMetadata[IO](client).getInstanceContext.unsafeRunSync().schema.vendor must beEqualTo("com.google.cloud.gce")
   }
 
   def e3 = {
     val client: HttpClient = { _ =>
       throw new SocketTimeoutException()
     }
-    new Ec2Metadata[IO](client).getInstanceContext
-      .unsafeRunSync() must throwA[SocketTimeoutException]
+    new Ec2Metadata[IO](client).getInstanceContext.unsafeRunSync() must throwA[SocketTimeoutException]
   }
 
   def e4 = {
     val client: HttpClient = { _ =>
       throw new UnknownHostException()
     }
-    new GceMetadata[IO](client).getInstanceContext
-      .unsafeRunSync() must throwA[UnknownHostException]
+    new GceMetadata[IO](client).getInstanceContext.unsafeRunSync() must throwA[UnknownHostException]
   }
 
   def e5 = {
@@ -114,8 +106,7 @@ class MetadataSpec extends Specification {
       new HttpResponse(ec2Response, 200, Map.empty)
     }
 
-    new Ec2Metadata[IO](client).getInstanceContextBlocking
-      .unsafeRunSync() must beNone
+    new Ec2Metadata[IO](client).getInstanceContextBlocking.unsafeRunSync() must beNone
   }
 
   def e6 = {
@@ -124,8 +115,7 @@ class MetadataSpec extends Specification {
       new HttpResponse(gceResponse, 200, Map.empty)
     }
 
-    new GceMetadata[IO](client).getInstanceContextBlocking
-      .unsafeRunSync() must beNone
+    new GceMetadata[IO](client).getInstanceContextBlocking.unsafeRunSync() must beNone
   }
 
 }

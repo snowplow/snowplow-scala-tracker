@@ -27,13 +27,13 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
 
 /**
- * Module with parsing GCE-metadata logic
- *
- * @see https://cloud.google.com/compute/docs/storing-retrieving-metadata
- *
- * Unlike EC2 instance document, GCE does not provide an excerpt, but instead
- * this module collect only meaningful properties
- */
+  * Module with parsing GCE-metadata logic
+  *
+  * @see https://cloud.google.com/compute/docs/storing-retrieving-metadata
+  *
+  * Unlike EC2 instance document, GCE does not provide an excerpt, but instead
+  * this module collect only meaningful properties
+  */
 class GceMetadata[F[_]: Sync](client: HttpClient = _.asString) {
 
   val InstanceMetadataSchema: SchemaKey =
@@ -42,19 +42,19 @@ class GceMetadata[F[_]: Sync](client: HttpClient = _.asString) {
   val InstanceMetadataUri = "http://metadata.google.internal/computeMetadata/v1/instance/"
 
   /**
-   * Tries to make blocking request to GCE instance identity document
-   *
-   * @return some context or None in case of any error including 3 sec timeout
-   */
+    * Tries to make blocking request to GCE instance identity document
+    *
+    * @return some context or None in case of any error including 3 sec timeout
+    */
   def getInstanceContextBlocking(implicit F: Concurrent[F], T: Timer[F]): F[Option[SelfDescribingJson]] =
     Concurrent.timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
 
   /**
-   * Tries to GET self-describing JSON with instance identity
-   * or timeout after 10 seconds
-   *
-   * @return future JSON with identity data
-   */
+    * Tries to GET self-describing JSON with instance identity
+    * or timeout after 10 seconds
+    *
+    * @return future JSON with identity data
+    */
   def getInstanceContext: F[SelfDescribingJson] =
     getMetadata.map(SelfDescribingData(InstanceMetadataSchema, _))
 
@@ -70,18 +70,17 @@ class GceMetadata[F[_]: Sync](client: HttpClient = _.asString) {
       tags        <- getJson("tags")
       zone        <- getString("zone")
       attributes  <- getDir("attributes/")
-    } yield
-      Json.obj(
-        "cpuPlatform" := cpuPlatform,
-        "hostname" := hostname,
-        "id" := id,
-        "image" := image,
-        "machineType" := machineType,
-        "name" := name,
-        "tags" := tags,
-        "zone" := zone,
-        "attributes" := attributes
-      )
+    } yield Json.obj(
+      "cpuPlatform" := cpuPlatform,
+      "hostname" := hostname,
+      "id" := id,
+      "image" := image,
+      "machineType" := machineType,
+      "name" := name,
+      "tags" := tags,
+      "zone" := zone,
+      "attributes" := attributes
+    )
 
   private def request(path: String): HttpRequest =
     Http(InstanceMetadataUri + path).header("Metadata-Flavor", "Google")
@@ -90,20 +89,18 @@ class GceMetadata[F[_]: Sync](client: HttpClient = _.asString) {
     Sync[F].delay(client(request(path)).body)
 
   private def getJson(path: String): F[Json] =
-    getString(path)
-      .flatMap { string =>
-        Sync[F].fromEither(parse(string).map { json =>
-          json.arrayOrObject(json,
-                             array => if (array.isEmpty) Json.Null else json,
-                             obj   => if (obj.isEmpty) Json.Null else json)
-        })
-      }
+    getString(path).flatMap { string =>
+      Sync[F].fromEither(parse(string).map { json =>
+        json.arrayOrObject(
+          json,
+          array => if (array.isEmpty) Json.Null else json,
+          obj   => if (obj.isEmpty) Json.Null else json
+        )
+      })
+    }
 
   private def getDir(path: String): F[Json] =
-    getString(path + "?recursive=true")
-      .flatMap { string =>
-        Sync[F]
-          .fromEither(parse(string))
-          .map(json => json.withObject(obj => if (obj.isEmpty) Json.Null else json))
-      }
+    getString(path + "?recursive=true").flatMap { string =>
+      Sync[F].fromEither(parse(string)).map(json => json.withObject(obj => if (obj.isEmpty) Json.Null else json))
+    }
 }

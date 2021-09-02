@@ -25,9 +25,7 @@ class PayloadSpec extends Specification {
 
     "add a new key-value pair to the payload" in {
 
-      val payload = Payload()
-        .add("e", "se")
-        .add("tna", "mytracker")
+      val payload = Payload().add("e", "se").add("tna", "mytracker")
 
       payload.toMap must_== Map("e" -> "se", "tna" -> "mytracker")
     }
@@ -37,8 +35,7 @@ class PayloadSpec extends Specification {
 
     "add a dictionary of key-value pairs to the payload" in {
 
-      val payload = Payload()
-        .addDict(Map("e" -> "se", "tna" -> "mytracker"))
+      val payload = Payload().addDict(Map("e" -> "se", "tna" -> "mytracker"))
 
       payload.toMap must_== Map("e" -> "se", "tna" -> "mytracker")
     }
@@ -48,16 +45,14 @@ class PayloadSpec extends Specification {
 
     "stringify a JSON and add it to the payload" in {
 
-      val payload = Payload()
-        .addJson(Json.obj("k" := "v"), false, "enc", "plain")
+      val payload = Payload().addJson(Json.obj("k" := "v"), false, "enc", "plain")
 
       payload.toMap must_== Map("plain" -> """{"k":"v"}""")
     }
 
     "stringify and encode a JSON and add it to the payload" in {
 
-      val payload = Payload()
-        .addJson(Json.obj("k" := "v"), true, "enc", "plain")
+      val payload = Payload().addJson(Json.obj("k" := "v"), true, "enc", "plain")
 
       payload.toMap must_== Map("enc" -> "eyJrIjoidiJ9")
     }

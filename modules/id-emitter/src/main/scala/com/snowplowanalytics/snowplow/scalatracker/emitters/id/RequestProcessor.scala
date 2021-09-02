@@ -32,13 +32,13 @@ private[id] object RequestProcessor {
   private lazy val rng = new Random()
 
   /**
-   * Construct POST request with batch event payload
-   *
-   * @param collector endpoint preferences
-   * @param request events enveloped with either Get or Post request
-   * @param options Options to configure the Http transaction.
-   * @return HTTP request with event
-   */
+    * Construct POST request with batch event payload
+    *
+    * @param collector endpoint preferences
+    * @param request events enveloped with either Get or Post request
+    * @param options Options to configure the Http transaction.
+    * @return HTTP request with event
+    */
   def constructRequest(collector: EndpointParams, request: Request, options: Seq[HttpOptions.HttpOption]): HttpRequest =
     request match {
       case Request.Buffered(_, payload) =>
@@ -47,24 +47,24 @@ private[id] object RequestProcessor {
           .header("content-type", "application/json")
           .options(options)
       case Request.Single(_, payload) =>
-        Http(collector.getGetUri)
-          .params(payload.toMap)
-          .options(options)
+        Http(collector.getGetUri).params(payload.toMap).options(options)
     }
 
   lazy val logger = LoggerFactory.getLogger(getClass.getName)
 
   /**
-   * Executes user-provided callback against event and collector response
-   * If callback fails to execute - message will be printed to stderr
-   *
-   * @param collector collector parameters
-   * @param callback user-provided callback
-   * @param payload latest *sent* payload
-   * @param result latest result
-   */
-  def invokeCallback(collector: EndpointParams, callback: Option[Callback[Id]])(payload: Request,
-                                                                                result: Result): Unit =
+    * Executes user-provided callback against event and collector response
+    * If callback fails to execute - message will be printed to stderr
+    *
+    * @param collector collector parameters
+    * @param callback user-provided callback
+    * @param payload latest *sent* payload
+    * @param result latest result
+    */
+  def invokeCallback(
+    collector: EndpointParams,
+    callback: Option[Callback[Id]]
+  )(payload: Request, result: Result): Unit =
     callback.foreach { cb =>
       try {
         cb(collector, payload, result)
@@ -76,16 +76,18 @@ private[id] object RequestProcessor {
     }
 
   /** Sends http requests using scalaj's thread-blocking api
-   *
-   *  Uses a scala.concurrent.blocking construct, to allow the global execution pool
-   *  to create an extra thread of necessary.
-   *
-   */
-  def sendSync(collector: EndpointParams,
-               request: Request,
-               callback: Option[Callback[Id]],
-               options: Seq[HttpOptions.HttpOption],
-               client: HttpClient): Result = {
+    *
+    *  Uses a scala.concurrent.blocking construct, to allow the global execution pool
+    *  to create an extra thread of necessary.
+    *
+    */
+  def sendSync(
+    collector: EndpointParams,
+    request: Request,
+    callback: Option[Callback[Id]],
+    options: Seq[HttpOptions.HttpOption],
+    client: HttpClient
+  ): Result = {
 
     val deviceSentTimestamp = System.currentTimeMillis()
     val httpRequest         = constructRequest(collector, request.updateStm(deviceSentTimestamp), options)
@@ -97,12 +99,14 @@ private[id] object RequestProcessor {
   }
 
   /** Sends http requests using scalaj's thread-blocking api, until they succeed */
-  def sendSyncAndRetry(collector: EndpointParams,
-                       request: Request,
-                       callback: Option[Callback[Id]],
-                       retryPolicy: RetryPolicy,
-                       options: Seq[HttpOptions.HttpOption],
-                       client: HttpClient): Unit = {
+  def sendSyncAndRetry(
+    collector: EndpointParams,
+    request: Request,
+    callback: Option[Callback[Id]],
+    retryPolicy: RetryPolicy,
+    options: Seq[HttpOptions.HttpOption],
+    client: HttpClient
+  ): Unit = {
     def go(request: Request): Unit = {
       val result = sendSync(collector, request, callback, options, client)
       if (!result.isSuccess && !request.isFailed(retryPolicy)) {
@@ -116,15 +120,17 @@ private[id] object RequestProcessor {
   }
 
   /** Sends http requests using scalaj's thread-blocking api until they succeed.
-   *
-   *  Http calls are wrapped in Futures, using flatmapping to enable competitive yielding to other tasks on the threadpool.
-   */
-  def sendAsync(collector: EndpointParams,
-                request: Request,
-                callback: Option[Callback[Id]],
-                retryPolicy: RetryPolicy,
-                options: Seq[HttpOptions.HttpOption],
-                client: HttpClient)(implicit ec: ExecutionContext): Future[Unit] =
+    *
+    *  Http calls are wrapped in Futures, using flatmapping to enable competitive yielding to other tasks on the threadpool.
+    */
+  def sendAsync(
+    collector: EndpointParams,
+    request: Request,
+    callback: Option[Callback[Id]],
+    retryPolicy: RetryPolicy,
+    options: Seq[HttpOptions.HttpOption],
+    client: HttpClient
+  )(implicit ec: ExecutionContext): Future[Unit] =
     Future {
       sendSync(collector, request, callback, options, client)
     }.flatMap { result =>
