@@ -30,7 +30,7 @@ lazy val root = project
   .in(file("."))
   .aggregate(core, idEmitter, metadata, http4sEmitter)
   .settings(Seq(
-    skip in publish := true
+    publish / skip := true
   ))
 
 lazy val core = project

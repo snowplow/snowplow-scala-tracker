@@ -24,8 +24,8 @@ object BuildSettings {
 
   // Makes our SBT settings available in runtime
   lazy val scalifySettings = Seq(
-    sourceGenerators in Compile += Def.task {
-      val file = (sourceManaged in Compile).value / "settings.scala"
+    Compile / sourceGenerators += Def.task {
+      val file = (Compile / sourceManaged).value / "settings.scala"
       IO.write(file, """package com.snowplowanalytics.snowplow.scalatracker.generated
                        |object ProjectSettings {
                        |  val version = "%s"
