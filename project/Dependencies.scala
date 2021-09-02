@@ -23,7 +23,7 @@ object Dependencies {
     val http4s      = "0.22.3"
 
     // Java
-    val slf4j       = "1.7.30"
+    val slf4j       = "1.7.32"
 
     // Scala (test only)
     val specs2      = "4.10.5"
