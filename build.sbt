@@ -21,8 +21,7 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
     Dependencies.Libraries.specs2,
     Dependencies.Libraries.scalaCheck,
-    Dependencies.Libraries.circeOptics,
-    compilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
+    Dependencies.Libraries.circeOptics
   )
 ) ++ BuildSettings.buildSettings
 

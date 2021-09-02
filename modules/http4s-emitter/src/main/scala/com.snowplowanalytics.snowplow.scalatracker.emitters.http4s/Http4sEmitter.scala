@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.http4s
 
-import cats.{Monad, MonadError}
+import cats.{Monad, MonadThrow}
 import cats.implicits._
 import cats.effect.{Concurrent, Fiber, Resource, Sync, Timer}
 import fs2.{Pipe, Stream}
@@ -59,7 +59,7 @@ object Http4sEmitter {
     }
 
   private def instance[F[_]](queue: Enqueue[F, Action], queuePolicy: EventQueuePolicy)(
-    implicit F: MonadError[F, Throwable]
+    implicit F: MonadThrow[F]
   ): Emitter[F] =
     new Emitter[F] {
       override def send(event: Payload): F[Unit] =
@@ -166,7 +166,7 @@ object Http4sEmitter {
       }
     }
 
-  private def attemptSend[F[_]: MonadError[?[_], Throwable]: Timer](
+  private def attemptSend[F[_]: MonadThrow: Timer](
     client: Client[F],
     collector: EndpointParams,
     request: Request
