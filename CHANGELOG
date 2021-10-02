@@ -1,4 +1,21 @@
-Version 1.0.0 (2020-11-??)
+Version 1.0.1 (2021-10-02)
+--------------------------
+Bump http4s to 0.22.4 (#171)
+Bump iglu-core to 1.0.1 (#170)
+Add MiMa (#169)
+Bump sbt-scoverage to 1.8.2 (#168)
+Switch publishing from Bintray to Maven Central (#167)
+Bump scalacheck to 1.15.4 (#166)
+Bump specs2 to 4.12.3 (#165)
+Bump slf4j to 1.7.32 (#164)
+Bump http4s to 0.22.3 (#163)
+Bump circe to 0.14.1 (#162)
+Bump Scala to 2.13.6 and 2.12.14 (#161)
+Bump cats-effect to 2.5.3 (#160)
+Switch from sbt-scalafmt-coursier to sbt-scalafmt (#159)
+Bump sbt to 1.5.5 (#158)
+
+Version 1.0.0 (2020-12-23)
 --------------------------
 Add from URI constructors to emitters (#116)
 UUIDProviders for Id and Sync (#112)
