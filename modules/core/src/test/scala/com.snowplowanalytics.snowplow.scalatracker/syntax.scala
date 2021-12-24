@@ -15,29 +15,16 @@ package com.snowplowanalytics.snowplow.scalatracker
 import java.util.UUID
 
 import cats.Id
-import cats.effect.{Clock, Sync}
 
 object syntax {
   object id {
 
-    implicit val idClock: Clock[Id] = new Clock[Id] {
-      import concurrent.duration._
-
-      override def realTime(unit: TimeUnit): Id[Long] = unit.convert(System.currentTimeMillis(), MILLISECONDS)
-
-      override def monotonic(unit: TimeUnit): Id[Long] = unit.convert(System.nanoTime(), NANOSECONDS)
+    implicit val idTimeProvider: TimeProvider[Id] = new TimeProvider[Id] {
+      override def getCurrentTimeMillis: Id[Long] = System.currentTimeMillis()
     }
 
-    implicit val uuidProvider: UUIDProvider[Id] = new UUIDProvider[Id] {
-
+    implicit val idUUIDProvider: UUIDProvider[Id] = new UUIDProvider[Id] {
       override def generateUUID: Id[UUID] = UUID.randomUUID()
-    }
-  }
-
-  object sync {
-    implicit def uuidProvider[F[_]: Sync]: UUIDProvider[F] = new UUIDProvider[F] {
-
-      override def generateUUID: F[UUID] = Sync[F].delay(UUID.randomUUID())
     }
   }
 

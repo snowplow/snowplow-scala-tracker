@@ -13,20 +13,20 @@
 package com.snowplowanalytics.snowplow.scalatracker.emitters.http4s
 
 import cats.{Monad, MonadThrow}
-import cats.implicits._
 import cats.effect.{Concurrent, Fiber, Resource, Sync, Timer}
+import cats.implicits._
+import com.snowplowanalytics.snowplow.scalatracker.{Buffer, Emitter, Payload}
+import com.snowplowanalytics.snowplow.scalatracker.Buffer.Action
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 import fs2.{Pipe, Stream}
 import fs2.concurrent.{Dequeue, Enqueue, Queue}
+import org.http4s.{MediaType, Method, Uri, Request => HttpRequest}
 import org.http4s.client.Client
 import org.http4s.headers.`Content-Type`
-import org.http4s.{MediaType, Method, Request => HttpRequest, Uri}
 import org.slf4j.LoggerFactory
+
 import scala.concurrent.duration._
 import scala.util.Random
-
-import com.snowplowanalytics.snowplow.scalatracker.{Buffer, Emitter, Payload}
-import com.snowplowanalytics.snowplow.scalatracker.Emitter._
-import com.snowplowanalytics.snowplow.scalatracker.Buffer.Action
 
 object Http4sEmitter {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2013-2020 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,24 +12,23 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import java.util.UUID
-
 /**
   * This trait is needed here because `Tracker` is referentially transparent, and we leave it up for the emitters
   * to decide whether `F` will be referentially transparent also.
   */
-trait UUIDProvider[F[_]] {
+trait TimeProvider[F[_]] {
 
   /**
-    * Returns a random UUID. Most likely it will be `UUID.randomUUID()` wrapped in `F`
-    * @return a random UUID
+    * Returns the current time expressed in milliseconds. Most likely it will be `System.currentTimeMillis()` wrapped in `F`
+    * @return current time in milliseconds
     */
-  def generateUUID: F[UUID]
+  def getCurrentTimeMillis: F[Long]
+
 }
 
-object UUIDProvider {
+object TimeProvider {
 
   /** Instance summoner */
-  def apply[F[_]](implicit ev: UUIDProvider[F]): UUIDProvider[F] = ev
+  def apply[F[_]](implicit ev: TimeProvider[F]): TimeProvider[F] = ev
 
 }
