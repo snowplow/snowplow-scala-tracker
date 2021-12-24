@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018 Snowplow Analytics Ltd. All rights reserved.
+ * Copyright (c) 2013-2020 Snowplow Analytics Ltd. All rights reserved.
  *
  * This program is licensed to you under the Apache License Version 2.0,
  * and you may not use this file except in compliance with the Apache License Version 2.0.
@@ -12,34 +12,31 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker
 
-import cats.effect.Sync
 import java.util.UUID
 
 /**
   * This trait is needed here because `Tracker` is referentially transparent, and we leave it up for the emitters
   * to decide whether `F` will be referentially transparent also.
   */
-trait UUIDProvider[F[_]] {
+trait Tracking[F[_]] {
+
+  /**
+    * Returns the current time expressed in milliseconds. Most likely it will be `System.currentTimeMillis()` wrapped in `F`
+    * @return current time in milliseconds
+    */
+  def getCurrentTimeMillis: F[Long]
 
   /**
     * Returns a random UUID. Most likely it will be `UUID.randomUUID()` wrapped in `F`
-    * @return current time in milliseconds
+    * @return a random UUID
     */
   def generateUUID: F[UUID]
+
 }
 
-object UUIDProvider {
+object Tracking {
 
   /** Instance summoner */
-  def apply[F[_]](implicit ev: UUIDProvider[F]): UUIDProvider[F] = ev
-
-  /** Construct provider from referentially transparent action */
-  def instance[F[_]](generator: F[UUID]): UUIDProvider[F] =
-    new UUIDProvider[F] {
-      val generateUUID = generator
-    }
-
-  implicit def syncInstance[F[_]: Sync]: UUIDProvider[F] =
-    instance(Sync[F].delay(UUID.randomUUID))
+  def apply[F[_]](implicit ev: Tracking[F]): Tracking[F] = ev
 
 }

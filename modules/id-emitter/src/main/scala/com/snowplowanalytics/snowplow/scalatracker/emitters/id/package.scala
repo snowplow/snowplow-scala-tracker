@@ -10,22 +10,20 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.scalatracker
+package com.snowplowanalytics.snowplow.scalatracker.emitters
+
+import cats.Id
+import com.snowplowanalytics.snowplow.scalatracker.Tracking
 
 import java.util.UUID
 
-import cats.Id
+package object id {
 
-object syntax {
-  object id {
+  implicit val idTracking: Tracking[Id] = new Tracking[Id] {
 
-    implicit val idTracking: Tracking[Id] = new Tracking[Id] {
+    override def getCurrentTimeMillis: Id[Long] = System.currentTimeMillis()
 
-      override def getCurrentTimeMillis: Id[Long] = System.currentTimeMillis()
-
-      override def generateUUID: Id[UUID] = UUID.randomUUID()
-
-    }
+    override def generateUUID: Id[UUID] = UUID.randomUUID()
 
   }
 

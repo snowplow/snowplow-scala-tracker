@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.scalatracker
 
 import cats.implicits._
-import cats.effect.Sync
+import cats.effect.kernel.Async
 import scalaj.http.{HttpRequest, HttpResponse}
 
 package object metadata {
@@ -26,14 +26,14 @@ package object metadata {
       * Adds EC2 context to each sent event
       * Blocks event queue until either context resolved or timed out
       */
-    def enableEc2Context[G[_]: Sync](): G[Tracker[F]] =
+    def enableEc2Context[G[_]: Async](): G[Tracker[F]] =
       new Ec2Metadata[G]().getInstanceContext.map(metadata => tracker.addContext(metadata))
 
     /**
       * Adds GCP context to each sent event
       * Blocks event queue until either context resolved or timed out
       */
-    def enableGceContext[G[_]: Sync](): G[Tracker[F]] =
+    def enableGceContext[G[_]: Async](): G[Tracker[F]] =
       new GceMetadata[G]().getInstanceContext.map(metadata => tracker.addContext(metadata))
 
   }

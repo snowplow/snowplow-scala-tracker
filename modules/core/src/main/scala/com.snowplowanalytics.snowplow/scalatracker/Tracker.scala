@@ -15,14 +15,11 @@ package com.snowplowanalytics.snowplow.scalatracker
 import cats.Monad
 import cats.data.NonEmptyList
 import cats.implicits._
-import cats.effect.Clock
 import io.circe.Json
 import io.circe.syntax._
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.iglu.core.circe.implicits._
 import utils.{ErrorTracking, JsonUtils}
-
-import scala.concurrent.duration._
 
 /**
   * Tracker class
@@ -33,7 +30,7 @@ import scala.concurrent.duration._
   * @param encodeBase64 Whether to encode JSONs
   * @param globalContexts Contexts to attach to every payload
   */
-class Tracker[F[_]: Monad: Clock: UUIDProvider](
+class Tracker[F[_]: Monad: Tracking](
   emitters: NonEmptyList[Emitter[F]],
   namespace: String,
   appId: String,
@@ -67,8 +64,8 @@ class Tracker[F[_]: Monad: Clock: UUIDProvider](
     subject: Option[Subject]
   ): F[Payload] =
     for {
-      uuid   <- implicitly[UUIDProvider[F]].generateUUID
-      millis <- implicitly[Clock[F]].realTime(MILLISECONDS)
+      uuid   <- Tracking[F].generateUUID
+      millis <- Tracking[F].getCurrentTimeMillis
     } yield {
       val newPayload = payload
         .add("eid", uuid.toString)
@@ -415,7 +412,11 @@ class Tracker[F[_]: Monad: Clock: UUIDProvider](
 
 object Tracker {
 
-  def apply[F[_]: Monad: Clock: UUIDProvider](emitter: Emitter[F], namespace: String, appId: String): Tracker[F] =
+  def apply[F[_]: Monad: Tracking](
+    emitter: Emitter[F],
+    namespace: String,
+    appId: String
+  ): Tracker[F] =
     new Tracker(NonEmptyList.one(emitter), namespace, appId)
 
   /** Tracker's version */

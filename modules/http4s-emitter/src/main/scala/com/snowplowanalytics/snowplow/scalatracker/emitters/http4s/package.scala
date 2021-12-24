@@ -10,22 +10,23 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.scalatracker
+package com.snowplowanalytics.snowplow.scalatracker.emitters
+
+import cats.implicits._
+import cats.effect.Clock
+import cats.effect.std.UUIDGen
+import cats.Functor
+import com.snowplowanalytics.snowplow.scalatracker.Tracking
 
 import java.util.UUID
 
-import cats.Id
+package object http4s {
 
-object syntax {
-  object id {
+  implicit def ceTracking[F[_]: Functor: Clock: UUIDGen]: Tracking[F] = new Tracking[F] {
 
-    implicit val idTracking: Tracking[Id] = new Tracking[Id] {
+    override def getCurrentTimeMillis: F[Long] = Clock[F].realTime.map(_.toMillis)
 
-      override def getCurrentTimeMillis: Id[Long] = System.currentTimeMillis()
-
-      override def generateUUID: Id[UUID] = UUID.randomUUID()
-
-    }
+    override def generateUUID: F[UUID] = UUIDGen.randomUUID
 
   }
 

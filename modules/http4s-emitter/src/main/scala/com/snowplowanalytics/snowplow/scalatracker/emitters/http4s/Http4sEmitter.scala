@@ -13,20 +13,19 @@
 package com.snowplowanalytics.snowplow.scalatracker.emitters.http4s
 
 import cats.{Monad, MonadThrow}
+import cats.effect.{Async, Clock, Concurrent, Fiber, Resource, Sync, Temporal}
+import cats.effect.std.{Queue, Random}
 import cats.implicits._
-import cats.effect.{Concurrent, Fiber, Resource, Sync, Timer}
+import com.snowplowanalytics.snowplow.scalatracker.{Buffer, Emitter, Payload}
+import com.snowplowanalytics.snowplow.scalatracker.Buffer.Action
+import com.snowplowanalytics.snowplow.scalatracker.Emitter._
 import fs2.{Pipe, Stream}
-import fs2.concurrent.{Dequeue, Enqueue, Queue}
+import org.http4s.{MediaType, Method, Uri, Request => HttpRequest}
 import org.http4s.client.Client
 import org.http4s.headers.`Content-Type`
-import org.http4s.{MediaType, Method, Request => HttpRequest, Uri}
-import org.slf4j.LoggerFactory
-import scala.concurrent.duration._
-import scala.util.Random
+import org.slf4j.{Logger, LoggerFactory}
 
-import com.snowplowanalytics.snowplow.scalatracker.{Buffer, Emitter, Payload}
-import com.snowplowanalytics.snowplow.scalatracker.Emitter._
-import com.snowplowanalytics.snowplow.scalatracker.Buffer.Action
+import scala.concurrent.duration._
 
 object Http4sEmitter {
 
@@ -42,7 +41,7 @@ object Http4sEmitter {
     * Pending events not sent within this timeout will be dropped. `None` means to wait indefinitely for sending
     * pending events when shutting down.
     */
-  def build[F[_]: Concurrent: Timer](
+  def build[F[_]: Async: Random](
     collector: EndpointParams,
     client: Client[F],
     bufferConfig: BufferConfig              = BufferConfig.Default,
@@ -58,25 +57,23 @@ object Http4sEmitter {
       } yield instance(queue, queuePolicy) -> shutdown(fiber, queue, shutdownTimeout)
     }
 
-  private def instance[F[_]](queue: Enqueue[F, Action], queuePolicy: EventQueuePolicy)(
-    implicit F: MonadThrow[F]
-  ): Emitter[F] =
+  private def instance[F[_]: MonadThrow](queue: Queue[F, Action], queuePolicy: EventQueuePolicy): Emitter[F] =
     new Emitter[F] {
       override def send(event: Payload): F[Unit] =
         queuePolicy match {
           case EventQueuePolicy.UnboundedQueue | EventQueuePolicy.BlockWhenFull(_) =>
-            queue.enqueue1(Action.Enqueue(event))
+            queue.offer(Action.Enqueue(event))
           case EventQueuePolicy.IgnoreWhenFull(_) =>
-            queue.offer1(Action.Enqueue(event)).void
+            queue.tryOffer(Action.Enqueue(event)).void
           case EventQueuePolicy.ErrorWhenFull(limit) =>
-            queue.offer1(Action.Enqueue(event)).flatMap {
-              case true  => F.unit
-              case false => F.raiseError(new EventQueuePolicy.EventQueueException(limit))
+            queue.tryOffer(Action.Enqueue(event)).flatMap {
+              case true  => MonadThrow[F].unit
+              case false => MonadThrow[F].raiseError(new EventQueuePolicy.EventQueueException(limit))
             }
         }
 
       override def flushBuffer(): F[Unit] =
-        queue.enqueue1(Action.Flush)
+        queue.offer(Action.Flush)
     }
 
   private def queueForPolicy[F[_]: Concurrent](policy: EventQueuePolicy): F[Queue[F, Action]] =
@@ -85,23 +82,23 @@ object Http4sEmitter {
       case None      => Queue.unbounded
     }
 
-  private def shutdown[F[_]: Concurrent: Timer](
-    fiber: Fiber[F, Unit],
-    queue: Enqueue[F, Action],
+  private def shutdown[F[_]: Temporal](
+    fiber: Fiber[F, Throwable, Unit],
+    queue: Queue[F, Action],
     timeout: Option[FiniteDuration]
   ): F[Unit] =
     timeout match {
       case Some(t) => shutdownWithTimeout(fiber, queue, t)
-      case None    => queue.enqueue1(Action.Terminate) *> fiber.join
+      case None    => queue.offer(Action.Terminate) *> fiber.join.void
     }
 
-  private def shutdownWithTimeout[F[_]: Concurrent: Timer](
-    fiber: Fiber[F, Unit],
-    queue: Enqueue[F, Action],
+  private def shutdownWithTimeout[F[_]: Temporal](
+    fiber: Fiber[F, Throwable, Unit],
+    queue: Queue[F, Action],
     timeout: FiniteDuration
   ): F[Unit] =
     // First try to enqueue the terminate event. This will block if the queue is full.
-    Concurrent[F].racePair(queue.enqueue1(Action.Terminate), Timer[F].sleep(timeout)).flatMap {
+    Concurrent[F].racePair(queue.offer(Action.Terminate), Temporal[F].sleep(timeout)).flatMap {
       case Left((_, timerFiber)) =>
         // We successfully enqueued the terminate event.
         // Next, wait for pending events to be sent to the collector.
@@ -120,23 +117,21 @@ object Http4sEmitter {
         fiber.cancel
     }
 
-  private def drainQueue[F[_]: Sync: Timer](
-    queue: Dequeue[F, Action],
+  private def drainQueue[F[_]: Async: Random](
+    queue: Queue[F, Action],
     client: Client[F],
     collector: EndpointParams,
     bufferConfig: BufferConfig,
     retryPolicy: RetryPolicy,
     callback: Option[Callback[F]]
   ): F[Unit] =
-    Sync[F].delay(new Random()).flatMap { rng =>
-      queue
-        .dequeue
-        .takeThrough(_ != Action.Terminate)
-        .through(bufferEvents(bufferConfig))
-        .evalMap(sendRequest(client, collector, retryPolicy, rng, callback))
-        .compile
-        .drain
-    }
+    Stream
+      .fromQueueUnterminated(queue)
+      .takeThrough(_ != Action.Terminate)
+      .through(bufferEvents(bufferConfig))
+      .evalMap(sendRequest(client, collector, retryPolicy, callback))
+      .compile
+      .drain
 
   private def bufferEvents[F[_]](bufferConfig: BufferConfig): Pipe[F, Action, Request] =
     _.mapAccumulate(Buffer(bufferConfig)) {
@@ -145,33 +140,32 @@ object Http4sEmitter {
       case (_, Some(flushed)) => flushed
     }
 
-  private def sendRequest[F[_]: Sync: Timer](
+  private def sendRequest[F[_]: Async: Random](
     client: Client[F],
     collector: EndpointParams,
     retryPolicy: RetryPolicy,
-    rng: Random,
     callback: Option[Callback[F]]
   ): Request => F[Unit] =
-    Sync[F].tailRecM(_) { request =>
+    Monad[F].tailRecM(_) { request =>
       attemptSend(client, collector, request).flatTap(invokeCallback(callback, collector, request, _)).flatMap {
         result =>
           if (result.isSuccess || request.isFailed(retryPolicy)) {
-            Sync[F].pure(Right(()))
+            Monad[F].pure(Right(()))
           } else {
             for {
-              seed <- Sync[F].delay(rng.nextDouble())
-              _    <- Timer[F].sleep(RetryPolicy.getDelay(request.attempt, seed).millis)
+              seed <- Random[F].nextDouble
+              _    <- Temporal[F].sleep(RetryPolicy.getDelay(request.attempt, seed).millis)
             } yield request.updateAttempt.asLeft
           }
       }
     }
 
-  private def attemptSend[F[_]: MonadThrow: Timer](
+  private def attemptSend[F[_]: MonadThrow: Clock](
     client: Client[F],
     collector: EndpointParams,
     request: Request
   ): F[Result] =
-    Timer[F].clock.realTime(MILLISECONDS).flatMap { dtm =>
+    Clock[F].realTime.map(_.toMillis).flatMap { dtm =>
       val httpRequest = request.updateStm(dtm) match {
         case Request.Buffered(_, payload) =>
           val body = Stream.emits(Payload.postPayload(payload).getBytes).covary[F]
@@ -192,10 +186,10 @@ object Http4sEmitter {
           if (status.isSuccess) Result.Success(status.code)
           else Result.Failure(status.code)
         }
-        .handleError(Result.TrackerFailure(_))
+        .handleError(Result.TrackerFailure)
     }
 
-  lazy val logger = LoggerFactory.getLogger(getClass.getName)
+  lazy val logger: Logger = LoggerFactory.getLogger(getClass.getName)
 
   private def invokeCallback[F[_]: Sync](
     callback: Option[Callback[F]],
