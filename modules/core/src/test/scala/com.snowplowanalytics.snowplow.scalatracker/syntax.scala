@@ -19,13 +19,14 @@ import cats.Id
 object syntax {
   object id {
 
-    implicit val idTimeProvider: TimeProvider[Id] = new TimeProvider[Id] {
+    implicit val idTracking: Tracking[Id] = new Tracking[Id] {
+
       override def getCurrentTimeMillis: Id[Long] = System.currentTimeMillis()
+
+      override def generateUUID: Id[UUID] = UUID.randomUUID()
+
     }
 
-    implicit val idUUIDProvider: UUIDProvider[Id] = new UUIDProvider[Id] {
-      override def generateUUID: Id[UUID] = UUID.randomUUID()
-    }
   }
 
 }

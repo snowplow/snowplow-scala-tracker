@@ -30,7 +30,7 @@ import utils.{ErrorTracking, JsonUtils}
   * @param encodeBase64 Whether to encode JSONs
   * @param globalContexts Contexts to attach to every payload
   */
-class Tracker[F[_]: Monad: TimeProvider: UUIDProvider](
+class Tracker[F[_]: Monad: Tracking](
   emitters: NonEmptyList[Emitter[F]],
   namespace: String,
   appId: String,
@@ -64,8 +64,8 @@ class Tracker[F[_]: Monad: TimeProvider: UUIDProvider](
     subject: Option[Subject]
   ): F[Payload] =
     for {
-      uuid   <- UUIDProvider[F].generateUUID
-      millis <- TimeProvider[F].getCurrentTimeMillis
+      uuid   <- Tracking[F].generateUUID
+      millis <- Tracking[F].getCurrentTimeMillis
     } yield {
       val newPayload = payload
         .add("eid", uuid.toString)
@@ -412,7 +412,7 @@ class Tracker[F[_]: Monad: TimeProvider: UUIDProvider](
 
 object Tracker {
 
-  def apply[F[_]: Monad: TimeProvider: UUIDProvider](
+  def apply[F[_]: Monad: Tracking](
     emitter: Emitter[F],
     namespace: String,
     appId: String
