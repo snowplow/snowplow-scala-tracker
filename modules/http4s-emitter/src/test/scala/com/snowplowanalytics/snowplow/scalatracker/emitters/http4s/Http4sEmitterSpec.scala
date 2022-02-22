@@ -12,20 +12,19 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters.http4s
 
-import cats.effect.{IO, Resource}
+import cats.effect.{IO, Ref, Resource}
 import cats.effect.std.Random
 import cats.effect.unsafe.implicits.global
 import cats.implicits._
 
-import java.util.concurrent.atomic.AtomicInteger
 import org.http4s.Response
 import org.http4s.client.Client
 import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Payload}
 import org.specs2.Specification
 
-class Http4sEmitterSpec extends Specification {
+import scala.concurrent.duration._
 
-  implicit val random: IO[Random[IO]] = Random.scalaUtilRandom[IO]
+class Http4sEmitterSpec extends Specification {
 
   override def is = s2"""
 
@@ -38,130 +37,29 @@ class Http4sEmitterSpec extends Specification {
   """
 
   val payload = Payload(Map("foo" -> "bar", "bar" -> "foo"))
+  val threeEventsPayloadBytes = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
+  val maxEventsBufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+  val maxBytesBufferConfig = Emitter.BufferConfig.PayloadSize(threeEventsPayloadBytes)
 
-  def e1 = {
-    val counter = new AtomicInteger(0)
-    val client = Client[IO] { _ =>
-      counter.getAndIncrement
-      Resource.pure[IO, Response[IO]](Response[IO]())
-    }
+  def e1 = testEmitter(maxEventsBufferConfig, 2).unsafeRunSync() must_== (0, 1)
 
-    val collector    = Emitter.EndpointParams("example.com")
-    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+  def e2 = testEmitter(maxEventsBufferConfig, 3).unsafeRunSync() must_== (1, 1)
 
-    Random
-      .scalaUtilRandom[IO]
-      .flatMap(implicit rng =>
-        Http4sEmitter
-          .build[IO](collector, client, bufferConfig)
-          .use { emitter =>
-            List.fill(2)(emitter.send(payload)).sequence.map { _ =>
-              Thread.sleep(100)
-              counter.get must_== 0
-            }
-          }
-      )
-      .unsafeRunSync()
-  }
+  def e3 = testEmitter(maxBytesBufferConfig, 2).unsafeRunSync() must_== (0, 1)
 
-  def e2 = {
-    val counter = new AtomicInteger(0)
-    val client = Client[IO] { _ =>
-      counter.getAndIncrement
-      Resource.pure[IO, Response[IO]](Response[IO]())
-    }
+  def e4 = testEmitter(maxBytesBufferConfig, 3).unsafeRunSync() must_== (1, 1)
 
-    val collector    = Emitter.EndpointParams("example.com")
-    val bufferConfig = Emitter.BufferConfig.EventsCardinality(3)
+  def e5 = testEmitter(maxBytesBufferConfig, 1).unsafeRunSync() must_== (0, 1)
 
-    Random
-      .scalaUtilRandom[IO]
-      .flatMap(implicit rng =>
-        Http4sEmitter
-          .build[IO](collector, client, bufferConfig)
-          .use { emitter =>
-            List.fill(3)(emitter.send(payload)).sequence.map { _ =>
-              eventually(counter.get must_== 1)
-            }
-          }
-      )
-      .unsafeRunSync()
-  }
-
-  def e3 = {
-    val counter = new AtomicInteger(0)
-    val client = Client[IO] { _ =>
-      counter.getAndIncrement
-      Resource.pure[IO, Response[IO]](Response[IO]())
-    }
-
-    val maxBytes     = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
-    val collector    = Emitter.EndpointParams("example.com")
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
-
-    Random
-      .scalaUtilRandom[IO]
-      .flatMap(implicit rng =>
-        Http4sEmitter
-          .build[IO](collector, client, bufferConfig)
-          .use { emitter =>
-            List.fill(2)(emitter.send(payload)).sequence.map { _ =>
-              Thread.sleep(100)
-              counter.get must_== 0
-            }
-          }
-      )
-      .unsafeRunSync()
-  }
-
-  def e4 = {
-    val counter = new AtomicInteger(0)
-    val client = Client[IO] { _ =>
-      counter.getAndIncrement
-      Resource.pure[IO, Response[IO]](Response[IO]())
-    }
-
-    val maxBytes     = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
-    val collector    = Emitter.EndpointParams("example.com")
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
-
-    Random
-      .scalaUtilRandom[IO]
-      .flatMap(implicit rng =>
-        Http4sEmitter
-          .build[IO](collector, client, bufferConfig)
-          .use { emitter =>
-            List.fill(3)(emitter.send(payload)).sequence.map { _ =>
-              eventually(counter.get must_== 1)
-            }
-          }
-      )
-      .unsafeRunSync()
-
-  }
-
-  def e5 = {
-    val counter = new AtomicInteger(0)
-    val client = Client[IO] { _ =>
-      counter.getAndIncrement
-      Resource.pure[IO, Response[IO]](Response[IO]())
-    }
-
-    val maxBytes     = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
-    val collector    = Emitter.EndpointParams("example.com")
-    val bufferConfig = Emitter.BufferConfig.PayloadSize(maxBytes)
-
-    Random
-      .scalaUtilRandom[IO]
-      .flatMap(implicit rng =>
-        Http4sEmitter
-          .build[IO](collector, client, bufferConfig)
-          .use { emitter =>
-            emitter.send(payload)
-          }
-      ).unsafeRunSync()
-
-    eventually(counter.get must_== 1)
-  }
+  def testEmitter(bufferConfig: Emitter.BufferConfig, events: Int): IO[(Int, Int)] =
+    for {
+      rng <- Random.scalaUtilRandom[IO]
+      ref <- Ref.of[IO, Int](0)
+      collector = Emitter.EndpointParams("example.com")
+      client = Client[IO] { _ => Resource.eval(ref.update(_ + 1)).as(Response[IO]()) }
+      emitter = Http4sEmitter.build[IO](collector, client, bufferConfig)(implicitly, rng)
+      beforeClose <- emitter.use { e => List.fill(events)(e.send(payload)).sequence_ >> IO.sleep(100.millis) >> ref.get }
+      afterClose <- ref.get
+    } yield (beforeClose, afterClose)
 
 }
