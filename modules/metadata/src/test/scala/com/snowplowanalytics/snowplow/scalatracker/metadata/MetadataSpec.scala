@@ -96,7 +96,7 @@ class MetadataSpec extends Specification {
   def e5 = {
 
     val client: HttpClient = { _ =>
-      Thread.sleep(5000)
+      Thread.sleep(30000)
       HttpResponse(ec2Response, 200, Map.empty)
     }
 
@@ -105,7 +105,7 @@ class MetadataSpec extends Specification {
 
   def e6 = {
     val client: HttpClient = { _ =>
-      Thread.sleep(5000)
+      Thread.sleep(30000)
       HttpResponse(gceResponse, 200, Map.empty)
     }
 

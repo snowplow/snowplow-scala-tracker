@@ -16,13 +16,11 @@ import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
 
 import scala.concurrent.duration._
 import cats.implicits._
-import cats.effect.{Concurrent, Sync}
+import cats.effect.{Async, Concurrent, Sync}
 import io.circe.{Json, JsonObject}
 import io.circe.syntax._
 import io.circe.parser.parse
 import scalaj.http.Http
-import cats.effect.Temporal
-import cats.effect.kernel.Async
 
 /**
   * Module with parsing EC2-metadata logic
@@ -122,7 +120,7 @@ class Ec2Metadata[F[_]: Async](client: HttpClient = _.asString) {
     * @return value wrapped delayed inside F
     */
   private[metadata] def getContent(url: String): F[String] =
-    Sync[F].delay(client(Http(url)).body)
+    Sync[F].interruptible(client(Http(url)).body)
 
   /**
     * Get content of node-link

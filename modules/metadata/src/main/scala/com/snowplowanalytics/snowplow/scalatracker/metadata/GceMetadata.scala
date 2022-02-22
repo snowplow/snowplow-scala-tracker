@@ -82,7 +82,7 @@ class GceMetadata[F[_]: Async](client: HttpClient = _.asString) {
     Http(InstanceMetadataUri + path).header("Metadata-Flavor", "Google")
 
   private[metadata] def getString(path: String): F[String] =
-    Sync[F].delay(client(request(path)).body)
+    Sync[F].interruptible(client(request(path)).body)
 
   private def getJson(path: String): F[Json] =
     getString(path).flatMap { string =>
