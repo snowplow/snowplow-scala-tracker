@@ -12,19 +12,21 @@
  */
 package com.snowplowanalytics.snowplow.scalatracker.emitters
 
-import cats.effect.{Clock, Sync}
+import cats.implicits._
+import cats.effect.Clock
+import cats.effect.std.UUIDGen
+import cats.Functor
 import com.snowplowanalytics.snowplow.scalatracker.Tracking
 
 import java.util.UUID
 
 package object http4s {
 
-  implicit def ceTracking[F[_]: Clock: Sync]: Tracking[F] = new Tracking[F] {
-    import scala.concurrent.duration.MILLISECONDS
+  implicit def ceTracking[F[_]: Functor: Clock: UUIDGen]: Tracking[F] = new Tracking[F] {
 
-    override def getCurrentTimeMillis: F[Long] = Clock[F].realTime(MILLISECONDS)
+    override def getCurrentTimeMillis: F[Long] = Clock[F].realTime.map(_.toMillis)
 
-    override def generateUUID: F[UUID] = Sync[F].delay(UUID.randomUUID)
+    override def generateUUID: F[UUID] = UUIDGen.randomUUID
 
   }
 

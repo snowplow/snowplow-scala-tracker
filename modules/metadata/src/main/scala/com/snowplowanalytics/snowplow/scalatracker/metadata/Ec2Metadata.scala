@@ -15,22 +15,21 @@ import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData
 import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
 
 import scala.concurrent.duration._
-
 import cats.implicits._
-import cats.effect.{Concurrent, Sync, Timer}
-
+import cats.effect.{Concurrent, Sync}
 import io.circe.{Json, JsonObject}
 import io.circe.syntax._
 import io.circe.parser.parse
-
 import scalaj.http.Http
+import cats.effect.Temporal
+import cats.effect.kernel.Async
 
 /**
   * Module with parsing EC2-metadata logic
   *
   * @see http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
   */
-class Ec2Metadata[F[_]: Sync](client: HttpClient = _.asString) {
+class Ec2Metadata[F[_]: Async](client: HttpClient = _.asString) {
 
   val InstanceIdentitySchema =
     SchemaKey("com.amazon.aws.ec2", "instance_identity_document", "jsonschema", SchemaVer.Full(1, 0, 0))
@@ -42,8 +41,8 @@ class Ec2Metadata[F[_]: Sync](client: HttpClient = _.asString) {
     *
     * @return some context or None in case of any error including 3 sec timeout
     */
-  def getInstanceContextBlocking(implicit F: Concurrent[F], T: Timer[F]): F[Option[SelfDescribingJson]] =
-    Concurrent.timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
+  def getInstanceContextBlocking: F[Option[SelfDescribingJson]] =
+    Concurrent[F].timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
 
   /**
     * Tries to GET self-describing JSON with instance identity

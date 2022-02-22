@@ -13,21 +13,15 @@
 package com.snowplowanalytics.snowplow.scalatracker.metadata
 
 import java.net.{SocketTimeoutException, UnknownHostException}
-import java.util.concurrent.Executors
-
 import cats.Id
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Payload}
 import org.specs2.Specification
-import scala.concurrent.ExecutionContext
+
 import scalaj.http.HttpResponse
 
 class MetadataSpec extends Specification {
-
-  // Use enough threads to support the Thread.sleep calls, and still allow concurrent timeouts.
-  val ec: ExecutionContext                    = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(5))
-  implicit def contextShift: ContextShift[IO] = IO.contextShift(ec)
-  implicit val timer                          = IO.timer(ec)
 
   val ec2Response = """
                       |{
@@ -71,7 +65,7 @@ class MetadataSpec extends Specification {
 
   def e1 = {
     val client: HttpClient = { _ =>
-      new HttpResponse(ec2Response, 200, Map.empty)
+      HttpResponse(ec2Response, 200, Map.empty)
     }
 
     new Ec2Metadata[IO](client).getInstanceContext.unsafeRunSync().schema.vendor must beEqualTo("com.amazon.aws.ec2")
@@ -79,7 +73,7 @@ class MetadataSpec extends Specification {
 
   def e2 = {
     val client: HttpClient = { _ =>
-      new HttpResponse(gceResponse, 200, Map.empty)
+      HttpResponse(gceResponse, 200, Map.empty)
     }
 
     new GceMetadata[IO](client).getInstanceContext.unsafeRunSync().schema.vendor must beEqualTo("com.google.cloud.gce")
@@ -103,7 +97,7 @@ class MetadataSpec extends Specification {
 
     val client: HttpClient = { _ =>
       Thread.sleep(5000)
-      new HttpResponse(ec2Response, 200, Map.empty)
+      HttpResponse(ec2Response, 200, Map.empty)
     }
 
     new Ec2Metadata[IO](client).getInstanceContextBlocking.unsafeRunSync() must beNone
@@ -112,7 +106,7 @@ class MetadataSpec extends Specification {
   def e6 = {
     val client: HttpClient = { _ =>
       Thread.sleep(5000)
-      new HttpResponse(gceResponse, 200, Map.empty)
+      HttpResponse(gceResponse, 200, Map.empty)
     }
 
     new GceMetadata[IO](client).getInstanceContextBlocking.unsafeRunSync() must beNone
