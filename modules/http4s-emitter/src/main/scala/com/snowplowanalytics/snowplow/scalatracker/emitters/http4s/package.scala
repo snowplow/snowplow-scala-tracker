@@ -10,22 +10,21 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.scalatracker
+package com.snowplowanalytics.snowplow.scalatracker.emitters
+
+import cats.effect.{Clock, Sync}
+import com.snowplowanalytics.snowplow.scalatracker.Tracking
 
 import java.util.UUID
 
-import cats.Id
+package object http4s {
 
-object syntax {
-  object id {
+  implicit def ceTracking[F[_]: Clock: Sync]: Tracking[F] = new Tracking[F] {
+    import scala.concurrent.duration.MILLISECONDS
 
-    implicit val idTracking: Tracking[Id] = new Tracking[Id] {
+    override def getCurrentTimeMillis: F[Long] = Clock[F].realTime(MILLISECONDS)
 
-      override def getCurrentTimeMillis: Id[Long] = System.currentTimeMillis()
-
-      override def generateUUID: Id[UUID] = UUID.randomUUID()
-
-    }
+    override def generateUUID: F[UUID] = Sync[F].delay(UUID.randomUUID)
 
   }
 

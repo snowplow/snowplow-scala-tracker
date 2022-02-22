@@ -44,8 +44,7 @@ lazy val core = project
     libraryDependencies ++= Seq(
       Dependencies.Libraries.igluCore,
       Dependencies.Libraries.circe,
-      Dependencies.Libraries.igluCoreCirce,
-      Dependencies.Libraries.catsEffect,
+      Dependencies.Libraries.igluCoreCirce
     )
   ) ++ BuildSettings.scalifySettings)
 
@@ -71,7 +70,8 @@ lazy val metadata = project
   .settings(Seq(
     name := "snowplow-scala-tracker-metadata",
     libraryDependencies ++= Seq(
-      Dependencies.Libraries.scalajHttp
+      Dependencies.Libraries.scalajHttp,
+      Dependencies.Libraries.catsEffect
     )
   ))
   .dependsOn(core % "test->test;compile->compile")
@@ -85,7 +85,8 @@ lazy val http4sEmitter = project
     name := "snowplow-scala-tracker-emitter-http4s",
     libraryDependencies ++= List(
       Dependencies.Libraries.http4sClient,
-      Dependencies.Libraries.slf4jApi
+      Dependencies.Libraries.slf4jApi,
+      Dependencies.Libraries.catsEffect
     )
   ))
   .dependsOn(core % "test->test;compile->compile")
