@@ -13,7 +13,7 @@
 package com.snowplowanalytics.snowplow.scalatracker.emitters.http4s
 
 import cats.{Monad, MonadThrow}
-import cats.effect.{Async, Concurrent, Fiber, Resource, Sync, Temporal}
+import cats.effect.{Async, Clock, Concurrent, Fiber, Resource, Sync, Temporal}
 import cats.effect.std.{Queue, Random}
 import cats.implicits._
 import com.snowplowanalytics.snowplow.scalatracker.{Buffer, Emitter, Payload}
@@ -82,7 +82,7 @@ object Http4sEmitter {
       case None      => Queue.unbounded
     }
 
-  private def shutdown[F[_]: Concurrent: Temporal](
+  private def shutdown[F[_]: Temporal](
     fiber: Fiber[F, Throwable, Unit],
     queue: Queue[F, Action],
     timeout: Option[FiniteDuration]
@@ -92,7 +92,7 @@ object Http4sEmitter {
       case None    => queue.offer(Action.Terminate) *> fiber.join.void
     }
 
-  private def shutdownWithTimeout[F[_]: Concurrent: Temporal](
+  private def shutdownWithTimeout[F[_]: Temporal](
     fiber: Fiber[F, Throwable, Unit],
     queue: Queue[F, Action],
     timeout: FiniteDuration
@@ -160,12 +160,12 @@ object Http4sEmitter {
       }
     }
 
-  private def attemptSend[F[_]: Temporal](
+  private def attemptSend[F[_]: MonadThrow: Clock](
     client: Client[F],
     collector: EndpointParams,
     request: Request
   ): F[Result] =
-    Temporal[F].realTime.map(_.toMillis).flatMap { dtm =>
+    Clock[F].realTime.map(_.toMillis).flatMap { dtm =>
       val httpRequest = request.updateStm(dtm) match {
         case Request.Buffered(_, payload) =>
           val body = Stream.emits(Payload.postPayload(payload).getBytes).covary[F]
