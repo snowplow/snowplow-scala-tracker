@@ -58,7 +58,7 @@ class Http4sEmitterSpec extends Specification {
       collector = Emitter.EndpointParams("example.com")
       client = Client[IO] { _ => Resource.eval(ref.update(_ + 1)).as(Response[IO]()) }
       emitter = Http4sEmitter.build[IO](collector, client, bufferConfig)(implicitly, rng)
-      beforeClose <- emitter.use { e => List.fill(events)(e.send(payload)).sequence_ >> IO.sleep(100.millis) >> ref.get }
+      beforeClose <- emitter.use { e => List.fill(events)(e.send(payload)).sequence_ >> IO.sleep(300.millis) >> ref.get }
       afterClose <- ref.get
     } yield (beforeClose, afterClose)
 
