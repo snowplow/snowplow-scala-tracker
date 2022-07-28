@@ -19,8 +19,8 @@ object Dependencies {
     val scalajHttp  = "2.4.2"
     val igluCore    = "1.0.1"
     val circe       = "0.14.1"
-    val catsEffect  = "2.5.3"
-    val http4s      = "0.22.4"
+    val catsEffect  = "3.3.5"
+    val http4s      = "0.23.10"
 
     // Java
     val slf4j       = "1.7.32"

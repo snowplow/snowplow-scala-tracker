@@ -13,16 +13,12 @@
 package com.snowplowanalytics.snowplow.scalatracker.metadata
 
 import scala.concurrent.duration._
-
 import cats.implicits._
-import cats.effect.{Concurrent, Sync, Timer}
-
+import cats.effect.{Async, Concurrent, Sync}
 import io.circe.Json
 import io.circe.syntax._
 import io.circe.parser.parse
-
 import scalaj.http.{Http, HttpRequest}
-
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
 
@@ -34,7 +30,7 @@ import com.snowplowanalytics.snowplow.scalatracker.SelfDescribingJson
   * Unlike EC2 instance document, GCE does not provide an excerpt, but instead
   * this module collect only meaningful properties
   */
-class GceMetadata[F[_]: Sync](client: HttpClient = _.asString) {
+class GceMetadata[F[_]: Async](client: HttpClient = _.asString) {
 
   val InstanceMetadataSchema: SchemaKey =
     SchemaKey("com.google.cloud.gce", "instance_metadata", "jsonschema", SchemaVer.Full(1, 0, 0))
@@ -46,8 +42,8 @@ class GceMetadata[F[_]: Sync](client: HttpClient = _.asString) {
     *
     * @return some context or None in case of any error including 3 sec timeout
     */
-  def getInstanceContextBlocking(implicit F: Concurrent[F], T: Timer[F]): F[Option[SelfDescribingJson]] =
-    Concurrent.timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
+  def getInstanceContextBlocking: F[Option[SelfDescribingJson]] =
+    Concurrent[F].timeoutTo(getInstanceContext.map(_.some), 3.seconds, Option.empty[SelfDescribingJson].pure[F])
 
   /**
     * Tries to GET self-describing JSON with instance identity
@@ -86,7 +82,7 @@ class GceMetadata[F[_]: Sync](client: HttpClient = _.asString) {
     Http(InstanceMetadataUri + path).header("Metadata-Flavor", "Google")
 
   private[metadata] def getString(path: String): F[String] =
-    Sync[F].delay(client(request(path)).body)
+    Sync[F].interruptible(client(request(path)).body)
 
   private def getJson(path: String): F[Json] =
     getString(path).flatMap { string =>
