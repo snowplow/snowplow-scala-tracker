@@ -20,7 +20,7 @@ object Dependencies {
     val igluCore    = "1.0.1"
     val circe       = "0.14.1"
     val catsEffect  = "3.3.5"
-    val http4s      = "0.23.10"
+    val http4s      = "0.23.15"
 
     // Java
     val slf4j       = "1.7.32"
