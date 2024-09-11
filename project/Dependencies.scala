@@ -17,17 +17,17 @@ object Dependencies {
   object V {
     // Scala
     val scalajHttp  = "2.4.2"
-    val igluCore    = "1.0.1"
+    val igluCore    = "1.1.3"
     val circe       = "0.14.1"
-    val catsEffect  = "3.3.5"
-    val http4s      = "0.23.15"
+    val catsEffect  = "3.5.4"
+    val http4s      = "0.23.28"
 
     // Java
-    val slf4j       = "1.7.32"
+    val slf4j       = "2.0.12"
 
     // Scala (test only)
-    val specs2      = "4.12.3"
-    val scalaCheck  = "1.15.4"
+    val specs2      = "4.20.7"
+    val scalaCheck  = "1.18.0"
   }
 
   object Libraries {
