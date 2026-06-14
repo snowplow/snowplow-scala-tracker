@@ -17,7 +17,7 @@ import cats.effect.std.Random
 import cats.effect.unsafe.implicits.global
 import cats.implicits._
 
-import org.http4s.Response
+import org.http4s.{Request, Response}
 import org.http4s.client.Client
 import com.snowplowanalytics.snowplow.scalatracker.{Emitter, Payload}
 import org.specs2.Specification
@@ -36,29 +36,33 @@ class Http4sEmitterSpec extends Specification {
 
   """
 
-  val payload = Payload(Map("foo" -> "bar", "bar" -> "foo"))
+  val payload                 = Payload(Map("foo" -> "bar", "bar" -> "foo"))
   val threeEventsPayloadBytes = Payload.postPayload(Seq(payload, payload, payload)).getBytes.length
-  val maxEventsBufferConfig = Emitter.BufferConfig.EventsCardinality(3)
-  val maxBytesBufferConfig = Emitter.BufferConfig.PayloadSize(threeEventsPayloadBytes)
+  val maxEventsBufferConfig   = Emitter.BufferConfig.EventsCardinality(3)
+  val maxBytesBufferConfig    = Emitter.BufferConfig.PayloadSize(threeEventsPayloadBytes)
 
-  def e1 = testEmitter(maxEventsBufferConfig, 2).unsafeRunSync() must_==((0, 1): (Int, Int))
+  def e1 = testEmitter(maxEventsBufferConfig, 2).unsafeRunSync() must_== ((0, 1): (Int, Int))
 
-  def e2 = testEmitter(maxEventsBufferConfig, 3).unsafeRunSync() must_==((1, 1): (Int, Int))
+  def e2 = testEmitter(maxEventsBufferConfig, 3).unsafeRunSync() must_== ((1, 1): (Int, Int))
 
-  def e3 = testEmitter(maxBytesBufferConfig, 2).unsafeRunSync() must_==((0, 1): (Int, Int))
+  def e3 = testEmitter(maxBytesBufferConfig, 2).unsafeRunSync() must_== ((0, 1): (Int, Int))
 
-  def e4 = testEmitter(maxBytesBufferConfig, 3).unsafeRunSync() must_==((1, 1): (Int, Int))
+  def e4 = testEmitter(maxBytesBufferConfig, 3).unsafeRunSync() must_== ((1, 1): (Int, Int))
 
-  def e5 = testEmitter(maxBytesBufferConfig, 1).unsafeRunSync() must_==((0, 1): (Int, Int))
+  def e5 = testEmitter(maxBytesBufferConfig, 1).unsafeRunSync() must_== ((0, 1): (Int, Int))
 
   def testEmitter(bufferConfig: Emitter.BufferConfig, events: Int): IO[(Int, Int)] =
     for {
       rng <- Random.scalaUtilRandom[IO]
       ref <- Ref.of[IO, Int](0)
       collector = Emitter.EndpointParams("example.com")
-      client = Client[IO] { _ => Resource.eval(ref.update(_ + 1)).as(Response[IO]()) }
+      client = Client[IO] { (_: Request[IO]) =>
+        Resource.eval(ref.update(n => n + 1).as(Response[IO]()))
+      }
       emitter = Http4sEmitter.build[IO](collector, client, bufferConfig)(implicitly, rng)
-      beforeClose <- emitter.use { e => List.fill(events)(e.send(payload)).sequence_ >> IO.sleep(900.millis) >> ref.get }
+      beforeClose <- emitter.use { e =>
+        List.fill(events)(e.send(payload)).sequence_ >> IO.sleep(900.millis) >> ref.get
+      }
       afterClose <- ref.get
     } yield (beforeClose, afterClose)
 

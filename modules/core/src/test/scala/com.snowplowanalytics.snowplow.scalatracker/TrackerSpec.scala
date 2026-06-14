@@ -280,12 +280,12 @@ class TrackerSpec extends Specification {
         "iglu:com.snowplowanalytics.snowplow/application_error/jsonschema/1-0-1"
       )
       data.message.string.getOption(json) must beSome("boom!")
-      data.stackTrace.string.getOption(json) must beSome.which(_.contains("java.lang.RuntimeException: boom!"))
-      data.threadName.string.getOption(json) must not(beSome.which(_.isEmpty))
-      data.threadId.json.getOption(json) must beSome.which(!_.isNull)
+      data.stackTrace.string.getOption(json) must beSome[String].which(_.contains("java.lang.RuntimeException: boom!"))
+      data.threadName.string.getOption(json) must not(beSome[String].which(_.isEmpty))
+      data.threadId.json.getOption(json) must beSome[Json].which(!_.isNull)
       data.programmingLanguage.string.getOption(json) must beSome("SCALA")
-      data.lineNumber.int.getOption(json) must beSome.which(_ > 0)
-      data.className.string.getOption(json) must beSome.which(_.contains(this.getClass.getName))
+      data.lineNumber.int.getOption(json) must beSome[Int].which(_ > 0)
+      data.className.string.getOption(json) must beSome[String].which(_.contains(this.getClass.getName))
       data.exceptionName.string.getOption(json) must beSome("java.lang.RuntimeException")
       data.isFatal.boolean.getOption(json) must beSome(true)
 

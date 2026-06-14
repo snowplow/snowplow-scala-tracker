@@ -9,7 +9,7 @@ jobs:
 
     strategy:
       matrix:
-        scala-version: [2.12.14, 2.13.6]
+        scala-version: [2.12.20, 2.13.16, 3.3.7]
 
     steps:
     - uses: actions/checkout@v2

@@ -52,7 +52,7 @@ object StressTest {
     def apply[A: Read] = implicitly[Read[A]]
   }
 
-  implicit val sdJsonsRead = new Read[List[SelfDescribingJson]] {
+  implicit val sdJsonsRead: Read[List[SelfDescribingJson]] = new Read[List[SelfDescribingJson]] {
     def parseJson(json: Json): SelfDescribingData[Json] =
       json
         .asObject
@@ -71,7 +71,7 @@ object StressTest {
 
   }
 
-  implicit val tstmpRead = new Read[Option[Timestamp]] {
+  implicit val tstmpRead: Read[Option[Timestamp]] = new Read[Option[Timestamp]] {
     def reads(line: String): Option[Timestamp] =
       line.split(":").toList match {
         case List("ttm", tstamp) => Some(TrueTimestamp(tstamp.toLong))
@@ -80,9 +80,9 @@ object StressTest {
       }
   }
 
-  implicit val eventRead = new Read[EventArguments] {
+  implicit val eventRead: Read[EventArguments] = new Read[EventArguments] {
     def reads(line: String): EventArguments = {
-      val cols = line.split("\t", -1).lift
+      val cols = line.split("\t", -1).toIndexedSeq.lift
       (cols(0), cols(1)) match {
         case (Some("pv"), Some(url)) =>
           val ctx: Option[List[SelfDescribingJson]] = cols(4).map(sdJsonsRead.reads)

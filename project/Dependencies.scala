@@ -16,35 +16,50 @@ object Dependencies {
 
   object V {
     // Scala
-    val scalajHttp  = "2.4.2"
-    val igluCore    = "1.0.1"
-    val circe       = "0.14.1"
-    val catsEffect  = "3.3.5"
-    val http4s      = "0.23.15"
+    val scalajHttp       = "2.4.2"
+    // org.scalaj publishes no Scala 3 build; com.codacy maintains a drop-in fork
+    val scalajHttpScala3 = "2.5.0"
+    val igluCore         = "1.1.4"
+    val circe            = "0.14.1"
+    val catsEffect       = "3.3.5"
+    val http4s           = "0.23.15"
 
     // Java
     val slf4j       = "1.7.32"
 
     // Scala (test only)
-    val specs2      = "4.12.3"
-    val scalaCheck  = "1.15.4"
+    val specs2            = "4.20.9"
+    val scalaCheck        = "1.17.0"
+    val circeOptics       = "0.14.1"
+    // circe-optics only publishes a Scala 3 build from 0.15.0 onwards
+    val circeOpticsScala3 = "0.15.0"
   }
 
   object Libraries {
     // Scala
-    val scalajHttp     = "org.scalaj"            %% "scalaj-http"     % V.scalajHttp
-    val igluCore       = "com.snowplowanalytics" %% "iglu-core"       % V.igluCore
-    val igluCoreCirce  = "com.snowplowanalytics" %% "iglu-core-circe" % V.igluCore
-    val circe          = "io.circe"              %% "circe-parser"    % V.circe
-    val catsEffect     = "org.typelevel"         %% "cats-effect"     % V.catsEffect
-    val http4sClient   = "org.http4s"            %% "http4s-client"   % V.http4s
+    val scalajHttp       = "org.scalaj"            %% "scalaj-http"     % V.scalajHttp
+    val scalajHttpScala3 = "com.codacy"            %% "scalaj-http"     % V.scalajHttpScala3
+    val igluCore         = "com.snowplowanalytics" %% "iglu-core"       % V.igluCore
+    val igluCoreCirce    = "com.snowplowanalytics" %% "iglu-core-circe" % V.igluCore
+    val circe            = "io.circe"              %% "circe-parser"    % V.circe
+    val catsEffect       = "org.typelevel"         %% "cats-effect"     % V.catsEffect
+    val http4sClient     = "org.http4s"            %% "http4s-client"   % V.http4s
 
     // Java
     val slf4jApi = "org.slf4j" % "slf4j-api" % V.slf4j
 
     // Scala (test only)
-    val specs2        = "org.specs2"             %% "specs2-core"         % V.specs2      % "test"
-    val scalaCheck    = "org.scalacheck"         %% "scalacheck"          % V.scalaCheck  % "test"
-    val circeOptics   = "io.circe"               %% "circe-optics"        % V.circe       % "test"
+    val specs2            = "org.specs2"     %% "specs2-core"  % V.specs2            % "test"
+    val scalaCheck        = "org.scalacheck" %% "scalacheck"   % V.scalaCheck        % "test"
+    val circeOptics       = "io.circe"       %% "circe-optics" % V.circeOptics       % "test"
+    val circeOpticsScala3 = "io.circe"       %% "circe-optics" % V.circeOpticsScala3 % "test"
   }
+
+  /** scalaj-http: the org.scalaj artifact for Scala 2, the com.codacy drop-in fork for Scala 3. */
+  def scalajHttpFor(scalaVersion: String) =
+    if (scalaVersion.startsWith("3")) Libraries.scalajHttpScala3 else Libraries.scalajHttp
+
+  /** circe-optics: 0.14.x for Scala 2, 0.15.x (first Scala 3 build) for Scala 3. */
+  def circeOpticsFor(scalaVersion: String) =
+    if (scalaVersion.startsWith("3")) Libraries.circeOpticsScala3 else Libraries.circeOptics
 }

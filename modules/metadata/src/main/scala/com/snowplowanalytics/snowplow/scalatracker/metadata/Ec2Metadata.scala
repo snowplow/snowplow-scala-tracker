@@ -58,7 +58,7 @@ class Ec2Metadata[F[_]: Async](client: HttpClient = _.asString) {
     */
   def getInstanceIdentity: F[Json] = {
     val instanceIdentityDocument = getContent(InstanceIdentityUri)
-    instanceIdentityDocument.flatMap { resp: String =>
+    instanceIdentityDocument.flatMap { (resp: String) =>
       parse(resp)
         .toOption
         .flatMap(_.asObject)

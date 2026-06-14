@@ -5,7 +5,7 @@
 The Snowplow Scala Tracker is a client library for sending analytics events to Snowplow collectors. It provides a purely functional, typesafe API for tracking user interactions, page views, transactions, and custom events. The tracker uses tagless final pattern with higher-kinded types (`F[_]`) to support different effect types and maintains referential transparency throughout the codebase.
 
 ### Key Technologies
-- **Scala**: 2.12.14, 2.13.6 (cross-compiled)
+- **Scala**: 2.12.20, 2.13.16, 3.3.7 (cross-compiled)
 - **Cats/Cats Effect**: Core FP abstractions and effect management
 - **Circe**: JSON encoding/decoding
 - **Iglu**: Schema registry integration for self-describing JSONs
