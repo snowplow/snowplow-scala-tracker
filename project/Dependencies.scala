@@ -57,9 +57,9 @@ object Dependencies {
 
   // scalaj-http: the org.scalaj artifact for Scala 2, the com.codacy drop-in fork for Scala 3
   def scalajHttpFor(scalaVersion: String) =
-    if (BuildSettings.isScala3) Libraries.scalajHttpScala3 else Libraries.scalajHttp
+    if (BuildSettings.isScala3(scalaVersion)) Libraries.scalajHttpScala3 else Libraries.scalajHttp
 
   // circe-optics: 0.14.x for Scala 2 because there is no 0.15.x for Scala 2.12
   def circeOpticsFor(scalaVersion: String) =
-    if (BuildSettings.isScala3) Libraries.circeOpticsScala3 else Libraries.circeOptics
+    if (BuildSettings.isScala3(scalaVersion)) Libraries.circeOpticsScala3 else Libraries.circeOptics
 }
