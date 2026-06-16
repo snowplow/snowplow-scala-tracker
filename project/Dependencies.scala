@@ -55,11 +55,11 @@ object Dependencies {
     val circeOpticsScala3 = "io.circe"       %% "circe-optics" % V.circeOpticsScala3 % "test"
   }
 
-  /** scalaj-http: the org.scalaj artifact for Scala 2, the com.codacy drop-in fork for Scala 3. */
+  // scalaj-http: the org.scalaj artifact for Scala 2, the com.codacy drop-in fork for Scala 3
   def scalajHttpFor(scalaVersion: String) =
-    if (scalaVersion.startsWith("3")) Libraries.scalajHttpScala3 else Libraries.scalajHttp
+    if (BuildSettings.isScala3) Libraries.scalajHttpScala3 else Libraries.scalajHttp
 
-  /** circe-optics: 0.14.x for Scala 2, 0.15.x (first Scala 3 build) for Scala 3. */
+  // circe-optics: 0.14.x for Scala 2 because there is no 0.15.x for Scala 2.12
   def circeOpticsFor(scalaVersion: String) =
-    if (scalaVersion.startsWith("3")) Libraries.circeOpticsScala3 else Libraries.circeOptics
+    if (BuildSettings.isScala3) Libraries.circeOpticsScala3 else Libraries.circeOptics
 }
