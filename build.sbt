@@ -13,14 +13,14 @@
 
 lazy val commonSettings = Seq(
   organization := "com.snowplowanalytics",
-  scalaVersion := "2.13.6",
-  crossScalaVersions := Seq("2.12.14", "2.13.6"),
+  scalaVersion := "2.13.16",
+  crossScalaVersions := Seq("2.12.20", "2.13.16", "3.3.7"),
   scalacOptions := BuildSettings.compilerOptions(scalaVersion.value),
   javacOptions ++= BuildSettings.javaCompilerOptions,
   libraryDependencies ++= Seq(
     Dependencies.Libraries.specs2,
     Dependencies.Libraries.scalaCheck,
-    Dependencies.Libraries.circeOptics
+    Dependencies.circeOpticsFor(scalaVersion.value)
   ),
   ThisBuild / dynverVTagPrefix := false
 ) ++ BuildSettings.publishSettings // Otherwise git tags required to have v-prefix
@@ -56,7 +56,7 @@ lazy val idEmitter = project
   .settings(Seq(
     name := "snowplow-scala-tracker-emitter-id",
     libraryDependencies ++= Seq(
-      Dependencies.Libraries.scalajHttp,
+      Dependencies.scalajHttpFor(scalaVersion.value),
       Dependencies.Libraries.slf4jApi
     )
   ))
@@ -70,7 +70,7 @@ lazy val metadata = project
   .settings(Seq(
     name := "snowplow-scala-tracker-metadata",
     libraryDependencies ++= Seq(
-      Dependencies.Libraries.scalajHttp,
+      Dependencies.scalajHttpFor(scalaVersion.value),
       Dependencies.Libraries.catsEffect
     )
   ))

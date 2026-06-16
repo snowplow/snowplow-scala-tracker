@@ -40,18 +40,29 @@ object BuildSettings {
     }.taskValue
   )
 
-  def compilerOptions(scalaVersion: String) = Seq(
-    "-deprecation",
-    "-encoding", "UTF-8",
-    "-feature",
-    "-language:existentials",
-    "-language:higherKinds",
-    "-language:implicitConversions",
-    "-unchecked",
-    "-Ywarn-dead-code",
-    "-Ywarn-numeric-widen",
-    "-Xlint"
-  ) ++ (if (priorTo2_13(scalaVersion)) Seq("-Ypartial-unification", "-Xfuture") else Nil )
+  def compilerOptions(scalaVersion: String) =
+    if (isScala3(scalaVersion))
+      Seq(
+        "-deprecation",
+        "-encoding", "UTF-8",
+        "-feature",
+        "-language:higherKinds",
+        "-language:implicitConversions",
+        "-unchecked"
+      )
+    else
+      Seq(
+        "-deprecation",
+        "-encoding", "UTF-8",
+        "-feature",
+        "-language:existentials",
+        "-language:higherKinds",
+        "-language:implicitConversions",
+        "-unchecked",
+        "-Ywarn-dead-code",
+        "-Ywarn-numeric-widen",
+        "-Xlint"
+      ) ++ (if (priorTo2_13(scalaVersion)) Seq("-Ypartial-unification", "-Xfuture") else Nil)
 
   lazy val javaCompilerOptions = Seq(
     "-source", "1.8",
@@ -62,6 +73,12 @@ object BuildSettings {
     CrossVersion.partialVersion(scalaVersion) match {
       case Some((2, minor)) if minor < 13 => true
       case _                              => false
+    }
+
+  def isScala3(scalaVersion: String): Boolean =
+    CrossVersion.partialVersion(scalaVersion) match {
+      case Some((3, _)) => true
+      case _            => false
     }
 
   // Maven publishing settings
