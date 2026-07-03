@@ -104,7 +104,12 @@ object BuildSettings {
   // removing older versions.
   val mimaPreviousVersions = Set("2.0.0")
   val mimaSettings = Seq(
-    mimaPreviousArtifacts := mimaPreviousVersions.map { organization.value %% name.value % _ },
+    // 2.0.0 predates Scala 3 cross-publishing (added in 2.0.1), so no _3 artifact
+    // exists on Maven Central for it; skip the compat check on that Scala version.
+    mimaPreviousArtifacts := {
+      if (isScala3(scalaVersion.value)) Set.empty
+      else mimaPreviousVersions.map { organization.value %% name.value % _ }
+    },
     ThisBuild / mimaFailOnNoPrevious := false,
     mimaBinaryIssueFilters ++= Seq(),
     Test / test := {
